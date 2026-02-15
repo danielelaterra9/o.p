@@ -360,6 +360,183 @@ const CharacterCreationPage = ({ onNavigate }) => {
   );
 };
 
+// Attack Animation Component
+const AttackAnimation = ({ type, onComplete }) => {
+  const variants = {
+    punch: {
+      initial: { x: -200, y: 100, scale: 0.5, opacity: 0 },
+      animate: { 
+        x: [null, 0, 100], 
+        y: [null, 0, -20],
+        scale: [0.5, 1.5, 2],
+        opacity: [0, 1, 0],
+        rotate: [0, 0, 15]
+      },
+      transition: { duration: 0.6, times: [0, 0.6, 1] }
+    },
+    gomugomu: {
+      initial: { x: -300, scaleX: 0.3, opacity: 0 },
+      animate: { 
+        x: [null, -100, 150], 
+        scaleX: [0.3, 3, 1],
+        opacity: [0, 1, 0]
+      },
+      transition: { duration: 0.8, times: [0, 0.5, 1] }
+    },
+    fire: {
+      initial: { scale: 0, opacity: 0 },
+      animate: { 
+        scale: [0, 1.5, 2, 0],
+        opacity: [0, 1, 1, 0]
+      },
+      transition: { duration: 0.7 }
+    },
+    slash: {
+      initial: { x: -100, rotate: -45, opacity: 0, scale: 0.5 },
+      animate: { 
+        x: [null, 50, 150], 
+        rotate: [-45, 0, 45],
+        opacity: [0, 1, 0],
+        scale: [0.5, 1.2, 0.8]
+      },
+      transition: { duration: 0.5 }
+    },
+    defend: {
+      initial: { scale: 0, opacity: 0 },
+      animate: { 
+        scale: [0, 1.2, 1],
+        opacity: [0, 0.8, 0]
+      },
+      transition: { duration: 0.8 }
+    },
+    heal: {
+      initial: { y: 50, opacity: 0 },
+      animate: { 
+        y: [50, 0, -30],
+        opacity: [0, 1, 0],
+        scale: [0.5, 1.2, 0.8]
+      },
+      transition: { duration: 1 }
+    }
+  };
+
+  const getIcon = () => {
+    switch(type) {
+      case 'punch': return '👊';
+      case 'gomugomu': return '🥊';
+      case 'fire': return '🔥';
+      case 'slash': return '⚔️';
+      case 'defend': return '🛡️';
+      case 'heal': return '✨';
+      default: return '💥';
+    }
+  };
+
+  const getColor = () => {
+    switch(type) {
+      case 'punch': return '#D4AF37';
+      case 'gomugomu': return '#FF3B30';
+      case 'fire': return '#FF6B35';
+      case 'slash': return '#00FFFF';
+      case 'defend': return '#6A0DAD';
+      case 'heal': return '#39FF14';
+      default: return '#D4AF37';
+    }
+  };
+
+  return (
+    <motion.div
+      className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"
+      initial="initial"
+      animate="animate"
+      variants={variants[type] || variants.punch}
+      onAnimationComplete={onComplete}
+    >
+      <div 
+        className="text-8xl filter drop-shadow-lg"
+        style={{ 
+          textShadow: `0 0 30px ${getColor()}, 0 0 60px ${getColor()}`,
+        }}
+      >
+        {getIcon()}
+      </div>
+    </motion.div>
+  );
+};
+
+// Impact Effect Component
+const ImpactEffect = ({ position, color = '#FF3B30' }) => (
+  <motion.div
+    className="absolute pointer-events-none z-40"
+    style={{ left: position.x, top: position.y }}
+    initial={{ scale: 0, opacity: 1 }}
+    animate={{ 
+      scale: [0, 2, 3],
+      opacity: [1, 0.8, 0]
+    }}
+    transition={{ duration: 0.5 }}
+  >
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      <motion.circle
+        cx="60"
+        cy="60"
+        r="50"
+        fill="none"
+        stroke={color}
+        strokeWidth="4"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.3 }}
+      />
+      {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
+        <motion.line
+          key={i}
+          x1="60"
+          y1="60"
+          x2={60 + Math.cos(angle * Math.PI / 180) * 50}
+          y2={60 + Math.sin(angle * Math.PI / 180) * 50}
+          stroke={color}
+          strokeWidth="3"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.2, delay: i * 0.02 }}
+        />
+      ))}
+    </svg>
+  </motion.div>
+);
+
+// Particle Effect Component
+const ParticleEffect = ({ type, active }) => {
+  const particles = Array.from({ length: 12 }, (_, i) => i);
+  
+  if (!active) return null;
+  
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
+      {particles.map((i) => (
+        <motion.div
+          key={i}
+          className="absolute w-3 h-3 rounded-full"
+          style={{
+            left: '50%',
+            top: '50%',
+            backgroundColor: type === 'fire' ? '#FF6B35' : type === 'electric' ? '#00FFFF' : '#D4AF37'
+          }}
+          initial={{ x: 0, y: 0, opacity: 1 }}
+          animate={{
+            x: Math.cos(i * 30 * Math.PI / 180) * (100 + Math.random() * 50),
+            y: Math.sin(i * 30 * Math.PI / 180) * (100 + Math.random() * 50),
+            opacity: 0,
+            scale: [1, 1.5, 0]
+          }}
+          transition={{ duration: 0.8, delay: i * 0.03 }}
+        />
+      ))}
+    </div>
+  );
+};
+
 // Battle Page
 const BattlePage = ({ onNavigate }) => {
   const [playerHP, setPlayerHP] = useState(85);
@@ -368,6 +545,13 @@ const BattlePage = ({ onNavigate }) => {
   const [battleLog, setBattleLog] = useState(['Combattimento iniziato!', 'Il Marine Captain ti sfida!']);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [showDamage, setShowDamage] = useState(null);
+  const [currentAnimation, setCurrentAnimation] = useState(null);
+  const [enemyShake, setEnemyShake] = useState(false);
+  const [playerShake, setPlayerShake] = useState(false);
+  const [showImpact, setShowImpact] = useState(null);
+  const [particleType, setParticleType] = useState(null);
+  const [hakiFlash, setHakiFlash] = useState(false);
+  const [defending, setDefending] = useState(false);
   
   const handleAction = (action) => {
     if (!isPlayerTurn) return;
@@ -375,23 +559,46 @@ const BattlePage = ({ onNavigate }) => {
     let damage = 0;
     let staminaCost = 0;
     let message = '';
+    let animationType = 'punch';
+    let isCritical = Math.random() < 0.15; // 15% critical chance
     
     switch(action) {
       case 'attack':
         damage = Math.floor(Math.random() * 10) + 10;
-        message = `Attacco base! ${damage} danni!`;
+        if (isCritical) {
+          damage = Math.floor(damage * 1.5);
+          message = `COLPO CRITICO! Attacco base! ${damage} danni!`;
+          setHakiFlash(true);
+          setTimeout(() => setHakiFlash(false), 300);
+        } else {
+          message = `Attacco base! ${damage} danni!`;
+        }
+        animationType = 'punch';
         break;
       case 'skill':
         damage = Math.floor(Math.random() * 20) + 20;
         staminaCost = 20;
-        message = `Gomu Gomu no Pistol! ${damage} danni!`;
+        if (isCritical) {
+          damage = Math.floor(damage * 1.5);
+          message = `CRITICO! Gomu Gomu no Pistol! ${damage} danni!`;
+          setHakiFlash(true);
+          setTimeout(() => setHakiFlash(false), 300);
+        } else {
+          message = `Gomu Gomu no Pistol! ${damage} danni!`;
+        }
+        animationType = 'gomugomu';
+        setParticleType('fire');
+        setTimeout(() => setParticleType(null), 800);
         break;
       case 'defend':
         message = 'Ti difendi! +50% DEF per questo turno';
+        animationType = 'defend';
+        setDefending(true);
         break;
       case 'item':
         setPlayerHP(Math.min(100, playerHP + 30));
         message = 'Hai usato Carne! +30 HP';
+        animationType = 'heal';
         break;
       default:
         break;
@@ -401,22 +608,51 @@ const BattlePage = ({ onNavigate }) => {
       setPlayerStamina(Math.max(0, playerStamina - staminaCost));
     }
     
-    if (damage > 0) {
-      setEnemyHP(Math.max(0, enemyHP - damage));
-      setShowDamage({ value: damage, x: 70, y: 30 });
-      setTimeout(() => setShowDamage(null), 1000);
-    }
+    // Start attack animation
+    setCurrentAnimation(animationType);
     
-    setBattleLog([...battleLog, message]);
+    // After animation, apply damage
+    setTimeout(() => {
+      setCurrentAnimation(null);
+      
+      if (damage > 0) {
+        setEnemyHP(Math.max(0, enemyHP - damage));
+        setShowDamage({ value: damage, critical: isCritical });
+        setEnemyShake(true);
+        setShowImpact({ x: '60%', y: '30%' });
+        
+        setTimeout(() => {
+          setShowDamage(null);
+          setEnemyShake(false);
+          setShowImpact(null);
+        }, 800);
+      }
+      
+      setBattleLog(prev => [...prev, message]);
+    }, animationType === 'gomugomu' ? 600 : 400);
+    
     setIsPlayerTurn(false);
     
     // Enemy turn simulation
     setTimeout(() => {
-      const enemyDamage = Math.floor(Math.random() * 15) + 5;
-      setPlayerHP(Math.max(0, playerHP - enemyDamage));
-      setBattleLog(prev => [...prev, `Il nemico attacca! ${enemyDamage} danni!`]);
-      setIsPlayerTurn(true);
-    }, 1500);
+      const enemyDamage = defending ? Math.floor((Math.random() * 15 + 5) * 0.5) : Math.floor(Math.random() * 15) + 5;
+      setDefending(false);
+      
+      // Enemy attack animation
+      setCurrentAnimation('slash');
+      
+      setTimeout(() => {
+        setCurrentAnimation(null);
+        setPlayerHP(Math.max(0, playerHP - enemyDamage));
+        setPlayerShake(true);
+        setBattleLog(prev => [...prev, `Il nemico attacca! ${enemyDamage} danni!`]);
+        
+        setTimeout(() => {
+          setPlayerShake(false);
+          setIsPlayerTurn(true);
+        }, 500);
+      }, 400);
+    }, 2000);
   };
   
   return (
