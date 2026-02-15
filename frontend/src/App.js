@@ -656,24 +656,62 @@ const BattlePage = ({ onNavigate }) => {
   };
   
   return (
-    <div className="min-h-screen bg-[#0F1C2E] flex flex-col">
+    <div className={`min-h-screen bg-[#0F1C2E] flex flex-col relative ${hakiFlash ? 'haki-flash-active' : ''}`}>
+      {/* Haki Flash Overlay */}
+      <AnimatePresence>
+        {hakiFlash && (
+          <motion.div
+            className="absolute inset-0 bg-[#6A0DAD] z-50 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.4 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Attack Animation */}
+      <AnimatePresence>
+        {currentAnimation && (
+          <AttackAnimation 
+            type={currentAnimation} 
+            onComplete={() => {}}
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Particle Effects */}
+      <ParticleEffect type={particleType} active={!!particleType} />
+      
+      {/* Impact Effect */}
+      <AnimatePresence>
+        {showImpact && <ImpactEffect position={showImpact} color="#FF3B30" />}
+      </AnimatePresence>
+      
       {/* Top: Enemy Area */}
       <div className="flex-1 relative p-4 md:p-8" style={{background: 'linear-gradient(180deg, #1a3a5c 0%, #0F1C2E 100%)'}}>
         <motion.button
           onClick={() => onNavigate('landing')}
-          className="absolute top-4 left-4 text-[#F4E4BC]/70 hover:text-[#D4AF37]"
+          className="absolute top-4 left-4 text-[#F4E4BC]/70 hover:text-[#D4AF37] z-10"
           whileHover={{ scale: 1.1 }}
         >
           <Anchor className="w-8 h-8" />
         </motion.button>
         
         <div className="max-w-4xl mx-auto">
-          <div className="glass-panel p-6 rounded-xl mb-4">
+          <motion.div 
+            className="glass-panel p-6 rounded-xl mb-4"
+            animate={enemyShake ? { x: [-10, 10, -10, 10, 0] } : {}}
+            transition={{ duration: 0.4 }}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-[#5D4037] border-2 border-[#D4AF37] flex items-center justify-center">
+                <motion.div 
+                  className="w-16 h-16 rounded-full bg-[#5D4037] border-2 border-[#D4AF37] flex items-center justify-center"
+                  animate={enemyShake ? { scale: [1, 0.9, 1] } : {}}
+                >
                   <Skull className="w-10 h-10 text-[#F4E4BC]" />
-                </div>
+                </motion.div>
                 <div>
                   <h3 className="font-pirate text-xl text-[#FF3B30]">Marine Captain</h3>
                   <p className="text-sm text-[#F4E4BC]/70">Livello 5 - Boss</p>
@@ -685,20 +723,27 @@ const BattlePage = ({ onNavigate }) => {
             </div>
             
             <StatBar label="HP" current={enemyHP} max={100} color="#FF3B30" icon={Heart} />
-          </div>
+          </motion.div>
           
           {/* Damage Number */}
           <AnimatePresence>
             {showDamage && (
               <motion.div
-                className="absolute font-bounty text-4xl text-[#FF3B30]"
-                style={{ left: `${showDamage.x}%`, top: `${showDamage.y}%` }}
+                className={`absolute font-bounty text-5xl ${showDamage.critical ? 'text-[#FFD700]' : 'text-[#FF3B30]'}`}
+                style={{ left: '55%', top: '25%' }}
                 initial={{ opacity: 1, y: 0, scale: 1 }}
-                animate={{ opacity: 0, y: -50, scale: 1.5 }}
+                animate={{ 
+                  opacity: 0, 
+                  y: -80, 
+                  scale: showDamage.critical ? 2 : 1.5,
+                  rotate: showDamage.critical ? [0, -10, 10, 0] : 0
+                }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 1 }}
               >
+                {showDamage.critical && <span className="text-2xl">💥</span>}
                 -{showDamage.value}
+                {showDamage.critical && <span className="text-lg ml-1">CRITICO!</span>}
               </motion.div>
             )}
           </AnimatePresence>
@@ -710,7 +755,7 @@ const BattlePage = ({ onNavigate }) => {
                 key={i}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="text-[#F4E4BC]/80 text-sm mb-1"
+                className={`text-sm mb-1 ${log.includes('CRITICO') ? 'text-[#FFD700] font-bold' : 'text-[#F4E4BC]/80'}`}
               >
                 &gt; {log}
               </motion.p>
@@ -720,15 +765,28 @@ const BattlePage = ({ onNavigate }) => {
       </div>
       
       {/* Bottom: Player Area */}
-      <div className="glass-panel p-4 md:p-6 rounded-t-3xl">
+      <motion.div 
+        className="glass-panel p-4 md:p-6 rounded-t-3xl"
+        animate={playerShake ? { x: [-5, 5, -5, 5, 0] } : {}}
+        transition={{ duration: 0.3 }}
+      >
         <div className="max-w-4xl mx-auto">
           {/* Player Stats */}
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 rounded-full bg-[#D4AF37] border-2 border-[#F9A602] flex items-center justify-center">
-              <Crown className="w-8 h-8 text-[#3E2723]" />
-            </div>
+            <motion.div 
+              className={`w-14 h-14 rounded-full flex items-center justify-center ${defending ? 'bg-[#6A0DAD] border-2 border-[#00FFFF]' : 'bg-[#D4AF37] border-2 border-[#F9A602]'}`}
+              animate={defending ? { 
+                boxShadow: ['0 0 0px #6A0DAD', '0 0 20px #6A0DAD', '0 0 0px #6A0DAD']
+              } : {}}
+              transition={{ duration: 1, repeat: defending ? Infinity : 0 }}
+            >
+              {defending ? <Shield className="w-8 h-8 text-[#00FFFF]" /> : <Crown className="w-8 h-8 text-[#3E2723]" />}
+            </motion.div>
             <div className="flex-1">
-              <h3 className="font-pirate text-lg text-[#D4AF37]">Il Tuo Pirata</h3>
+              <h3 className="font-pirate text-lg text-[#D4AF37]">
+                Il Tuo Pirata
+                {defending && <span className="ml-2 text-sm text-[#00FFFF]">(DIFESA ATTIVA)</span>}
+              </h3>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <StatBar label="HP" current={playerHP} max={100} color="#FF3B30" icon={Heart} />
                 <StatBar label="Stamina" current={playerStamina} max={100} color="#00FFFF" icon={Zap} />
@@ -779,7 +837,7 @@ const BattlePage = ({ onNavigate }) => {
             </motion.p>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };
