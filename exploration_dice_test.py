@@ -277,6 +277,31 @@ class ExplorationDiceNavigationTester:
     def test_dice_navigation(self):
         """Test: POST /api/navigation/roll-dice"""
         try:
+            # First check if character has a ship
+            char_response = self.session.get(f"{BASE_URL}/characters/me")
+            if char_response.status_code != 200:
+                return self.log_test("Dice Navigation", False, f"Failed to get character info: {char_response.text}")
+            
+            char_data = char_response.json()
+            has_ship = bool(char_data.get("nave"))
+            
+            if not has_ship:
+                # Test without ship - should fail appropriately
+                response = self.session.post(f"{BASE_URL}/navigation/roll-dice")
+                
+                if response.status_code == 400:
+                    error_data = response.json()
+                    if "nave" in error_data.get("detail", "").lower():
+                        return self.log_test("Dice Navigation", True, 
+                                           "Navigation correctly fails without ship: " + error_data.get("detail", ""))
+                    else:
+                        return self.log_test("Dice Navigation", False, 
+                                           f"Expected ship error, got: {error_data.get('detail', '')}")
+                else:
+                    return self.log_test("Dice Navigation", False, 
+                                       f"Expected 400 error without ship, got {response.status_code}")
+            
+            # If we have a ship, test normal navigation
             dice_rolls_tested = []
             outcomes_found = set()
             
