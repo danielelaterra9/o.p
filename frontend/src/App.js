@@ -806,6 +806,7 @@ const Dashboard = ({ user, character, token, logout }) => {
   const menuItems = [
     { icon: Map, label: 'Mappa', path: '/world-map', color: '#00A8E8' },
     { icon: Swords, label: 'Arena', path: '/battle', color: '#D00000' },
+    { icon: Backpack, label: 'Inventario', path: '/inventory', color: '#2A9D8F' },
     { icon: UserCircle, label: 'Personaggio', path: '/character', color: '#FFC300' },
     { icon: ShoppingBag, label: 'Negozio', path: '/shop', color: '#D4AF37' },
   ];
