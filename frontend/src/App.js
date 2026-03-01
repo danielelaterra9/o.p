@@ -740,7 +740,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
             </motion.div>
           )}
 
-          {/* STEP 7: Aspetto & Conferma */}
+          {/* STEP 7: Aspetto (Opzionale) */}
           {step === 7 && (
             <motion.div key="step7" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
               <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Aspetto Fisico (Opzionale)</h2>
@@ -760,9 +760,88 @@ const CharacterCreation = ({ token, setCharacter }) => {
                 </div>
               </div>
               
+              <div className="flex justify-between">
+                <button onClick={() => setStep(6)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={() => setStep(8)} className="btn-gold py-3 px-8 rounded-lg font-pirate">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 8: Scelta Mare & Conferma */}
+          {step === 8 && (
+            <motion.div key="step8" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-2">Scegli il Tuo Mare</h2>
+              <p className="text-[#E3D5CA]/60 mb-6">Da quale dei quattro mari vuoi iniziare la tua avventura?</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {[
+                  { 
+                    id: 'east_blue', 
+                    name: 'East Blue', 
+                    color: '#3B82F6',
+                    icon: '🌅',
+                    description: 'Il mare più debole dei quattro, ma patria di grandi pirati come Gol D. Roger e Monkey D. Luffy.',
+                    start: 'Foosha Village'
+                  },
+                  { 
+                    id: 'west_blue', 
+                    name: 'West Blue', 
+                    color: '#10B981',
+                    icon: '🌿',
+                    description: 'Mare occidentale, patria degli studiosi di Ohara e del potente regno di Kano.',
+                    start: 'Regno di Ilisia'
+                  },
+                  { 
+                    id: 'north_blue', 
+                    name: 'North Blue', 
+                    color: '#8B5CF6',
+                    icon: '❄️',
+                    description: 'Mare settentrionale, freddo e misterioso. Patria del Supernova Trafalgar Law.',
+                    start: 'Regno di Lvneel'
+                  },
+                  { 
+                    id: 'south_blue', 
+                    name: 'South Blue', 
+                    color: '#F59E0B',
+                    icon: '☀️',
+                    description: 'Mare meridionale, noto per le arti marziali e come luogo di nascita di Portgas D. Ace.',
+                    start: 'Regno di Briss'
+                  }
+                ].map((sea) => (
+                  <motion.button
+                    key={sea.id}
+                    onClick={() => setCharData({ ...charData, mare_partenza: sea.id })}
+                    className={`p-4 rounded-xl text-left transition-all ${
+                      charData.mare_partenza === sea.id 
+                        ? `border-2 bg-opacity-20` 
+                        : 'glass border-2 border-transparent'
+                    }`}
+                    style={{ 
+                      borderColor: charData.mare_partenza === sea.id ? sea.color : 'transparent',
+                      backgroundColor: charData.mare_partenza === sea.id ? `${sea.color}20` : undefined
+                    }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-3xl">{sea.icon}</span>
+                      <div className="flex-1">
+                        <h3 className="font-pirate text-xl" style={{ color: sea.color }}>{sea.name}</h3>
+                        <p className="text-[#E3D5CA]/70 text-sm mt-1">{sea.description}</p>
+                        <p className="text-[#D4AF37] text-xs mt-2">🏝️ Inizio: {sea.start}</p>
+                      </div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+              
               {/* Summary */}
               <div className="p-4 bg-[#003566]/30 rounded-lg mb-6">
-                <h3 className="font-pirate text-xl text-[#FFC300] mb-3">Riepilogo</h3>
+                <h3 className="font-pirate text-xl text-[#FFC300] mb-3">Riepilogo Personaggio</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <p><span className="text-[#D4AF37]">Nome:</span> {charData.nome_personaggio}</p>
                   <p><span className="text-[#D4AF37]">Genere:</span> {charData.genere}</p>
@@ -770,6 +849,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
                   <p><span className="text-[#D4AF37]">Razza:</span> {races[charData.razza]?.name}</p>
                   <p><span className="text-[#D4AF37]">Stile:</span> {fightingStyles[charData.stile_combattimento]?.name}</p>
                   <p><span className="text-[#D4AF37]">Mestiere:</span> {mestieri[charData.mestiere]?.name}</p>
+                  <p><span className="text-[#D4AF37]">Mare:</span> {charData.mare_partenza === 'east_blue' ? 'East Blue' : charData.mare_partenza === 'west_blue' ? 'West Blue' : charData.mare_partenza === 'north_blue' ? 'North Blue' : 'South Blue'}</p>
                 </div>
                 <p className="mt-2"><span className="text-[#D4AF37]">Sogno:</span> {charData.sogno}</p>
                 <p className="mt-2"><span className="text-[#D4AF37]">Tratti:</span> {traits.join(', ')}</p>
@@ -778,11 +858,11 @@ const CharacterCreation = ({ token, setCharacter }) => {
               {error && <p className="text-[#D00000] text-sm mb-4">{error}</p>}
               
               <div className="flex justify-between">
-                <button onClick={() => setStep(6)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                <button onClick={() => setStep(7)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
                   <ChevronLeft className="inline w-5 h-5" /> Indietro
                 </button>
                 <button onClick={handleCreate} disabled={loading} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50" data-testid="create-character-btn">
-                  {loading ? 'Creazione...' : 'Crea Personaggio!'}
+                  {loading ? 'Creazione...' : '⚓ Salpa!'}
                 </button>
               </div>
             </motion.div>
