@@ -370,7 +370,7 @@ class FourSeasNavigationTester:
                     "genere": "maschio",
                     "eta": 20,
                     "razza": "umano",
-                    "stile_combattimento": "spada_singola",
+                    "stile_combattimento": "armi_mono",
                     "sogno": "Esplorare il mare",
                     "storia_carattere": f"Un pirata del {sea_id.replace('_', ' ').title()}",
                     "mestiere": "pirata",
