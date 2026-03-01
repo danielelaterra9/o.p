@@ -1118,6 +1118,7 @@ const IslandExplorer = ({ token, character }) => {
 // ============ BATTLE ARENA ============
 const BattleArena = ({ token, character }) => {
   const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
   const [battle, setBattle] = useState(null);
   const [loading, setLoading] = useState(false);
   const [narration, setNarration] = useState('');
@@ -1131,7 +1132,7 @@ const BattleArena = ({ token, character }) => {
     try {
       const response = await axios.post(`${API}/battle/start`, 
         { opponent_type: 'npc', opponent_id: opponentId },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${authToken}` }}
       );
       setBattle(response.data.battle);
       await getNarration(`La battaglia inizia contro ${response.data.battle.player2.name}!`);
@@ -1148,7 +1149,7 @@ const BattleArena = ({ token, character }) => {
     try {
       const response = await axios.post(`${API}/battle/${battle.battle_id}/action`,
         { action_type: actionType, action_name: actionName },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${authToken}` }}
       );
       
       setBattle(response.data.battle);
@@ -1201,7 +1202,7 @@ const BattleArena = ({ token, character }) => {
     try {
       const response = await axios.post(`${API}/ai/narrate-battle`,
         { context: `Battaglia tra ${character?.name} e ${battle?.player2?.name || 'nemico'}`, action },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${authToken}` }}
       );
       setNarration(response.data.narration);
     } catch (err) {
