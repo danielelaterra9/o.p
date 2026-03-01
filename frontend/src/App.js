@@ -1598,6 +1598,7 @@ const CardCollection = ({ token, character }) => {
 // ============ SHOP ============
 const Shop = ({ token, character }) => {
   const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
   const [items, setItems] = useState({});
   const [buying, setBuying] = useState(false);
 
@@ -1605,22 +1606,22 @@ const Shop = ({ token, character }) => {
     const fetchItems = async () => {
       try {
         const response = await axios.get(`${API}/shop/items`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${authToken}` }
         });
         setItems(response.data.items);
       } catch (err) {
         console.error(err);
       }
     };
-    fetchItems();
-  }, [token]);
+    if (authToken) fetchItems();
+  }, [authToken]);
 
   const buyItem = async (itemId) => {
     setBuying(true);
     try {
       await axios.post(`${API}/shop/buy`, 
         { item_id: itemId },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${authToken}` }}
       );
       // Show success feedback
     } catch (err) {
