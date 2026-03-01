@@ -1579,6 +1579,373 @@ async def travel_to_island(data: Dict[str, str], request: Request):
         }
     }
 
+# ============ ZONE EXPLORATION & EVENTS ============
+
+# Eventi casuali che possono accadere nelle zone
+ZONE_EVENTS = {
+    "combattimento": [
+        {"tipo": "nemico", "nome": "Bandito di strada", "descrizione": "Un bandito ti attacca per rubarti i Berry!", "ricompensa_berry": 50, "ricompensa_exp": 20, "difficolta": 2},
+        {"tipo": "nemico", "nome": "Pirata solitario", "descrizione": "Un pirata sbandato cerca di derubarti.", "ricompensa_berry": 100, "ricompensa_exp": 35, "difficolta": 3},
+        {"tipo": "nemico", "nome": "Cacciatore di taglie", "descrizione": "Un cacciatore di taglie ti ha riconosciuto!", "ricompensa_berry": 200, "ricompensa_exp": 50, "difficolta": 4},
+        {"tipo": "nemico", "nome": "Soldato della Marina", "descrizione": "Una pattuglia della Marina ti ferma!", "ricompensa_berry": 150, "ricompensa_exp": 40, "difficolta": 4},
+    ],
+    "scoperta": [
+        {"tipo": "tesoro", "nome": "Forziere abbandonato", "descrizione": "Trovi un vecchio forziere nascosto!", "ricompensa_berry": 100},
+        {"tipo": "tesoro", "nome": "Sacca di Berry", "descrizione": "Qualcuno ha perso una sacca piena di Berry!", "ricompensa_berry": 75},
+        {"tipo": "oggetto", "nome": "Pozione dimenticata", "descrizione": "Trovi una pozione di vita abbandonata.", "oggetto": {"id": "pozione_vita", "name": "Pozione Vita", "effect": {"vita": 30}}},
+        {"tipo": "carta", "nome": "Mappa misteriosa", "descrizione": "Trovi una vecchia mappa che potrebbe essere utile.", "carta": {"id": f"carta_mappa_{random.randint(1000,9999)}", "name": "Mappa Misteriosa", "effect": {"bonus_navigazione": 1}}},
+    ],
+    "sociale": [
+        {"tipo": "npc", "nome": "Mercante viaggiatore", "descrizione": "Un mercante ti offre uno sconto speciale.", "effetto": "sconto_shop"},
+        {"tipo": "npc", "nome": "Anziano del villaggio", "descrizione": "Un anziano ti racconta storie del passato.", "ricompensa_exp": 25},
+        {"tipo": "npc", "nome": "Pirata amichevole", "descrizione": "Un pirata ti offre informazioni utili.", "ricompensa_exp": 30},
+        {"tipo": "npc", "nome": "Bambino smarrito", "descrizione": "Aiuti un bambino a tornare a casa.", "ricompensa_exp": 20, "bonus_fortuna": 5},
+    ],
+    "pericolo": [
+        {"tipo": "trappola", "nome": "Tagliola nascosta", "descrizione": "Calpesti una trappola! Ti fai male.", "danno_vita": 15},
+        {"tipo": "veleno", "nome": "Fungo velenoso", "descrizione": "Mangi per sbaglio un fungo velenoso.", "danno_vita": 20},
+        {"tipo": "furto", "nome": "Borseggiatore", "descrizione": "Un ladro ti ruba alcuni Berry!", "perdita_berry": 50},
+    ],
+    "riposo": [
+        {"tipo": "riposo", "nome": "Locanda accogliente", "descrizione": "Trovi una locanda dove riposarti.", "recupero_vita": 50, "recupero_energia": 30},
+        {"tipo": "riposo", "nome": "Sorgente termale", "descrizione": "Scopri una sorgente termale nascosta!", "recupero_vita": 100, "recupero_energia": 50},
+        {"tipo": "riposo", "nome": "Campo tranquillo", "descrizione": "Trovi un posto tranquillo per riposare.", "recupero_vita": 30, "recupero_energia": 20},
+    ]
+}
+
+@api_router.get("/exploration/current-island")
+async def get_current_island_info(request: Request):
+    """Get detailed info about current island and its zones"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_island_id = character.get("isola_corrente", "dawn_island")
+    
+    if current_island_id not in ISLANDS:
+        raise HTTPException(status_code=404, detail="Isola non trovata")
+    
+    island = ISLANDS[current_island_id]
+    
+    # Get visited zones for this island
+    visited_zones = character.get("zone_visitate", {}).get(current_island_id, [])
+    
+    return {
+        "island_id": current_island_id,
+        "island": {
+            "name": island["name"],
+            "storia": island["storia"],
+            "pericolo": island["pericolo"],
+            "zone": island.get("zone", [])
+        },
+        "visited_zones": visited_zones,
+        "character_stats": {
+            "vita": character["vita"],
+            "vita_max": character["vita_max"],
+            "energia": character["energia"],
+            "energia_max": character["energia_max"],
+            "berry": character.get("berry", 0)
+        }
+    }
+
+@api_router.post("/exploration/visit-zone")
+async def visit_zone(data: Dict[str, str], request: Request):
+    """Visit a specific zone on the current island"""
+    user = await get_current_user(request)
+    zone_id = data.get("zone_id")
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_island_id = character.get("isola_corrente", "dawn_island")
+    island = ISLANDS.get(current_island_id)
+    
+    if not island:
+        raise HTTPException(status_code=404, detail="Isola non trovata")
+    
+    # Find the zone
+    zone = None
+    for z in island.get("zone", []):
+        if z["id"] == zone_id:
+            zone = z
+            break
+    
+    if not zone:
+        raise HTTPException(status_code=400, detail="Zona non trovata su questa isola")
+    
+    # Mark zone as visited
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$addToSet": {f"zone_visitate.{current_island_id}": zone_id}}
+    )
+    
+    # Add to logbook
+    await add_logbook_entry(
+        user["user_id"],
+        "esplorazione",
+        f"Hai visitato {zone['name']} su {island['name']}"
+    )
+    
+    return {
+        "message": f"Sei arrivato a {zone['name']}!",
+        "zone": zone,
+        "island": island["name"]
+    }
+
+@api_router.post("/exploration/random-event")
+async def trigger_random_event(request: Request):
+    """Trigger a random event on the current island"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_island_id = character.get("isola_corrente", "dawn_island")
+    island = ISLANDS.get(current_island_id)
+    
+    if not island:
+        raise HTTPException(status_code=404, detail="Isola non trovata")
+    
+    # Choose event category based on island danger level and luck
+    pericolo = island.get("pericolo", 1)
+    fortuna = character.get("fortuna", 10)
+    
+    # Weight event categories based on danger and luck
+    weights = {
+        "scoperta": 30 + fortuna,
+        "sociale": 25,
+        "riposo": 20 + (fortuna // 2),
+        "combattimento": 15 + (pericolo * 3),
+        "pericolo": 10 + (pericolo * 2) - (fortuna // 3)
+    }
+    
+    # Normalize weights
+    total = sum(weights.values())
+    roll = random.randint(1, total)
+    
+    cumulative = 0
+    selected_category = "scoperta"
+    for cat, weight in weights.items():
+        cumulative += weight
+        if roll <= cumulative:
+            selected_category = cat
+            break
+    
+    # Select random event from category
+    events = ZONE_EVENTS[selected_category]
+    event = random.choice(events)
+    
+    # Apply event effects
+    effects_applied = []
+    updates = {}
+    
+    if event.get("ricompensa_berry"):
+        updates["$inc"] = updates.get("$inc", {})
+        updates["$inc"]["berry"] = event["ricompensa_berry"]
+        effects_applied.append(f"+{event['ricompensa_berry']} Berry")
+    
+    if event.get("ricompensa_exp"):
+        updates["$inc"] = updates.get("$inc", {})
+        updates["$inc"]["esperienza"] = event["ricompensa_exp"]
+        effects_applied.append(f"+{event['ricompensa_exp']} EXP")
+    
+    if event.get("perdita_berry"):
+        current_berry = character.get("berry", 0)
+        loss = min(event["perdita_berry"], current_berry)
+        updates["$inc"] = updates.get("$inc", {})
+        updates["$inc"]["berry"] = -loss
+        effects_applied.append(f"-{loss} Berry")
+    
+    if event.get("danno_vita"):
+        current_vita = character.get("vita", 100)
+        new_vita = max(1, current_vita - event["danno_vita"])
+        updates["$set"] = updates.get("$set", {})
+        updates["$set"]["vita"] = new_vita
+        effects_applied.append(f"-{event['danno_vita']} Vita")
+    
+    if event.get("recupero_vita"):
+        current_vita = character.get("vita", 100)
+        max_vita = character.get("vita_max", 100)
+        recovery = min(event["recupero_vita"], max_vita - current_vita)
+        if recovery > 0:
+            updates["$inc"] = updates.get("$inc", {})
+            updates["$inc"]["vita"] = recovery
+            effects_applied.append(f"+{recovery} Vita")
+    
+    if event.get("recupero_energia"):
+        current_energia = character.get("energia", 100)
+        max_energia = character.get("energia_max", 100)
+        recovery = min(event["recupero_energia"], max_energia - current_energia)
+        if recovery > 0:
+            updates["$inc"] = updates.get("$inc", {})
+            updates["$inc"]["energia"] = recovery
+            effects_applied.append(f"+{recovery} Energia")
+    
+    if event.get("oggetto"):
+        updates["$push"] = updates.get("$push", {})
+        updates["$push"]["oggetti"] = event["oggetto"]
+        effects_applied.append(f"Ottenuto: {event['oggetto']['name']}")
+    
+    if event.get("carta"):
+        updates["$push"] = updates.get("$push", {})
+        updates["$push"]["carte.storytelling"] = event["carta"]
+        effects_applied.append(f"Ottenuta carta: {event['carta']['name']}")
+    
+    if event.get("bonus_fortuna"):
+        updates["$inc"] = updates.get("$inc", {})
+        updates["$inc"]["fortuna"] = event["bonus_fortuna"]
+        effects_applied.append(f"+{event['bonus_fortuna']} Fortuna")
+    
+    # Apply updates
+    if updates:
+        await db.characters.update_one({"user_id": user["user_id"]}, updates)
+    
+    # Add to logbook
+    await add_logbook_entry(
+        user["user_id"],
+        "evento",
+        f"{event['nome']}: {event['descrizione']}"
+    )
+    
+    return {
+        "event": {
+            "categoria": selected_category,
+            "tipo": event["tipo"],
+            "nome": event["nome"],
+            "descrizione": event["descrizione"]
+        },
+        "effects_applied": effects_applied,
+        "island": island["name"]
+    }
+
+# ============ DICE ROLL NAVIGATION ============
+
+@api_router.post("/navigation/roll-dice")
+async def roll_navigation_dice(request: Request):
+    """Roll dice for navigation - determines travel success and events"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    if not character.get("nave"):
+        raise HTTPException(status_code=400, detail="Hai bisogno di una nave per navigare!")
+    
+    current_sea = character.get("mare_corrente", "east_blue")
+    current_island = character.get("isola_corrente", "dawn_island")
+    
+    # Get next island
+    sea_islands = get_islands_by_sea(current_sea)
+    island_ids = [iid for iid, _ in sea_islands]
+    
+    current_index = island_ids.index(current_island) if current_island in island_ids else 0
+    
+    if current_index >= len(island_ids) - 1:
+        raise HTTPException(status_code=400, detail="Sei già all'ultima isola di questo mare!")
+    
+    next_island_id = island_ids[current_index + 1]
+    next_island = ISLANDS[next_island_id]
+    
+    # Roll the dice (1-6)
+    dice_result = random.randint(1, 6)
+    
+    # Calculate bonuses from ship speed and cards
+    nave_tipo = character.get("nave", "barca_piccola")
+    nave_bonus = {"barca_piccola": 0, "caravella": 1, "brigantino": 2}.get(nave_tipo, 0)
+    
+    fortuna = character.get("fortuna", 10)
+    fortuna_bonus = fortuna // 20  # +1 for every 20 fortuna
+    
+    total_roll = dice_result + nave_bonus + fortuna_bonus
+    
+    # Determine outcome based on roll
+    navigation_events = []
+    
+    if total_roll >= 6:
+        # Great success - smooth sailing
+        outcome = "successo_totale"
+        message = f"Navigazione perfetta! Arrivi a {next_island['name']} senza problemi."
+        # Bonus berry for good navigation
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"berry": 50}}
+        )
+        navigation_events.append("+50 Berry (navigazione perfetta)")
+        
+    elif total_roll >= 4:
+        # Success - arrive safely
+        outcome = "successo"
+        message = f"Arrivi a {next_island['name']}."
+        
+    elif total_roll >= 2:
+        # Partial success - arrive but something happens
+        outcome = "parziale"
+        # Random minor event
+        event_roll = random.randint(1, 3)
+        if event_roll == 1:
+            message = f"Durante il viaggio incontri una tempesta! Perdi 20 Vita ma arrivi a {next_island['name']}."
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"vita": -20}}
+            )
+            navigation_events.append("-20 Vita (tempesta)")
+        elif event_roll == 2:
+            message = f"Vieni attaccato da pirati! Perdi 30 Berry ma arrivi a {next_island['name']}."
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"berry": -30}}
+            )
+            navigation_events.append("-30 Berry (pirati)")
+        else:
+            message = f"Il viaggio è lungo e faticoso. Perdi 15 Energia ma arrivi a {next_island['name']}."
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"energia": -15}}
+            )
+            navigation_events.append("-15 Energia (viaggio faticoso)")
+    else:
+        # Failure - don't move but lose resources
+        outcome = "fallimento"
+        message = f"La navigazione fallisce! Devi tornare a {ISLANDS[current_island]['name']}."
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"energia": -30}}
+        )
+        navigation_events.append("-30 Energia (navigazione fallita)")
+    
+    # Update location if successful
+    if outcome in ["successo_totale", "successo", "parziale"]:
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"isola_corrente": next_island_id}}
+        )
+        
+        # Add to logbook
+        await add_logbook_entry(
+            user["user_id"],
+            "navigazione",
+            f"Dado: {dice_result} (+{nave_bonus + fortuna_bonus} bonus) = {total_roll}. {message}"
+        )
+    
+    return {
+        "dice_result": dice_result,
+        "bonuses": {
+            "nave": nave_bonus,
+            "fortuna": fortuna_bonus
+        },
+        "total": total_roll,
+        "outcome": outcome,
+        "message": message,
+        "events": navigation_events,
+        "destination": next_island if outcome != "fallimento" else ISLANDS[current_island],
+        "arrived": outcome != "fallimento"
+    }
+
 # ============ SHOP ============
 
 SHOP_ITEMS = {
