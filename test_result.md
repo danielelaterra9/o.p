@@ -513,10 +513,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Character Persistence Flow for Returning Users"
+    - "Exploration and Dice Navigation System"
   stuck_tasks: []
   test_all: false
-  test_priority: "persistence_complete"
+  test_priority: "exploration_complete"
 
 agent_communication:
   - agent: "main"
