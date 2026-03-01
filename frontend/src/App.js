@@ -957,6 +957,7 @@ const WorldMap = ({ token, character }) => {
 // ============ ISLAND EXPLORER ============
 const IslandExplorer = ({ token, character }) => {
   const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
   const [zones, setZones] = useState({});
   const [currentZone, setCurrentZone] = useState(null);
   const [npcInteraction, setNpcInteraction] = useState(null);
@@ -965,21 +966,21 @@ const IslandExplorer = ({ token, character }) => {
     const fetchZones = async () => {
       try {
         const response = await axios.get(`${API}/island/zones`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${authToken}` }
         });
         setZones(response.data.zones);
       } catch (err) {
         console.error(err);
       }
     };
-    fetchZones();
-  }, [token]);
+    if (authToken) fetchZones();
+  }, [authToken]);
 
   const interactWithNpc = async (npcId, zone) => {
     try {
       const response = await axios.post(`${API}/island/interact-npc`, 
         { npc_id: npcId, zone },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${authToken}` }}
       );
       setNpcInteraction(response.data);
     } catch (err) {
