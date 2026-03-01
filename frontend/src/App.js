@@ -1671,13 +1671,13 @@ const WorldMap = ({ token, character, isDemo }) => {
     }
   };
 
-  // Check if can use dice (has ship and not at last island)
-  const canUseDice = character?.nave && !isViewingOtherSea && islands.some(i => i.can_travel_forward);
-
   const currentSeaColor = seaColors[character?.mare_corrente] || '#3B82F6';
   const displaySea = viewingSea || character?.mare_corrente;
   const displayIslands = viewingSea ? viewingIslands : islands;
   const isViewingOtherSea = viewingSea && viewingSea !== character?.mare_corrente;
+
+  // Check if can use dice (has ship and not at last island)
+  const canUseDice = character?.nave && !isViewingOtherSea && islands.some(i => i.can_travel_forward);
 
   return (
     <div className="min-h-screen bg-[#051923]">
