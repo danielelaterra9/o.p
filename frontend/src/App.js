@@ -517,6 +517,8 @@ const Dashboard = ({ user, character, token, logout }) => {
 const CharacterCreation = ({ token, setCharacter }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  // Get token from localStorage if not provided via props
+  const authToken = token || localStorage.getItem('token');
   const [charData, setCharData] = useState({
     name: '',
     title: 'Aspirante Pirata',
@@ -528,6 +530,14 @@ const CharacterCreation = ({ token, setCharacter }) => {
     devil_fruit: null
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authToken) {
+      navigate('/login');
+    }
+  }, [authToken, navigate]);
 
   const bodyTypes = [
     { id: 'slim', label: 'Agile', desc: '+10 ATK, +15 SPD, -5 DEF' },
@@ -562,14 +572,16 @@ const CharacterCreation = ({ token, setCharacter }) => {
 
   const handleCreate = async () => {
     setLoading(true);
+    setError('');
     try {
       const response = await axios.post(`${API}/characters`, charData, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${authToken}` }
       });
       setCharacter(response.data);
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
+      setError(err.response?.data?.detail || 'Errore durante la creazione del personaggio');
     }
     setLoading(false);
   };
