@@ -1497,6 +1497,11 @@ const WorldMap = ({ token, character, isDemo }) => {
   const [viewingSea, setViewingSea] = useState(null); // For viewing other seas
   const [viewingIslands, setViewingIslands] = useState([]);
   const [allSeas, setAllSeas] = useState({});
+  // Dice roll state
+  const [showDiceModal, setShowDiceModal] = useState(false);
+  const [diceRolling, setDiceRolling] = useState(false);
+  const [diceResult, setDiceResult] = useState(null);
+  const [diceAnimation, setDiceAnimation] = useState(1);
 
   const seaColors = {
     east_blue: '#3B82F6',
