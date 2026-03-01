@@ -1154,6 +1154,9 @@ const Shop = ({ token, character }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [items, setItems] = useState({});
+  const [buying, setBuying] = useState(null);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [currentBerry, setCurrentBerry] = useState(character?.berry || 0);
 
   useEffect(() => {
     const fetch = async () => {
@@ -1165,11 +1168,39 @@ const Shop = ({ token, character }) => {
     if (authToken) fetch();
   }, [authToken]);
 
+  useEffect(() => {
+    setCurrentBerry(character?.berry || 0);
+  }, [character]);
+
   const buy = async (itemId) => {
+    setBuying(itemId);
+    setMessage({ type: '', text: '' });
     try {
-      await axios.post(`${API}/shop/buy`, { item_id: itemId }, { headers: { Authorization: `Bearer ${authToken}` } });
-      alert('Acquistato!');
-    } catch (e) {}
+      const res = await axios.post(`${API}/shop/buy`, { item_id: itemId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `✅ ${res.data.message}` });
+      // Update local berry count
+      const item = items[itemId];
+      setCurrentBerry(prev => prev - item.price);
+    } catch (e) {
+      const errorMsg = e.response?.data?.detail || 'Errore durante l\'acquisto';
+      setMessage({ type: 'error', text: `❌ ${errorMsg}` });
+    }
+    setBuying(null);
+  };
+
+  // Group items by type
+  const groupedItems = Object.entries(items).reduce((acc, [id, item]) => {
+    const tipo = item.tipo || 'consumabile';
+    if (!acc[tipo]) acc[tipo] = [];
+    acc[tipo].push({ id, ...item });
+    return acc;
+  }, {});
+
+  const tipoLabels = {
+    consumabile: '🧪 Consumabili',
+    arma: '⚔️ Armi',
+    nave: '🚢 Navi',
+    carta: '🃏 Carte'
   };
 
   return (
@@ -1177,16 +1208,61 @@ const Shop = ({ token, character }) => {
       <div className="glass p-4 flex justify-between items-center mb-6">
         <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA]"><Home className="w-6 h-6" /></button>
         <h1 className="font-pirate text-2xl text-[#FFC300]">Negozio</h1>
-        <div className="w-6" />
+        <div className="text-right">
+          <p className="text-xs text-[#E3D5CA]/70">I tuoi Berry</p>
+          <p className="font-pirate text-lg text-[#D4AF37]">฿ {currentBerry.toLocaleString()}</p>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {Object.entries(items).map(([id, item]) => (
-          <div key={id} className="glass p-4 rounded-xl flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-[#E3D5CA]">{item.name}</h3>
-              <p className="text-sm text-[#FFC300]">{item.price.toLocaleString()} Berry</p>
+
+      {message.text && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' : 'bg-[#D00000]/20 border border-[#D00000]'}`}
+        >
+          <p className={message.type === 'success' ? 'text-[#2A9D8F]' : 'text-[#D00000]'}>{message.text}</p>
+        </motion.div>
+      )}
+
+      <div className="space-y-6">
+        {Object.entries(groupedItems).map(([tipo, itemList]) => (
+          <div key={tipo}>
+            <h2 className="font-pirate text-xl text-[#E3D5CA] mb-3">{tipoLabels[tipo] || tipo}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {itemList.map((item) => {
+                const canAfford = currentBerry >= item.price;
+                return (
+                  <motion.div 
+                    key={item.id} 
+                    className={`glass p-4 rounded-xl flex justify-between items-center ${!canAfford ? 'opacity-60' : ''}`}
+                    whileHover={canAfford ? { scale: 1.01 } : {}}
+                  >
+                    <div>
+                      <h3 className="font-bold text-[#E3D5CA]">{item.name}</h3>
+                      <p className={`text-sm font-pirate ${canAfford ? 'text-[#D4AF37]' : 'text-[#D00000]'}`}>
+                        ฿ {item.price.toLocaleString()}
+                      </p>
+                      {item.effect && (
+                        <p className="text-xs text-[#E3D5CA]/60 mt-1">
+                          {Object.entries(item.effect).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => buy(item.id)} 
+                      disabled={!canAfford || buying === item.id}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                        canAfford 
+                          ? 'btn-gold' 
+                          : 'bg-[#3E2723] text-[#E3D5CA]/50 cursor-not-allowed'
+                      }`}
+                    >
+                      {buying === item.id ? '...' : canAfford ? 'Compra' : 'Non hai abbastanza'}
+                    </button>
+                  </motion.div>
+                );
+              })}
             </div>
-            <button onClick={() => buy(id)} className="btn-gold px-4 py-2 rounded-lg text-sm">Compra</button>
           </div>
         ))}
       </div>
