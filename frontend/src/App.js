@@ -212,7 +212,7 @@ const RegisterPage = ({ login }) => {
       console.log('Registration response:', response.data);
       
       if (response.data.token) {
-        login(response.data.token, response.data.user);
+        await login(response.data.token, response.data.user);
         navigate('/create-character');
       } else {
         setError('Risposta server non valida');
