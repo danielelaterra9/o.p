@@ -928,7 +928,6 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
 def process_npc_turn(battle: Dict, attacker: str, defender: str) -> Dict:
     """Process NPC automatic turn"""
     attacker_data = battle[attacker]
-    defender_data = battle[defender]
     
     # NPC AI: choose action based on energy and health
     if attacker_data["energia"] < 10:
