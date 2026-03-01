@@ -799,6 +799,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
 // ============ WORLD MAP ============
 const WorldMap = ({ token, character }) => {
   const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
   const [islands, setIslands] = useState([]);
   const [diceRolling, setDiceRolling] = useState(false);
   const [diceResult, setDiceResult] = useState(null);
@@ -808,15 +809,15 @@ const WorldMap = ({ token, character }) => {
     const fetchIslands = async () => {
       try {
         const response = await axios.get(`${API}/world/islands`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${authToken}` }
         });
         setIslands(response.data.islands);
       } catch (err) {
         console.error(err);
       }
     };
-    fetchIslands();
-  }, [token]);
+    if (authToken) fetchIslands();
+  }, [authToken]);
 
   const rollDice = async (destination) => {
     setDiceRolling(true);
@@ -825,7 +826,7 @@ const WorldMap = ({ token, character }) => {
     try {
       const response = await axios.post(`${API}/world/roll-dice`, 
         { destination },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${authToken}` }}
       );
       
       setTimeout(() => {
