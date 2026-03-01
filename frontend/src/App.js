@@ -430,7 +430,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
     setLoading(false);
   };
 
-  const totalSteps = 7;
+  const totalSteps = 8;
 
   if (checkingExisting) return <LoadingScreen />;
 
