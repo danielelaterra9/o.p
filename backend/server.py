@@ -675,8 +675,9 @@ async def create_character(char_data: CharacterCreate, request: Request):
             "particolarita": char_data.particolarita
         },
         
-        # Location
-        "isola_corrente": "foosha",
+        # Location - based on chosen sea
+        "mare_corrente": char_data.mare_partenza,
+        "isola_corrente": get_starting_island(char_data.mare_partenza),
         "nave": None,
         "navigazione_progresso": 0,
         
