@@ -1055,28 +1055,42 @@ const WorldMap = ({ token, character }) => {
   );
 };
 
-// ============ BATTLE ARENA (simplified) ============
+// ============ BATTLE ARENA (improved) ============
 const BattleArena = ({ token, character }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [battle, setBattle] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const startBattle = async (opponentId) => {
     setLoading(true);
     try {
       const res = await axios.post(`${API}/battle/start`, { opponent_type: 'npc', opponent_id: opponentId }, { headers: { Authorization: `Bearer ${authToken}` } });
       setBattle(res.data.battle);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Battle start error:', e);
+    }
     setLoading(false);
   };
 
   const doAction = async (actionType, actionName) => {
-    if (!battle || battle.turno_corrente !== 'player1') return;
+    if (!battle || battle.turno_corrente !== 'player1' || actionLoading) return;
+    setActionLoading(true);
     try {
       const res = await axios.post(`${API}/battle/${battle.battle_id}/action`, { action_type: actionType, action_name: actionName }, { headers: { Authorization: `Bearer ${authToken}` } });
       setBattle(res.data.battle);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Action error:', e);
+    }
+    setActionLoading(false);
+  };
+
+  const npcInfo = {
+    marine_soldato: { name: 'Marine Soldato', desc: 'Un soldato della Marina', difficulty: '⭐' },
+    pirata_novizio: { name: 'Pirata Novizio', desc: 'Un pirata alle prime armi', difficulty: '⭐' },
+    marine_capitano: { name: 'Marine Capitano', desc: 'Un ufficiale della Marina', difficulty: '⭐⭐' },
+    capitano_pirata: { name: 'Capitano Pirata', desc: 'Un temibile capitano pirata', difficulty: '⭐⭐⭐' }
   };
 
   if (!battle) {
@@ -1084,35 +1098,103 @@ const BattleArena = ({ token, character }) => {
       <div className="min-h-screen bg-[#051923] p-4">
         <div className="glass p-4 flex justify-between items-center mb-6">
           <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA]"><Home className="w-6 h-6" /></button>
-          <h1 className="font-pirate text-2xl text-[#FFC300]">Arena</h1>
+          <h1 className="font-pirate text-2xl text-[#FFC300]">Arena di Combattimento</h1>
           <div className="w-6" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          {['marine_soldato', 'pirata_novizio', 'marine_capitano', 'capitano_pirata'].map((id) => (
-            <button key={id} onClick={() => startBattle(id)} disabled={loading} className="glass p-4 rounded-lg text-left">
-              <Skull className="w-8 h-8 text-[#D00000] mb-2" />
-              <p className="font-bold text-[#E3D5CA] capitalize">{id.replace('_', ' ')}</p>
-            </button>
+        
+        <p className="text-center text-[#E3D5CA]/70 mb-6">Scegli il tuo avversario</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+          {Object.entries(npcInfo).map(([id, info]) => (
+            <motion.button 
+              key={id} 
+              onClick={() => startBattle(id)} 
+              disabled={loading}
+              className="glass p-4 rounded-lg text-left hover:border-[#D00000] border-2 border-transparent transition-colors"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <Skull className="w-8 h-8 text-[#D00000] mb-2" />
+                  <p className="font-bold text-[#E3D5CA]">{info.name}</p>
+                  <p className="text-sm text-[#E3D5CA]/60">{info.desc}</p>
+                </div>
+                <span className="text-lg">{info.difficulty}</span>
+              </div>
+            </motion.button>
           ))}
         </div>
+        
+        {loading && (
+          <div className="text-center mt-6">
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+              <Swords className="w-8 h-8 text-[#FFC300] mx-auto" />
+            </motion.div>
+            <p className="text-[#E3D5CA]/70 mt-2">Preparando la battaglia...</p>
+          </div>
+        )}
       </div>
     );
   }
 
+  const isPlayerTurn = battle.turno_corrente === 'player1';
+  const isBattleOver = battle.stato === 'finita';
+  const playerWon = battle.vincitore === 'player1';
+
   return (
     <div className="min-h-screen bg-[#0f0f1a] flex flex-col">
+      {/* Turn indicator */}
+      {!isBattleOver && (
+        <div className={`p-2 text-center ${isPlayerTurn ? 'bg-[#2A9D8F]' : 'bg-[#D00000]'}`}>
+          <p className="font-pixel text-sm text-white">
+            {isPlayerTurn ? '🎯 È il TUO turno!' : '⏳ Turno avversario...'}
+          </p>
+        </div>
+      )}
+
       {/* Enemy */}
       <div className="flex-1 p-4">
-        <div className="gameboy-panel p-4 rounded-lg max-w-lg mx-auto">
-          <h3 className="font-pixel text-xl text-[#D00000]">{battle.player2.nome}</h3>
-          <div className="hp-bar mt-2"><div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(battle.player2.vita / battle.player2.vita_max) * 100}%` }} /></div>
+        <motion.div 
+          className="gameboy-panel p-4 rounded-lg max-w-lg mx-auto"
+          animate={!isPlayerTurn && !isBattleOver ? { x: [0, -5, 5, 0] } : {}}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="flex justify-between items-start">
+            <h3 className="font-pixel text-xl text-[#D00000]">{battle.player2.nome}</h3>
+            {battle.player2.taglia > 0 && (
+              <span className="text-xs bg-[#D00000]/30 px-2 py-1 rounded text-[#D00000]">
+                ฿{battle.player2.taglia.toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div className="hp-bar mt-2">
+            <motion.div 
+              className="hp-bar-fill bg-[#D00000]" 
+              initial={false}
+              animate={{ width: `${(battle.player2.vita / battle.player2.vita_max) * 100}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
           <p className="font-pixel text-sm text-[#E3D5CA]">HP: {battle.player2.vita}/{battle.player2.vita_max}</p>
-        </div>
+          <p className="font-pixel text-xs text-[#00A8E8]">EN: {battle.player2.energia}/{battle.player2.energia_max}</p>
+        </motion.div>
       </div>
 
-      {/* Log */}
-      <div className="p-4 max-h-32 overflow-y-auto">
-        {battle.log.slice(-3).map((l, i) => <p key={i} className="font-pixel text-sm text-[#E3D5CA]/80">&gt; {l}</p>)}
+      {/* Battle Log */}
+      <div className="p-4 max-h-40 overflow-y-auto bg-[#000]/30">
+        <AnimatePresence>
+          {battle.log.slice(-5).map((l, i) => (
+            <motion.p 
+              key={`${battle.numero_turno}-${i}`}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="font-pixel text-sm text-[#E3D5CA]/80 mb-1"
+            >
+              &gt; {l}
+            </motion.p>
+          ))}
+        </AnimatePresence>
       </div>
 
       {/* Player */}
@@ -1121,27 +1203,101 @@ const BattleArena = ({ token, character }) => {
           <h3 className="font-pixel text-xl text-[#FFC300]">{battle.player1.nome}</h3>
           <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
-              <div className="hp-bar"><div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(battle.player1.vita / battle.player1.vita_max) * 100}%` }} /></div>
-              <p className="font-pixel text-xs">HP: {battle.player1.vita}</p>
+              <div className="hp-bar">
+                <motion.div 
+                  className="hp-bar-fill bg-[#D00000]" 
+                  initial={false}
+                  animate={{ width: `${(battle.player1.vita / battle.player1.vita_max) * 100}%` }}
+                />
+              </div>
+              <p className="font-pixel text-xs">HP: {battle.player1.vita}/{battle.player1.vita_max}</p>
             </div>
             <div>
-              <div className="hp-bar"><div className="hp-bar-fill bg-[#00A8E8]" style={{ width: `${(battle.player1.energia / battle.player1.energia_max) * 100}%` }} /></div>
-              <p className="font-pixel text-xs">EN: {battle.player1.energia}</p>
+              <div className="hp-bar">
+                <motion.div 
+                  className="hp-bar-fill bg-[#00A8E8]" 
+                  initial={false}
+                  animate={{ width: `${(battle.player1.energia / battle.player1.energia_max) * 100}%` }}
+                />
+              </div>
+              <p className="font-pixel text-xs">EN: {battle.player1.energia}/{battle.player1.energia_max}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            <button onClick={() => doAction('attacco_base', 'Pugno')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Pugno</button>
-            <button onClick={() => doAction('attacco_base', 'Calcio')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Calcio</button>
-            <button onClick={() => doAction('difesa', 'Difendi')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Difendi</button>
-            <button onClick={() => doAction('passa', 'Passa')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Passa</button>
-          </div>
-
-          {battle.stato === 'finita' && (
-            <div className="mt-4 text-center">
-              <p className="font-pirate text-2xl text-[#FFC300]">{battle.vincitore === 'player1' ? 'VITTORIA!' : 'SCONFITTA'}</p>
-              <button onClick={() => navigate('/dashboard')} className="btn-gold mt-2 px-6 py-2 rounded-lg">Continua</button>
+          {!isBattleOver && (
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button 
+                onClick={() => doAction('attacco_base', 'Pugno')} 
+                disabled={!isPlayerTurn || actionLoading} 
+                className={`gameboy-button ${!isPlayerTurn ? 'opacity-50' : ''}`}
+              >
+                👊 Pugno
+              </button>
+              <button 
+                onClick={() => doAction('attacco_base', 'Calcio')} 
+                disabled={!isPlayerTurn || actionLoading} 
+                className={`gameboy-button ${!isPlayerTurn ? 'opacity-50' : ''}`}
+              >
+                🦵 Calcio
+              </button>
+              <button 
+                onClick={() => doAction('attacco_speciale', 'Colpo Speciale')} 
+                disabled={!isPlayerTurn || actionLoading || battle.player1.energia < 20} 
+                className={`gameboy-button ${(!isPlayerTurn || battle.player1.energia < 20) ? 'opacity-50' : ''}`}
+              >
+                ⚡ Speciale (20 EN)
+              </button>
+              <button 
+                onClick={() => doAction('difesa', 'Difendi')} 
+                disabled={!isPlayerTurn || actionLoading} 
+                className={`gameboy-button ${!isPlayerTurn ? 'opacity-50' : ''}`}
+              >
+                🛡️ Difendi
+              </button>
+              <button 
+                onClick={() => doAction('passa', 'Riposa')} 
+                disabled={!isPlayerTurn || actionLoading} 
+                className={`gameboy-button col-span-2 ${!isPlayerTurn ? 'opacity-50' : ''}`}
+              >
+                💤 Riposa (+15 EN)
+              </button>
             </div>
+          )}
+
+          {actionLoading && (
+            <div className="text-center mt-2">
+              <p className="font-pixel text-xs text-[#FFC300] animate-pulse">Eseguendo azione...</p>
+            </div>
+          )}
+
+          {isBattleOver && (
+            <motion.div 
+              className="mt-4 text-center"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <p className={`font-pirate text-3xl ${playerWon ? 'text-[#FFC300]' : 'text-[#D00000]'}`}>
+                {playerWon ? '🎉 VITTORIA!' : '💀 SCONFITTA'}
+              </p>
+              
+              {playerWon && battle.rewards && (
+                <div className="mt-3 p-3 bg-[#FFC300]/10 rounded-lg">
+                  <p className="text-sm text-[#E3D5CA]">Ricompense:</p>
+                  <p className="font-pirate text-lg text-[#FFC300]">
+                    +{battle.rewards.exp} EXP • +฿{battle.rewards.berry}
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex gap-3 justify-center mt-4">
+                <button onClick={() => setBattle(null)} className="glass px-6 py-2 rounded-lg text-[#E3D5CA]">
+                  Nuova Battaglia
+                </button>
+                <button onClick={() => navigate('/dashboard')} className="btn-gold px-6 py-2 rounded-lg">
+                  Dashboard
+                </button>
+              </div>
+            </motion.div>
           )}
         </div>
       </div>
