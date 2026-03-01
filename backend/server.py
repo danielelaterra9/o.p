@@ -366,6 +366,18 @@ async def update_character(updates: Dict[str, Any], request: Request):
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return character
 
+@api_router.delete("/characters/me")
+async def delete_character(request: Request):
+    """Delete the current user's character to allow recreation"""
+    user = await get_current_user(request)
+    
+    result = await db.characters.delete_one({"user_id": user["user_id"]})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    return {"message": "Character deleted successfully"}
+
 # ============ NAVIGATION & WORLD MAP ============
 
 ISLANDS = {
