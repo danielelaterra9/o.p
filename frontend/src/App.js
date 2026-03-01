@@ -278,7 +278,7 @@ const LoginPage = ({ login }) => {
       console.log('Login response:', response.data);
       
       if (response.data.token) {
-        login(response.data.token, response.data.user);
+        await login(response.data.token, response.data.user);
         navigate('/dashboard');
       } else {
         setError('Risposta server non valida');
