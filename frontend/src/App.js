@@ -1609,6 +1609,71 @@ const WorldMap = ({ token, character, isDemo }) => {
     setTraveling(false);
   };
 
+  // Dice roll navigation
+  const rollDice = async () => {
+    if (isDemo) {
+      // Demo dice roll animation
+      setDiceRolling(true);
+      setDiceResult(null);
+      
+      // Animate dice
+      const animationInterval = setInterval(() => {
+        setDiceAnimation(Math.floor(Math.random() * 6) + 1);
+      }, 100);
+      
+      setTimeout(() => {
+        clearInterval(animationInterval);
+        const result = Math.floor(Math.random() * 6) + 1;
+        setDiceAnimation(result);
+        setDiceResult({
+          dice_result: result,
+          bonuses: { nave: 1, fortuna: 0 },
+          total: result + 1,
+          outcome: result >= 3 ? "successo" : "parziale",
+          message: result >= 3 ? "Demo: Navigazione riuscita!" : "Demo: Viaggio faticoso ma arrivi a destinazione.",
+          events: [],
+          arrived: true
+        });
+        setDiceRolling(false);
+      }, 2000);
+      return;
+    }
+
+    setDiceRolling(true);
+    setDiceResult(null);
+    
+    // Animate dice
+    const animationInterval = setInterval(() => {
+      setDiceAnimation(Math.floor(Math.random() * 6) + 1);
+    }, 100);
+
+    try {
+      const res = await axios.post(`${API}/navigation/roll-dice`, {}, { headers: { Authorization: `Bearer ${authToken}` } });
+      
+      // Stop animation and show result
+      setTimeout(() => {
+        clearInterval(animationInterval);
+        setDiceAnimation(res.data.dice_result);
+        setDiceResult(res.data);
+        setDiceRolling(false);
+        
+        // Refresh islands if navigation succeeded
+        if (res.data.arrived) {
+          setTimeout(() => {
+            fetchIslands();
+          }, 2000);
+        }
+      }, 2000);
+    } catch (e) {
+      clearInterval(animationInterval);
+      setDiceRolling(false);
+      setDiceResult({ error: e.response?.data?.detail || 'Errore durante la navigazione' });
+    }
+  };
+
+  // Check if can use dice (has ship and not at last island)
+  const canUseDice = character?.nave && !isViewingOtherSea && islands.some(i => i.can_travel_forward);
+
   const currentSeaColor = seaColors[character?.mare_corrente] || '#3B82F6';
   const displaySea = viewingSea || character?.mare_corrente;
   const displayIslands = viewingSea ? viewingIslands : islands;
