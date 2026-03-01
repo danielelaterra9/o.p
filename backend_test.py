@@ -257,7 +257,7 @@ class FourSeasNavigationTester:
                 "genere": "maschio",
                 "eta": 17,
                 "razza": "umano",
-                "stile_combattimento": "pugni_akuma_no_mi",
+                "stile_combattimento": "corpo_pugni",
                 "sogno": "Diventare il Re dei Pirati",
                 "storia_carattere": "Un giovane pirata con il sogno di trovare il One Piece e diventare il Re dei Pirati. Ha mangiato il frutto del diavolo Gomu Gomu.",
                 "mestiere": "pirata",
