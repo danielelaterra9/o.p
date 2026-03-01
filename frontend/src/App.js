@@ -1494,11 +1494,12 @@ const WorldMap = ({ token, character, isDemo }) => {
   const [selectedIsland, setSelectedIsland] = useState(null);
   const [traveling, setTraveling] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [viewingSea, setViewingSea] = useState(null); // For viewing other seas
+  const [viewingSea, setViewingSea] = useState(null);
   const [viewingIslands, setViewingIslands] = useState([]);
   const [allSeas, setAllSeas] = useState({});
-  // Dice roll state
-  const [showDiceModal, setShowDiceModal] = useState(false);
+  // Navigation system state
+  const [showNavModal, setShowNavModal] = useState(false);
+  const [navStatus, setNavStatus] = useState(null);
   const [diceRolling, setDiceRolling] = useState(false);
   const [diceResult, setDiceResult] = useState(null);
   const [diceAnimation, setDiceAnimation] = useState(1);
