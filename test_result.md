@@ -418,6 +418,18 @@ frontend:
         agent: "main"
         comment: "Shop interface"
 
+  - task: "Inventory Page"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Full inventory page with tabs (consumabili, armi, carte), use items, equip weapons, use cards"
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
