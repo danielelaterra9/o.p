@@ -261,13 +261,22 @@ const LoginPage = ({ login }) => {
     setError('');
 
     try {
+      console.log('Logging in...', email);
       const response = await axios.post(`${API}/auth/login`, { email, password });
-      login(response.data.token, response.data.user);
-      navigate('/dashboard');
+      console.log('Login response:', response.data);
+      
+      if (response.data.token) {
+        login(response.data.token, response.data.user);
+        navigate('/dashboard');
+      } else {
+        setError('Risposta server non valida');
+        setLoading(false);
+      }
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.response?.data?.detail || 'Errore durante il login');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
