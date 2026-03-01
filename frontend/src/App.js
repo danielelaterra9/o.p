@@ -1592,9 +1592,39 @@ const WorldMap = ({ token, character, isDemo }) => {
     fetchAllSeas();
   }, [authToken, isDemo]);
 
+  // Navigation status
+  const fetchNavStatus = async () => {
+    if (isDemo) {
+      setNavStatus({
+        current_island: { id: "dawn_island", name: "Dawn Island" },
+        next_island: { id: "shells_town", name: "Shells Town" },
+        prev_island: null,
+        progress: 0,
+        progress_required: 3,
+        has_ship: true,
+        can_advance: false,
+        can_go_back: false,
+        character_stats: { vita: 120, vita_max: 120, energia: 100, energia_max: 100, berry: 5000, attacco: 25, difesa: 20, velocita: 22 }
+      });
+      return;
+    }
+    try {
+      const res = await axios.get(`${API}/navigation/status`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setNavStatus(res.data);
+    } catch (e) {
+      console.error('Error fetching nav status:', e);
+    }
+  };
+
+  const openNavigation = () => {
+    fetchNavStatus();
+    setShowNavModal(true);
+    setDiceResult(null);
+  };
+
   const travelTo = async (islandId) => {
     if (isDemo) {
-      setMessage({ type: 'info', text: '🎮 In modalità demo, la navigazione è disabilitata.' });
+      setMessage({ type: 'info', text: '🎮 In modalità demo, usa il sistema di navigazione con il dado.' });
       return;
     }
     setTraveling(true);
@@ -1610,14 +1640,12 @@ const WorldMap = ({ token, character, isDemo }) => {
     setTraveling(false);
   };
 
-  // Dice roll navigation
+  // New 3-stage dice navigation
   const rollDice = async () => {
     if (isDemo) {
-      // Demo dice roll animation
       setDiceRolling(true);
       setDiceResult(null);
       
-      // Animate dice
       const animationInterval = setInterval(() => {
         setDiceAnimation(Math.floor(Math.random() * 6) + 1);
       }, 100);
@@ -1626,16 +1654,33 @@ const WorldMap = ({ token, character, isDemo }) => {
         clearInterval(animationInterval);
         const result = Math.floor(Math.random() * 6) + 1;
         setDiceAnimation(result);
+        const events = [
+          { nome: "Mare Calmo", descrizione: "La navigazione procede senza intoppi.", tipo: "positivo" },
+          { nome: "Corrente Contraria", descrizione: "Una corrente rallenta il viaggio.", tipo: "neutro" },
+          { nome: "Tempesta!", descrizione: "Una tempesta si abbatte sulla nave!", tipo: "sfida" },
+          { nome: "Pirati Nemici!", descrizione: "Una nave pirata vi attacca!", tipo: "sfida" }
+        ];
+        const eventPassed = result >= 2;
+        const newProgress = eventPassed ? Math.min((navStatus?.progress || 0) + 1, 3) : (navStatus?.progress || 0);
+        
         setDiceResult({
           dice_result: result,
           bonuses: { nave: 1, fortuna: 0 },
           total: result + 1,
-          outcome: result >= 3 ? "successo" : "parziale",
-          message: result >= 3 ? "Demo: Navigazione riuscita!" : "Demo: Viaggio faticoso ma arrivi a destinazione.",
-          events: [],
-          arrived: true
+          difficulty: result >= 5 ? "facile" : result >= 3 ? "medio" : "difficile",
+          event: events[Math.floor(Math.random() * events.length)],
+          challenge: result < 3 ? { stat_used: "attacco", stat_value: 25, roll: 12, total: 37, needed: 30, passed: eventPassed } : null,
+          event_passed: eventPassed,
+          effects_applied: result >= 4 ? ["+30 Berry"] : result < 3 && !eventPassed ? ["-20 Vita"] : ["-10 Energia"],
+          progress: { before: navStatus?.progress || 0, after: newProgress, required: 3, complete: newProgress >= 3 }
         });
         setDiceRolling(false);
+        
+        setNavStatus(prev => ({ 
+          ...prev, 
+          progress: newProgress, 
+          can_advance: newProgress >= 3 
+        }));
       }, 2000);
       return;
     }
@@ -1643,7 +1688,6 @@ const WorldMap = ({ token, character, isDemo }) => {
     setDiceRolling(true);
     setDiceResult(null);
     
-    // Animate dice
     const animationInterval = setInterval(() => {
       setDiceAnimation(Math.floor(Math.random() * 6) + 1);
     }, 100);
@@ -1651,24 +1695,55 @@ const WorldMap = ({ token, character, isDemo }) => {
     try {
       const res = await axios.post(`${API}/navigation/roll-dice`, {}, { headers: { Authorization: `Bearer ${authToken}` } });
       
-      // Stop animation and show result
       setTimeout(() => {
         clearInterval(animationInterval);
         setDiceAnimation(res.data.dice_result);
         setDiceResult(res.data);
         setDiceRolling(false);
-        
-        // Refresh islands if navigation succeeded
-        if (res.data.arrived) {
-          setTimeout(() => {
-            fetchIslands();
-          }, 2000);
-        }
+        fetchNavStatus();
       }, 2000);
     } catch (e) {
       clearInterval(animationInterval);
       setDiceRolling(false);
-      setDiceResult({ error: e.response?.data?.detail || 'Errore durante la navigazione' });
+      setDiceResult({ error: e.response?.data?.detail || 'Errore' });
+    }
+  };
+
+  const advanceToIsland = async () => {
+    if (isDemo) {
+      setMessage({ type: 'success', text: '🎮 Demo: Arrivato all\'isola successiva!' });
+      setShowNavModal(false);
+      setNavStatus(prev => ({ ...prev, progress: 0, can_advance: false }));
+      setDiceResult(null);
+      return;
+    }
+    try {
+      const res = await axios.post(`${API}/navigation/advance`, {}, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `⚓ ${res.data.message}` });
+      setShowNavModal(false);
+      setDiceResult(null);
+      fetchIslands();
+      fetchNavStatus();
+    } catch (e) {
+      setMessage({ type: 'error', text: e.response?.data?.detail || 'Errore' });
+    }
+  };
+
+  const goBackToIsland = async () => {
+    if (isDemo) {
+      setMessage({ type: 'info', text: '🎮 Demo: Tornato all\'isola precedente!' });
+      setShowNavModal(false);
+      return;
+    }
+    try {
+      const res = await axios.post(`${API}/navigation/go-back`, {}, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `⬅️ ${res.data.message}` });
+      setShowNavModal(false);
+      setDiceResult(null);
+      fetchIslands();
+      fetchNavStatus();
+    } catch (e) {
+      setMessage({ type: 'error', text: e.response?.data?.detail || 'Errore' });
     }
   };
 
