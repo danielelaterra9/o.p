@@ -1308,6 +1308,295 @@ const BattleArena = ({ token, character }) => {
   );
 };
 
+// ============ INVENTORY ============
+const Inventory = ({ token, character }) => {
+  const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
+  const [inventory, setInventory] = useState({ oggetti: [], armi: [], carte: {}, nave: null, berry: 0 });
+  const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [using, setUsing] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [activeTab, setActiveTab] = useState('oggetti');
+
+  const fetchInventory = async () => {
+    try {
+      const res = await axios.get(`${API}/inventory`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setInventory(res.data);
+    } catch (e) {
+      console.error('Error fetching inventory:', e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (authToken) fetchInventory();
+  }, [authToken]);
+
+  const useItem = async (itemId) => {
+    setUsing(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const res = await axios.post(`${API}/inventory/use-item`, { item_id: itemId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `✅ ${res.data.message}. Effetti: ${res.data.effects_applied.join(', ')}` });
+      setSelectedItem(null);
+      fetchInventory(); // Refresh inventory
+    } catch (e) {
+      setMessage({ type: 'error', text: `❌ ${e.response?.data?.detail || 'Errore'}` });
+    }
+    setUsing(false);
+  };
+
+  const useCard = async (cardId, categoria) => {
+    setUsing(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const res = await axios.post(`${API}/cards/use`, { card_id: cardId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `✅ ${res.data.message}. Effetti: ${res.data.effects_applied.join(', ') || 'Applicati'}` });
+      setSelectedItem(null);
+      fetchInventory(); // Refresh inventory
+    } catch (e) {
+      setMessage({ type: 'error', text: `❌ ${e.response?.data?.detail || 'Errore'}` });
+    }
+    setUsing(false);
+  };
+
+  const equipWeapon = async (weaponId) => {
+    setUsing(true);
+    try {
+      const res = await axios.post(`${API}/inventory/equip-weapon`, { weapon_id: weaponId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `✅ ${res.data.message}` });
+      setSelectedItem(null);
+      fetchInventory();
+    } catch (e) {
+      setMessage({ type: 'error', text: `❌ ${e.response?.data?.detail || 'Errore'}` });
+    }
+    setUsing(false);
+  };
+
+  // Count total items
+  const totalOggetti = inventory.oggetti?.length || 0;
+  const totalArmi = inventory.armi?.length || 0;
+  const totalCarte = Object.values(inventory.carte || {}).reduce((acc, arr) => acc + (arr?.length || 0), 0);
+
+  const tabs = [
+    { id: 'oggetti', label: 'Consumabili', icon: FlaskConical, count: totalOggetti },
+    { id: 'armi', label: 'Armi', icon: Sword, count: totalArmi },
+    { id: 'carte', label: 'Carte', icon: CreditCard, count: totalCarte },
+  ];
+
+  if (loading) return <LoadingScreen />;
+
+  return (
+    <div className="min-h-screen bg-[#051923] p-4">
+      {/* Header */}
+      <div className="glass p-4 flex justify-between items-center mb-6">
+        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
+          <Home className="w-6 h-6" />
+        </button>
+        <h1 className="font-pirate text-2xl text-[#FFC300]">Inventario</h1>
+        <div className="text-right">
+          <p className="text-xs text-[#E3D5CA]/70">Berry</p>
+          <p className="font-pirate text-lg text-[#D4AF37]">฿ {(inventory.berry || 0).toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Message */}
+      {message.text && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' : 'bg-[#D00000]/20 border border-[#D00000]'}`}
+        >
+          <p className={message.type === 'success' ? 'text-[#2A9D8F]' : 'text-[#D00000]'}>{message.text}</p>
+        </motion.div>
+      )}
+
+      {/* Ship Info */}
+      {inventory.nave && (
+        <div className="glass p-4 rounded-xl mb-4 flex items-center gap-3">
+          <Ship className="w-8 h-8 text-[#00A8E8]" />
+          <div>
+            <p className="text-[#D4AF37] text-sm">La tua nave</p>
+            <p className="text-[#E3D5CA] font-bold capitalize">{inventory.nave.replace('_', ' ')}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+              activeTab === tab.id 
+                ? 'bg-[#2A9D8F] text-white' 
+                : 'glass text-[#E3D5CA]'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+            {tab.count > 0 && (
+              <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20' : 'bg-[#FFC300]/20 text-[#FFC300]'}`}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="space-y-3">
+        {/* Consumabili */}
+        {activeTab === 'oggetti' && (
+          <>
+            {totalOggetti === 0 ? (
+              <div className="glass p-8 rounded-xl text-center">
+                <FlaskConical className="w-12 h-12 text-[#E3D5CA]/30 mx-auto mb-3" />
+                <p className="text-[#E3D5CA]/60">Nessun oggetto consumabile</p>
+                <button onClick={() => navigate('/shop')} className="mt-4 btn-gold px-4 py-2 rounded-lg text-sm">
+                  Vai al Negozio
+                </button>
+              </div>
+            ) : (
+              inventory.oggetti.map((item, idx) => (
+                <motion.div
+                  key={`${item.id}-${idx}`}
+                  className={`glass p-4 rounded-xl cursor-pointer transition-all ${selectedItem?.id === item.id && selectedItem?.type === 'oggetto' ? 'border-2 border-[#2A9D8F]' : ''}`}
+                  onClick={() => setSelectedItem({ ...item, type: 'oggetto' })}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-[#E3D5CA]">{item.name}</h3>
+                      {item.effect && (
+                        <p className="text-sm text-[#2A9D8F]">
+                          {item.effect.vita && `+${item.effect.vita} Vita`}
+                          {item.effect.energia && `+${item.effect.energia} Energia`}
+                        </p>
+                      )}
+                    </div>
+                    {selectedItem?.id === item.id && selectedItem?.type === 'oggetto' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); useItem(item.id); }}
+                        disabled={using}
+                        className="btn-gold px-4 py-2 rounded-lg text-sm"
+                      >
+                        {using ? '...' : '🧪 Usa Ora'}
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </>
+        )}
+
+        {/* Armi */}
+        {activeTab === 'armi' && (
+          <>
+            {totalArmi === 0 ? (
+              <div className="glass p-8 rounded-xl text-center">
+                <Sword className="w-12 h-12 text-[#E3D5CA]/30 mx-auto mb-3" />
+                <p className="text-[#E3D5CA]/60">Nessuna arma</p>
+                <button onClick={() => navigate('/shop')} className="mt-4 btn-gold px-4 py-2 rounded-lg text-sm">
+                  Vai al Negozio
+                </button>
+              </div>
+            ) : (
+              inventory.armi.map((arma, idx) => (
+                <motion.div
+                  key={`${arma.id}-${idx}`}
+                  className={`glass p-4 rounded-xl cursor-pointer transition-all ${selectedItem?.id === arma.id && selectedItem?.type === 'arma' ? 'border-2 border-[#D00000]' : ''} ${arma.equipped ? 'border border-[#FFC300]' : ''}`}
+                  onClick={() => setSelectedItem({ ...arma, type: 'arma' })}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-[#E3D5CA] flex items-center gap-2">
+                        {arma.name}
+                        {arma.equipped && <span className="text-xs bg-[#FFC300]/20 text-[#FFC300] px-2 py-0.5 rounded">Equipaggiata</span>}
+                      </h3>
+                      {arma.bonus_attacco && (
+                        <p className="text-sm text-[#D00000]">+{arma.bonus_attacco} ATK</p>
+                      )}
+                    </div>
+                    {selectedItem?.id === arma.id && selectedItem?.type === 'arma' && !arma.equipped && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); equipWeapon(arma.id); }}
+                        disabled={using}
+                        className="bg-[#D00000] text-white px-4 py-2 rounded-lg text-sm font-bold"
+                      >
+                        {using ? '...' : '⚔️ Equipaggia'}
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </>
+        )}
+
+        {/* Carte */}
+        {activeTab === 'carte' && (
+          <>
+            {totalCarte === 0 ? (
+              <div className="glass p-8 rounded-xl text-center">
+                <CreditCard className="w-12 h-12 text-[#E3D5CA]/30 mx-auto mb-3" />
+                <p className="text-[#E3D5CA]/60">Nessuna carta</p>
+                <button onClick={() => navigate('/shop')} className="mt-4 btn-gold px-4 py-2 rounded-lg text-sm">
+                  Vai al Negozio
+                </button>
+              </div>
+            ) : (
+              Object.entries(inventory.carte || {}).map(([categoria, carte]) => (
+                carte && carte.length > 0 && (
+                  <div key={categoria} className="mb-4">
+                    <h3 className="font-pirate text-lg text-[#7209B7] mb-2 capitalize">
+                      {categoria === 'storytelling' ? '📖 Storytelling' : 
+                       categoria === 'eventi' ? '🎭 Eventi' :
+                       categoria === 'duello' ? '⚔️ Duello' : '💎 Risorse'}
+                    </h3>
+                    {carte.map((carta, idx) => (
+                      <motion.div
+                        key={`${carta.id}-${idx}`}
+                        className={`glass p-4 rounded-xl mb-2 cursor-pointer transition-all ${selectedItem?.id === carta.id && selectedItem?.type === 'carta' ? 'border-2 border-[#7209B7]' : ''}`}
+                        onClick={() => setSelectedItem({ ...carta, type: 'carta', categoria })}
+                        whileHover={{ scale: 1.01 }}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-bold text-[#E3D5CA]">{carta.name}</h4>
+                            {carta.effect && (
+                              <p className="text-sm text-[#7209B7]">
+                                {Object.entries(carta.effect).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          {selectedItem?.id === carta.id && selectedItem?.type === 'carta' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); useCard(carta.id, categoria); }}
+                              disabled={using}
+                              className="bg-[#7209B7] text-white px-4 py-2 rounded-lg text-sm font-bold"
+                            >
+                              {using ? '...' : '🃏 Usa Ora'}
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )
+              ))
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ============ SHOP ============
 const Shop = ({ token, character }) => {
   const navigate = useNavigate();
