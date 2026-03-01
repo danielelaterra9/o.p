@@ -426,11 +426,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "AI Trait Extraction"
-    - "Navigation Dice Roll"
+    - "Inventory System"
   stuck_tasks: []
   test_all: false
-  test_priority: "completed"
+  test_priority: "inventory_complete"
 
 agent_communication:
   - agent: "main"
