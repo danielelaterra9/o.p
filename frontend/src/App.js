@@ -4,12 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import "@/App.css";
 
-// Icons
 import { 
   Anchor, Map, Swords, Users, Package, User, Skull, Shield, Heart, 
-  Zap, ChevronRight, Star, Crown, Compass, LogOut, Dice6, Ship,
-  MessageCircle, ShoppingBag, Scroll, Target, Settings, Home,
-  MapPin, Waves, Wind, Send, X, Play, Square, Clock
+  Zap, ChevronRight, ChevronLeft, Star, Crown, Compass, LogOut, Dice6, Ship,
+  MessageCircle, ShoppingBag, Scroll, Target, Home, MapPin, Info, AlertTriangle,
+  Eye, EyeOff, Briefcase, UserCircle
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -23,7 +22,6 @@ const AuthContext = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
 
   const checkAuth = useCallback(async () => {
-    // CRITICAL: Skip auth check if returning from OAuth
     if (window.location.hash?.includes('session_id=')) {
       setLoading(false);
       return;
@@ -41,15 +39,12 @@ const AuthContext = ({ children }) => {
       });
       setUser(response.data);
       
-      // Try to get character
       try {
         const charResponse = await axios.get(`${API}/characters/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setCharacter(charResponse.data);
-      } catch (e) {
-        // No character yet
-      }
+      } catch (e) {}
     } catch (error) {
       localStorage.removeItem('token');
       setToken(null);
@@ -88,23 +83,17 @@ const AuthContext = ({ children }) => {
   );
 };
 
-// ============ LOADING SCREEN ============
 const LoadingScreen = () => (
   <div className="min-h-screen bg-[#051923] flex items-center justify-center">
-    <motion.div
-      animate={{ rotate: 360 }}
-      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-    >
+    <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
       <Compass className="w-16 h-16 text-[#FFC300]" />
     </motion.div>
   </div>
 );
 
-// ============ APP ROUTER ============
 const AppRouter = ({ user, character, setCharacter, token, login, logout }) => {
   const location = useLocation();
   
-  // Handle OAuth callback
   if (location.hash?.includes('session_id=')) {
     return <AuthCallback login={login} />;
   }
@@ -117,17 +106,13 @@ const AppRouter = ({ user, character, setCharacter, token, login, logout }) => {
       <Route path="/dashboard" element={<Dashboard user={user} character={character} token={token} logout={logout} />} />
       <Route path="/create-character" element={<CharacterCreation token={token} setCharacter={setCharacter} />} />
       <Route path="/world-map" element={<WorldMap token={token} character={character} />} />
-      <Route path="/island" element={<IslandExplorer token={token} character={character} />} />
-      <Route path="/battle/:battleId" element={<BattleArena token={token} character={character} />} />
       <Route path="/battle" element={<BattleArena token={token} character={character} />} />
-      <Route path="/character" element={<CharacterSheet token={token} character={character} />} />
-      <Route path="/cards" element={<CardCollection token={token} character={character} />} />
+      <Route path="/character" element={<CharacterSheet token={token} character={character} setCharacter={setCharacter} />} />
       <Route path="/shop" element={<Shop token={token} character={character} />} />
     </Routes>
   );
 };
 
-// ============ AUTH CALLBACK ============
 const AuthCallback = ({ login }) => {
   const navigate = useNavigate();
   const hasProcessed = useRef(false);
@@ -142,18 +127,14 @@ const AuthCallback = ({ login }) => {
       
       if (sessionId) {
         try {
-          const response = await axios.get(`${API}/auth/session?session_id=${sessionId}`, {
-            withCredentials: true
-          });
+          const response = await axios.get(`${API}/auth/session?session_id=${sessionId}`, { withCredentials: true });
           login(response.data.session_token || sessionId, response.data);
           navigate('/dashboard', { replace: true });
         } catch (error) {
-          console.error('Auth error:', error);
           navigate('/login', { replace: true });
         }
       }
     };
-
     processAuth();
   }, [login, navigate]);
 
@@ -165,67 +146,94 @@ const LandingPage = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-ocean relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#051923]/80 to-[#051923]" />
+    <div className="min-h-screen bg-[#051923] relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-[#003566]/30 to-[#051923]" />
       
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8">
-        <motion.div
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-12"
-        >
-          <h1 className="font-pirate text-6xl md:text-8xl text-[#FFC300] mb-4 drop-shadow-lg">
-            The Grand Line
-          </h1>
-          <h2 className="font-pirate text-2xl md:text-4xl text-[#E3D5CA] mb-4">
-            Architect
-          </h2>
+        <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center mb-12">
+          <h1 className="font-pirate text-6xl md:text-8xl text-[#FFC300] mb-4 drop-shadow-lg">The Grand Line</h1>
+          <h2 className="font-pirate text-2xl md:text-4xl text-[#E3D5CA] mb-4">Architect</h2>
           <p className="text-[#E3D5CA]/80 text-lg max-w-lg mx-auto">
             Crea il tuo pirata, esplora il Grand Line, combatti nemici epici e diventa il Re dei Pirati!
           </p>
         </motion.div>
 
-        <motion.div 
-          className="flex flex-col gap-4 w-full max-w-sm"
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-        >
-          <motion.button
-            onClick={() => navigate('/register')}
-            className="btn-gold py-4 px-8 text-lg font-pirate rounded-lg"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            data-testid="start-adventure-btn"
-          >
+        <motion.div className="flex flex-col gap-4 w-full max-w-sm" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.3 }}>
+          <motion.button onClick={() => navigate('/register')} className="btn-gold py-4 px-8 text-lg font-pirate rounded-lg" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} data-testid="start-adventure-btn">
             Inizia l'Avventura
           </motion.button>
           
-          <motion.button
-            onClick={() => navigate('/login')}
-            className="bg-[#3E2723] text-[#E3D5CA] py-3 px-8 rounded-lg border-2 border-[#D4AF37] font-bold"
-            whileHover={{ scale: 1.02 }}
-            data-testid="login-btn"
-          >
+          <motion.button onClick={() => navigate('/login')} className="bg-[#3E2723] text-[#E3D5CA] py-3 px-8 rounded-lg border-2 border-[#D4AF37] font-bold" whileHover={{ scale: 1.02 }} data-testid="login-btn">
             Accedi
           </motion.button>
 
-          <motion.button
-            onClick={() => {
-              // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-              const redirectUrl = window.location.origin + '/dashboard';
-              window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-            }}
-            className="glass py-3 px-8 rounded-lg text-[#E3D5CA] font-medium flex items-center justify-center gap-2"
-            whileHover={{ scale: 1.02 }}
-            data-testid="google-login-btn"
-          >
+          <motion.button onClick={() => {
+            const redirectUrl = window.location.origin + '/dashboard';
+            window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+          }} className="glass py-3 px-8 rounded-lg text-[#E3D5CA] font-medium flex items-center justify-center gap-2" whileHover={{ scale: 1.02 }} data-testid="google-login-btn">
             <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
             Accedi con Google
           </motion.button>
         </motion.div>
       </div>
+    </div>
+  );
+};
+
+// ============ REGISTER PAGE ============
+const RegisterPage = ({ login }) => {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.post(`${API}/auth/register`, { username, email, password });
+      login(response.data.token, response.data.user);
+      navigate('/create-character');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Errore durante la registrazione');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#051923] flex items-center justify-center p-4">
+      <motion.div className="glass p-8 rounded-xl w-full max-w-md" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+        <h1 className="font-pirate text-3xl text-[#FFC300] mb-6 text-center">Registrazione</h1>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-[#D4AF37] mb-1 text-sm">Username (per contatti e amici)</label>
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Il tuo username" className="input-dark w-full rounded-lg" data-testid="register-username" required />
+          </div>
+          <div>
+            <label className="block text-[#D4AF37] mb-1 text-sm">Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="input-dark w-full rounded-lg" data-testid="register-email" required />
+          </div>
+          <div>
+            <label className="block text-[#D4AF37] mb-1 text-sm">Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="input-dark w-full rounded-lg" data-testid="register-password" required />
+          </div>
+          
+          {error && <p className="text-[#D00000] text-sm">{error}</p>}
+          
+          <button type="submit" disabled={loading} className="btn-gold w-full py-3 rounded-lg font-pirate" data-testid="register-submit">
+            {loading ? 'Caricamento...' : 'Crea Account'}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-[#E3D5CA]/60">
+          Hai già un account? <button onClick={() => navigate('/login')} className="text-[#FFC300] hover:underline">Accedi</button>
+        </p>
+      </motion.div>
     </div>
   );
 };
@@ -255,151 +263,512 @@ const LoginPage = ({ login }) => {
 
   return (
     <div className="min-h-screen bg-[#051923] flex items-center justify-center p-4">
-      <motion.div 
-        className="glass p-8 rounded-xl w-full max-w-md"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-      >
+      <motion.div className="glass p-8 rounded-xl w-full max-w-md" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
         <h1 className="font-pirate text-3xl text-[#FFC300] mb-6 text-center">Accedi</h1>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="input-dark w-full rounded-lg"
-            data-testid="login-email"
-            required
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="input-dark w-full rounded-lg"
-            data-testid="login-password"
-            required
-          />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="input-dark w-full rounded-lg" data-testid="login-email" required />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="input-dark w-full rounded-lg" data-testid="login-password" required />
           
           {error && <p className="text-[#D00000] text-sm">{error}</p>}
           
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-gold w-full py-3 rounded-lg font-pirate"
-            data-testid="login-submit"
-          >
+          <button type="submit" disabled={loading} className="btn-gold w-full py-3 rounded-lg font-pirate" data-testid="login-submit">
             {loading ? 'Caricamento...' : 'Accedi'}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => {
-              // REMINDER: DO NOT HARDCODE THE URL
-              const redirectUrl = window.location.origin + '/dashboard';
-              window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-            }}
-            className="text-[#00A8E8] hover:underline flex items-center justify-center gap-2 mx-auto"
-          >
-            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
-            Accedi con Google
-          </button>
-          
-          <p className="mt-4 text-[#E3D5CA]/60">
-            Non hai un account?{' '}
-            <button onClick={() => navigate('/register')} className="text-[#FFC300] hover:underline">
-              Registrati
-            </button>
-          </p>
-        </div>
+        <p className="mt-4 text-center text-[#E3D5CA]/60">
+          Non hai un account? <button onClick={() => navigate('/register')} className="text-[#FFC300] hover:underline">Registrati</button>
+        </p>
       </motion.div>
     </div>
   );
 };
 
-// ============ REGISTER PAGE ============
-const RegisterPage = ({ login }) => {
+// ============ CHARACTER CREATION (NEW SYSTEM) ============
+const CharacterCreation = ({ token, setCharacter }) => {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const authToken = token || localStorage.getItem('token');
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [checkingExisting, setCheckingExisting] = useState(true);
+  
+  // Game data from backend
+  const [races, setRaces] = useState({});
+  const [fightingStyles, setFightingStyles] = useState({});
+  const [mestieri, setMestieri] = useState({});
+  
+  // Character data
+  const [charData, setCharData] = useState({
+    nome_personaggio: '',
+    ruolo: 'pirata',
+    genere: '',
+    eta: 16,
+    razza: '',
+    stile_combattimento: '',
+    sogno: '',
+    storia_carattere: '',
+    mestiere: '',
+    colore_capelli: '',
+    colore_occhi: '',
+    particolarita: ''
+  });
+  
+  const [nameError, setNameError] = useState('');
+  const [traits, setTraits] = useState([]);
+  const [extractingTraits, setExtractingTraits] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Fetch game data and check existing character
+  useEffect(() => {
+    const init = async () => {
+      if (!authToken) {
+        navigate('/login');
+        return;
+      }
+      
+      try {
+        // Check if character exists
+        const charResponse = await axios.get(`${API}/characters/me`, { headers: { Authorization: `Bearer ${authToken}` } });
+        if (charResponse.data?.character_id) {
+          setCharacter(charResponse.data);
+          navigate('/dashboard');
+          return;
+        }
+      } catch (e) {}
+      
+      // Fetch game data
+      try {
+        const [racesRes, stylesRes, mestieriRes] = await Promise.all([
+          axios.get(`${API}/game/races`, { headers: { Authorization: `Bearer ${authToken}` } }),
+          axios.get(`${API}/game/fighting-styles`, { headers: { Authorization: `Bearer ${authToken}` } }),
+          axios.get(`${API}/game/mestieri`, { headers: { Authorization: `Bearer ${authToken}` } })
+        ]);
+        setRaces(racesRes.data.races);
+        setFightingStyles(stylesRes.data.styles);
+        setMestieri(mestieriRes.data.mestieri);
+      } catch (e) {
+        console.error('Error fetching game data:', e);
+      }
+      
+      setCheckingExisting(false);
+    };
+    init();
+  }, [authToken, navigate, setCharacter]);
+
+  // Validate character name
+  const validateName = async (name) => {
+    if (!name) return;
+    try {
+      const response = await axios.post(`${API}/characters/validate-name`, { nome: name }, { headers: { Authorization: `Bearer ${authToken}` } });
+      if (!response.data.valid) {
+        setNameError(response.data.message);
+      } else {
+        setNameError('');
+      }
+    } catch (e) {}
+  };
+
+  // Extract traits from story
+  const extractTraits = async () => {
+    if (!charData.storia_carattere || charData.storia_carattere.length < 20) {
+      setError('Scrivi almeno 20 caratteri per la storia del personaggio');
+      return;
+    }
+    
+    setExtractingTraits(true);
+    try {
+      const response = await axios.post(`${API}/characters/extract-traits`, 
+        { storia_carattere: charData.storia_carattere },
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      setTraits(response.data.traits);
+    } catch (e) {
+      setError('Errore nell\'estrazione dei tratti');
+    }
+    setExtractingTraits(false);
+  };
+
+  // Create character
+  const handleCreate = async () => {
+    if (traits.length < 3) {
+      setError('Servono almeno 3 tratti caratteriali');
+      return;
+    }
+    
     setLoading(true);
     setError('');
-
     try {
-      const response = await axios.post(`${API}/auth/register`, { name, email, password });
-      login(response.data.token, response.data.user);
-      navigate('/create-character');
+      const response = await axios.post(`${API}/characters`, charData, { headers: { Authorization: `Bearer ${authToken}` } });
+      // Update traits
+      await axios.put(`${API}/characters/me/traits`, { traits }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setCharacter(response.data);
+      navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Errore durante la registrazione');
+      setError(err.response?.data?.detail || 'Errore durante la creazione');
     }
     setLoading(false);
   };
 
-  return (
-    <div className="min-h-screen bg-[#051923] flex items-center justify-center p-4">
-      <motion.div 
-        className="glass p-8 rounded-xl w-full max-w-md"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-      >
-        <h1 className="font-pirate text-3xl text-[#FFC300] mb-6 text-center">Registrati</h1>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nome Capitano"
-            className="input-dark w-full rounded-lg"
-            data-testid="register-name"
-            required
-          />
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="input-dark w-full rounded-lg"
-            data-testid="register-email"
-            required
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="input-dark w-full rounded-lg"
-            data-testid="register-password"
-            required
-          />
-          
-          {error && <p className="text-[#D00000] text-sm">{error}</p>}
-          
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-gold w-full py-3 rounded-lg font-pirate"
-            data-testid="register-submit"
-          >
-            {loading ? 'Caricamento...' : 'Crea Account'}
-          </button>
-        </form>
+  const totalSteps = 7;
 
-        <p className="mt-4 text-center text-[#E3D5CA]/60">
-          Hai già un account?{' '}
-          <button onClick={() => navigate('/login')} className="text-[#FFC300] hover:underline">
-            Accedi
-          </button>
-        </p>
-      </motion.div>
+  if (checkingExisting) return <LoadingScreen />;
+
+  // Info Box Component
+  const InfoBox = ({ title, advantages, disadvantages }) => (
+    <div className="mt-3 p-3 bg-[#003566]/30 rounded-lg text-sm">
+      <p className="font-bold text-[#FFC300] mb-2">{title}</p>
+      {advantages && (
+        <div className="mb-2">
+          <span className="text-[#2A9D8F]">Vantaggi: </span>
+          <span className="text-[#E3D5CA]/80">{advantages.join(', ')}</span>
+        </div>
+      )}
+      {disadvantages && (
+        <div>
+          <span className="text-[#D00000]">Svantaggi: </span>
+          <span className="text-[#E3D5CA]/80">{disadvantages.join(', ')}</span>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#051923] p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="font-pirate text-4xl text-[#FFC300] mb-4 text-center">Crea il Tuo Personaggio</h1>
+        
+        {/* Progress */}
+        <div className="flex justify-center gap-1 mb-8">
+          {[...Array(totalSteps)].map((_, i) => (
+            <div key={i} className={`w-8 h-2 rounded-full ${i + 1 === step ? 'bg-[#FFC300]' : i + 1 < step ? 'bg-[#2A9D8F]' : 'bg-[#3E2723]'}`} />
+          ))}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {/* STEP 1: Nome Personaggio */}
+          {step === 1 && (
+            <motion.div key="step1" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Nome del Personaggio</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Nome del tuo pirata</label>
+                  <input
+                    type="text"
+                    value={charData.nome_personaggio}
+                    onChange={(e) => {
+                      setCharData({ ...charData, nome_personaggio: e.target.value });
+                      validateName(e.target.value);
+                    }}
+                    placeholder="Es: Monkey Luffy (senza la D.!)"
+                    className="input-dark w-full rounded-lg"
+                    data-testid="char-name"
+                  />
+                  {nameError && (
+                    <div className="mt-2 p-3 bg-[#D00000]/20 border border-[#D00000] rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="w-5 h-5 text-[#D00000] flex-shrink-0 mt-0.5" />
+                      <p className="text-[#D00000] text-sm">{nameError}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex justify-end mt-6">
+                <button onClick={() => !nameError && charData.nome_personaggio && setStep(2)} disabled={!charData.nome_personaggio || nameError} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 2: Genere & Età */}
+          {step === 2 && (
+            <motion.div key="step2" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Genere ed Età</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[#D4AF37] mb-3">Genere</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { id: 'maschio', label: 'Maschio' },
+                      { id: 'femmina', label: 'Femmina' },
+                      { id: 'non_definito', label: 'Non definito' }
+                    ].map((g) => (
+                      <button
+                        key={g.id}
+                        onClick={() => setCharData({ ...charData, genere: g.id })}
+                        className={`p-4 rounded-lg border-2 transition-colors ${charData.genere === g.id ? 'border-[#FFC300] bg-[#FFC300]/10' : 'border-[#3E2723]'}`}
+                      >
+                        <span className="text-[#E3D5CA]">{g.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Età (minimo 16 anni)</label>
+                  <input
+                    type="number"
+                    min="16"
+                    max="100"
+                    value={charData.eta}
+                    onChange={(e) => setCharData({ ...charData, eta: Math.max(16, parseInt(e.target.value) || 16) })}
+                    className="input-dark w-32 rounded-lg"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-between mt-6">
+                <button onClick={() => setStep(1)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={() => charData.genere && setStep(3)} disabled={!charData.genere} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 3: Razza */}
+          {step === 3 && (
+            <motion.div key="step3" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Scegli la Razza</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(races).map(([raceId, race]) => (
+                  <button
+                    key={raceId}
+                    onClick={() => setCharData({ ...charData, razza: raceId })}
+                    className={`p-4 rounded-lg border-2 text-left transition-colors ${charData.razza === raceId ? 'border-[#FFC300] bg-[#FFC300]/10' : 'border-[#3E2723]'}`}
+                  >
+                    <h3 className="font-bold text-[#E3D5CA] mb-1">{race.name}</h3>
+                    <p className="text-sm text-[#E3D5CA]/60 mb-2">{race.description}</p>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="text-xs px-2 py-1 rounded bg-[#2A9D8F]/30 text-[#2A9D8F]">FOR: {race.bonus.forza}</span>
+                      <span className="text-xs px-2 py-1 rounded bg-[#00A8E8]/30 text-[#00A8E8]">VEL: {race.bonus.velocita}</span>
+                      <span className="text-xs px-2 py-1 rounded bg-[#D00000]/30 text-[#D00000]">RES: {race.bonus.resistenza}</span>
+                      <span className="text-xs px-2 py-1 rounded bg-[#7209B7]/30 text-[#7209B7]">AGI: {race.bonus.agilita}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              
+              {charData.razza && races[charData.razza] && (
+                <InfoBox 
+                  title={races[charData.razza].name}
+                  advantages={races[charData.razza].vantaggi}
+                  disadvantages={races[charData.razza].svantaggi}
+                />
+              )}
+              
+              <div className="flex justify-between mt-6">
+                <button onClick={() => setStep(2)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={() => charData.razza && setStep(4)} disabled={!charData.razza} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 4: Stile Combattimento */}
+          {step === 4 && (
+            <motion.div key="step4" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Stile di Combattimento</h2>
+              
+              <div className="space-y-3">
+                {Object.entries(fightingStyles).map(([styleId, style]) => (
+                  <button
+                    key={styleId}
+                    onClick={() => setCharData({ ...charData, stile_combattimento: styleId })}
+                    className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${charData.stile_combattimento === styleId ? 'border-[#D00000] bg-[#D00000]/10' : 'border-[#3E2723]'}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-[#E3D5CA]">{style.name}</h3>
+                        <p className="text-sm text-[#E3D5CA]/60">{style.description}</p>
+                      </div>
+                      <Swords className={`w-6 h-6 ${charData.stile_combattimento === styleId ? 'text-[#D00000]' : 'text-[#D4AF37]'}`} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+              
+              {charData.stile_combattimento && fightingStyles[charData.stile_combattimento] && (
+                <InfoBox 
+                  title={fightingStyles[charData.stile_combattimento].name}
+                  advantages={fightingStyles[charData.stile_combattimento].vantaggi}
+                  disadvantages={fightingStyles[charData.stile_combattimento].svantaggi}
+                />
+              )}
+              
+              <div className="flex justify-between mt-6">
+                <button onClick={() => setStep(3)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={() => charData.stile_combattimento && setStep(5)} disabled={!charData.stile_combattimento} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 5: Mestiere */}
+          {step === 5 && (
+            <motion.div key="step5" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Scegli il tuo Mestiere</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
+                {Object.entries(mestieri).map(([mestiereId, mestiere]) => (
+                  <button
+                    key={mestiereId}
+                    onClick={() => setCharData({ ...charData, mestiere: mestiereId })}
+                    className={`p-4 rounded-lg border-2 text-left transition-colors ${charData.mestiere === mestiereId ? 'border-[#FFC300] bg-[#FFC300]/10' : 'border-[#3E2723]'}`}
+                  >
+                    <h3 className="font-bold text-[#E3D5CA] flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-[#D4AF37]" />
+                      {mestiere.name}
+                    </h3>
+                    <p className="text-xs text-[#E3D5CA]/60 mt-1">{mestiere.description}</p>
+                  </button>
+                ))}
+              </div>
+              
+              <p className="text-xs text-[#E3D5CA]/50 mt-4">
+                <Info className="w-4 h-4 inline mr-1" />
+                Inizierai come Principiante. Il livello aumenta con l'esperienza.
+              </p>
+              
+              <div className="flex justify-between mt-6">
+                <button onClick={() => setStep(4)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={() => charData.mestiere && setStep(6)} disabled={!charData.mestiere} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 6: Sogno & Storia */}
+          {step === 6 && (
+            <motion.div key="step6" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Sogno e Carattere</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Il tuo Sogno (max 100 caratteri)</label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={charData.sogno}
+                    onChange={(e) => setCharData({ ...charData, sogno: e.target.value })}
+                    placeholder="Es: Diventare il Re dei Pirati!"
+                    className="input-dark w-full rounded-lg"
+                  />
+                  <p className="text-xs text-[#E3D5CA]/50 mt-1">{charData.sogno.length}/100</p>
+                </div>
+                
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Storia e Carattere (max 1000 caratteri)</label>
+                  <textarea
+                    maxLength={1000}
+                    rows={6}
+                    value={charData.storia_carattere}
+                    onChange={(e) => setCharData({ ...charData, storia_carattere: e.target.value })}
+                    placeholder="Descrivi la storia del tuo personaggio, il suo carattere, le sue peculiarità. L'AI analizzerà questa descrizione per estrarre i tratti caratteriali che influenzeranno il gameplay..."
+                    className="input-dark w-full rounded-lg resize-none"
+                  />
+                  <p className="text-xs text-[#E3D5CA]/50 mt-1">{charData.storia_carattere.length}/1000</p>
+                </div>
+                
+                <button
+                  onClick={extractTraits}
+                  disabled={extractingTraits || charData.storia_carattere.length < 20}
+                  className="w-full py-3 rounded-lg bg-[#7209B7] text-white font-bold disabled:opacity-50"
+                >
+                  {extractingTraits ? 'Analizzando...' : 'Analizza Carattere (AI)'}
+                </button>
+                
+                {traits.length > 0 && (
+                  <div className="p-4 bg-[#7209B7]/20 rounded-lg">
+                    <h4 className="text-[#FFC300] font-bold mb-2">Tratti Estratti:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {traits.map((trait, i) => (
+                        <span key={i} className="px-3 py-1 bg-[#7209B7]/40 rounded-full text-[#E3D5CA] text-sm">
+                          {trait}
+                          <button onClick={() => setTraits(traits.filter((_, idx) => idx !== i))} className="ml-2 text-[#D00000]">×</button>
+                        </span>
+                      ))}
+                    </div>
+                    {traits.length < 3 && <p className="text-[#D00000] text-sm mt-2">Servono almeno 3 tratti!</p>}
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-between mt-6">
+                <button onClick={() => setStep(5)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={() => traits.length >= 3 && setStep(7)} disabled={traits.length < 3} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50">
+                  Continua <ChevronRight className="inline w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 7: Aspetto & Conferma */}
+          {step === 7 && (
+            <motion.div key="step7" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="glass p-8 rounded-xl">
+              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Aspetto Fisico (Opzionale)</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Colore Capelli</label>
+                  <input type="text" value={charData.colore_capelli} onChange={(e) => setCharData({ ...charData, colore_capelli: e.target.value })} placeholder="Es: Nero" className="input-dark w-full rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Colore Occhi</label>
+                  <input type="text" value={charData.colore_occhi} onChange={(e) => setCharData({ ...charData, colore_occhi: e.target.value })} placeholder="Es: Marroni" className="input-dark w-full rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[#D4AF37] mb-2">Particolarità</label>
+                  <input type="text" value={charData.particolarita} onChange={(e) => setCharData({ ...charData, particolarita: e.target.value })} placeholder="Es: Cicatrice sotto l'occhio" className="input-dark w-full rounded-lg" />
+                </div>
+              </div>
+              
+              {/* Summary */}
+              <div className="p-4 bg-[#003566]/30 rounded-lg mb-6">
+                <h3 className="font-pirate text-xl text-[#FFC300] mb-3">Riepilogo</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <p><span className="text-[#D4AF37]">Nome:</span> {charData.nome_personaggio}</p>
+                  <p><span className="text-[#D4AF37]">Genere:</span> {charData.genere}</p>
+                  <p><span className="text-[#D4AF37]">Età:</span> {charData.eta}</p>
+                  <p><span className="text-[#D4AF37]">Razza:</span> {races[charData.razza]?.name}</p>
+                  <p><span className="text-[#D4AF37]">Stile:</span> {fightingStyles[charData.stile_combattimento]?.name}</p>
+                  <p><span className="text-[#D4AF37]">Mestiere:</span> {mestieri[charData.mestiere]?.name}</p>
+                </div>
+                <p className="mt-2"><span className="text-[#D4AF37]">Sogno:</span> {charData.sogno}</p>
+                <p className="mt-2"><span className="text-[#D4AF37]">Tratti:</span> {traits.join(', ')}</p>
+              </div>
+              
+              {error && <p className="text-[#D00000] text-sm mb-4">{error}</p>}
+              
+              <div className="flex justify-between">
+                <button onClick={() => setStep(6)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">
+                  <ChevronLeft className="inline w-5 h-5" /> Indietro
+                </button>
+                <button onClick={handleCreate} disabled={loading} className="btn-gold py-3 px-8 rounded-lg font-pirate disabled:opacity-50" data-testid="create-character-btn">
+                  {loading ? 'Creazione...' : 'Crea Personaggio!'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
@@ -409,56 +778,44 @@ const Dashboard = ({ user, character, token, logout }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    } else if (!character) {
-      navigate('/create-character');
-    }
+    if (!user) navigate('/login');
+    else if (!character) navigate('/create-character');
   }, [user, character, navigate]);
 
   if (!user || !character) return <LoadingScreen />;
 
   const menuItems = [
-    { icon: Map, label: 'Mappa Mondo', path: '/world-map', color: '#00A8E8' },
-    { icon: MapPin, label: 'Esplora Isola', path: '/island', color: '#2A9D8F' },
+    { icon: Map, label: 'Mappa', path: '/world-map', color: '#00A8E8' },
     { icon: Swords, label: 'Arena', path: '/battle', color: '#D00000' },
-    { icon: User, label: 'Personaggio', path: '/character', color: '#FFC300' },
-    { icon: Scroll, label: 'Carte', path: '/cards', color: '#7209B7' },
+    { icon: UserCircle, label: 'Personaggio', path: '/character', color: '#FFC300' },
     { icon: ShoppingBag, label: 'Negozio', path: '/shop', color: '#D4AF37' },
   ];
 
   return (
-    <div className="min-h-screen bg-wood">
-      <div className="absolute inset-0 bg-[#051923]/70" />
-      
-      <div className="relative z-10 p-4 md:p-8">
-        {/* Header */}
+    <div className="min-h-screen bg-[#051923]">
+      <div className="p-4 md:p-8">
         <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="font-pirate text-3xl md:text-4xl text-[#FFC300]">Benvenuto, {character.name}</h1>
-            <p className="text-[#E3D5CA]/70">{character.title} • Lv.{character.level}</p>
+            <h1 className="font-pirate text-3xl text-[#FFC300]">{character.nome_personaggio}</h1>
+            <p className="text-[#E3D5CA]/70">{character.ruolo} • Lv.{character.livello} • {mestieri[character.mestiere]?.name || character.mestiere}</p>
           </div>
-          <button
-            onClick={logout}
-            className="glass p-3 rounded-lg text-[#E3D5CA] hover:text-[#D00000] transition-colors"
-            data-testid="logout-btn"
-          >
+          <button onClick={logout} className="glass p-3 rounded-lg text-[#E3D5CA] hover:text-[#D00000]" data-testid="logout-btn">
             <LogOut className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Stats Bar */}
-        <div className="glass p-4 rounded-xl mb-8">
+        {/* Stats */}
+        <div className="glass p-4 rounded-xl mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Heart className="w-4 h-4 text-[#D00000]" />
-                <span className="text-sm text-[#E3D5CA]/70">HP</span>
+                <span className="text-sm text-[#E3D5CA]/70">Vita</span>
               </div>
               <div className="hp-bar">
-                <div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(character.hp / character.max_hp) * 100}%` }} />
+                <div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(character.vita / character.vita_max) * 100}%` }} />
               </div>
-              <span className="text-xs text-[#E3D5CA]">{character.hp}/{character.max_hp}</span>
+              <span className="text-xs text-[#E3D5CA]">{character.vita}/{character.vita_max}</span>
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -466,1017 +823,64 @@ const Dashboard = ({ user, character, token, logout }) => {
                 <span className="text-sm text-[#E3D5CA]/70">Energia</span>
               </div>
               <div className="hp-bar">
-                <div className="hp-bar-fill bg-[#00A8E8]" style={{ width: `${(character.energy / character.max_energy) * 100}%` }} />
+                <div className="hp-bar-fill bg-[#00A8E8]" style={{ width: `${(character.energia / character.energia_max) * 100}%` }} />
               </div>
-              <span className="text-xs text-[#E3D5CA]">{character.energy}/{character.max_energy}</span>
+              <span className="text-xs text-[#E3D5CA]">{character.energia}/{character.energia_max}</span>
             </div>
             <div className="text-center">
               <p className="text-xs text-[#E3D5CA]/70">Taglia</p>
-              <p className="font-pirate text-xl text-[#FFC300]">{character.bounty?.toLocaleString()} B</p>
+              <p className="font-pirate text-xl text-[#FFC300]">{(character.taglia || 0).toLocaleString()} B</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-[#E3D5CA]/70">Isola</p>
-              <p className="font-pirate text-lg text-[#E3D5CA]">{character.current_island}</p>
+              <p className="text-xs text-[#E3D5CA]/70">ATK / DEF</p>
+              <p className="text-[#E3D5CA]">{character.attacco} / {character.difesa}</p>
             </div>
           </div>
         </div>
 
-        {/* Menu Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {/* Menu */}
+        <div className="grid grid-cols-2 gap-4">
           {menuItems.map((item) => (
-            <motion.button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className="glass p-6 rounded-xl text-left hover:border-[#D4AF37] transition-colors"
-              whileHover={{ scale: 1.02, y: -4 }}
-              whileTap={{ scale: 0.98 }}
-              data-testid={`menu-${item.label.toLowerCase().replace(' ', '-')}`}
-            >
+            <motion.button key={item.path} onClick={() => navigate(item.path)} className="glass p-6 rounded-xl text-left" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <item.icon className="w-10 h-10 mb-3" style={{ color: item.color }} />
               <h3 className="font-pirate text-xl text-[#E3D5CA]">{item.label}</h3>
             </motion.button>
           ))}
         </div>
-
-        {/* Quick Info */}
-        {character.ship && (
-          <div className="glass p-4 rounded-xl mt-6 flex items-center gap-4">
-            <Ship className="w-8 h-8 text-[#D4AF37]" />
-            <div>
-              <p className="text-sm text-[#E3D5CA]/70">La tua nave</p>
-              <p className="font-pirate text-[#FFC300]">{character.ship}</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
-// ============ CHARACTER CREATION ============
-const CharacterCreation = ({ token, setCharacter }) => {
-  const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  // Get token from localStorage if not provided via props
-  const authToken = token || localStorage.getItem('token');
-  const [charData, setCharData] = useState({
-    name: '',
-    title: 'Aspirante Pirata',
-    body_type: 'normal',
-    hair_color: '#3E2723',
-    outfit: 'pirate',
-    race: 'human',
-    fighting_style: 'brawler',
-    devil_fruit: null
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [checkingExisting, setCheckingExisting] = useState(true);
-
-  // Check if character already exists and redirect
-  useEffect(() => {
-    const checkExistingCharacter = async () => {
-      if (!authToken) {
-        navigate('/login');
-        return;
-      }
-      
-      try {
-        const response = await axios.get(`${API}/characters/me`, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        });
-        if (response.data && response.data.character_id) {
-          // Character exists, redirect to dashboard
-          setCharacter(response.data);
-          navigate('/dashboard');
-        }
-      } catch (err) {
-        // No character exists, proceed with creation
-      }
-      setCheckingExisting(false);
-    };
-    
-    checkExistingCharacter();
-  }, [authToken, navigate, setCharacter]);
-
-  const bodyTypes = [
-    { id: 'slim', label: 'Agile', desc: '+10 ATK, +15 SPD, -5 DEF' },
-    { id: 'normal', label: 'Equilibrato', desc: 'Stats bilanciati' },
-    { id: 'muscular', label: 'Forte', desc: '+5 ATK, +10 DEF' },
-    { id: 'giant', label: 'Gigante', desc: '+15 ATK, +15 DEF, -10 SPD' }
-  ];
-
-  const races = [
-    { id: 'human', label: 'Umano' },
-    { id: 'fishman', label: 'Uomo Pesce' },
-    { id: 'mink', label: 'Mink' },
-    { id: 'longarm', label: 'Braccialunghe' }
-  ];
-
-  const fightingStyles = [
-    { id: 'brawler', label: 'Lottatore', desc: 'Pugni e calci' },
-    { id: 'swordsman', label: 'Spadaccino', desc: 'Maestro della spada' },
-    { id: 'shooter', label: 'Tiratore', desc: 'Armi da fuoco' },
-    { id: 'martial_artist', label: 'Artista Marziale', desc: 'Arti marziali' }
-  ];
-
-  const devilFruits = [
-    { id: null, name: 'Nessuno', type: '-', desc: 'Può nuotare' },
-    { id: 'gomu_gomu', name: 'Gomu Gomu', type: 'Paramisha', desc: 'Corpo di gomma' },
-    { id: 'mera_mera', name: 'Mera Mera', type: 'Rogia', desc: 'Potere del fuoco' },
-    { id: 'hito_hito', name: 'Hito Hito', type: 'Zoan', desc: 'Trasformazione' },
-    { id: 'ope_ope', name: 'Ope Ope', type: 'Paramisha', desc: 'Room - Controllo spaziale' }
-  ];
-
-  const hairColors = ['#3E2723', '#FFD700', '#FF6B35', '#1a1a1a', '#D00000', '#00A8E8', '#2A9D8F', '#7209B7'];
-
-  const handleCreate = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await axios.post(`${API}/characters`, charData, {
-        headers: { Authorization: `Bearer ${authToken}` }
-      });
-      setCharacter(response.data);
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err);
-      if (err.response?.data?.detail === 'Character already exists') {
-        // Character already exists, try to fetch it and redirect
-        try {
-          const charResponse = await axios.get(`${API}/characters/me`, {
-            headers: { Authorization: `Bearer ${authToken}` }
-          });
-          setCharacter(charResponse.data);
-          navigate('/dashboard');
-        } catch (e) {
-          setError('Personaggio già esistente. Vai alla dashboard.');
-        }
-      } else {
-        setError(err.response?.data?.detail || 'Errore durante la creazione del personaggio');
-      }
-    }
-    setLoading(false);
-  };
-
-  if (checkingExisting) {
-    return <LoadingScreen />;
-  }
-
-  return (
-    <div className="min-h-screen bg-[#051923] p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="font-pirate text-4xl text-[#FFC300] mb-8 text-center">Crea il Tuo Pirata</h1>
-
-        {/* Progress */}
-        <div className="flex justify-center gap-2 mb-8">
-          {[1, 2, 3, 4].map((s) => (
-            <div
-              key={s}
-              className={`w-3 h-3 rounded-full ${s === step ? 'bg-[#FFC300]' : s < step ? 'bg-[#2A9D8F]' : 'bg-[#3E2723]'}`}
-            />
-          ))}
-        </div>
-
-        <AnimatePresence mode="wait">
-          {/* Step 1: Name & Title */}
-          {step === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              className="glass p-8 rounded-xl"
-            >
-              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Identità</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[#D4AF37] mb-2">Nome Pirata</label>
-                  <input
-                    type="text"
-                    value={charData.name}
-                    onChange={(e) => setCharData({ ...charData, name: e.target.value })}
-                    placeholder="Es: Monkey D. Rufy"
-                    className="input-dark w-full rounded-lg"
-                    data-testid="char-name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#D4AF37] mb-2">Titolo</label>
-                  <input
-                    type="text"
-                    value={charData.title}
-                    onChange={(e) => setCharData({ ...charData, title: e.target.value })}
-                    placeholder="Es: Il Futuro Re dei Pirati"
-                    className="input-dark w-full rounded-lg"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={() => setStep(2)}
-                disabled={!charData.name}
-                className="btn-gold w-full py-3 rounded-lg mt-6 font-pirate"
-              >
-                Continua <ChevronRight className="inline w-5 h-5" />
-              </button>
-            </motion.div>
-          )}
-
-          {/* Step 2: Body & Race */}
-          {step === 2 && (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              className="glass p-8 rounded-xl"
-            >
-              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Aspetto</h2>
-              
-              <div className="mb-6">
-                <label className="block text-[#D4AF37] mb-3">Tipo Corpo</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {bodyTypes.map((type) => (
-                    <button
-                      key={type.id}
-                      onClick={() => setCharData({ ...charData, body_type: type.id })}
-                      className={`p-4 rounded-lg border-2 transition-colors ${charData.body_type === type.id ? 'border-[#FFC300] bg-[#FFC300]/10' : 'border-[#3E2723]'}`}
-                    >
-                      <span className="block font-bold text-[#E3D5CA]">{type.label}</span>
-                      <span className="text-xs text-[#00A8E8]">{type.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-[#D4AF37] mb-3">Razza</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {races.map((race) => (
-                    <button
-                      key={race.id}
-                      onClick={() => setCharData({ ...charData, race: race.id })}
-                      className={`p-3 rounded-lg border-2 transition-colors ${charData.race === race.id ? 'border-[#FFC300] bg-[#FFC300]/10' : 'border-[#3E2723]'}`}
-                    >
-                      <span className="text-[#E3D5CA]">{race.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-[#D4AF37] mb-3">Colore Capelli</label>
-                <div className="flex gap-3 flex-wrap">
-                  {hairColors.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setCharData({ ...charData, hair_color: color })}
-                      className={`w-10 h-10 rounded-full border-4 transition-transform ${charData.hair_color === color ? 'border-[#FFC300] scale-110' : 'border-transparent'}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <button onClick={() => setStep(1)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">Indietro</button>
-                <button onClick={() => setStep(3)} className="btn-gold flex-1 py-3 rounded-lg font-pirate">
-                  Continua <ChevronRight className="inline w-5 h-5" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 3: Fighting Style */}
-          {step === 3 && (
-            <motion.div
-              key="step3"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              className="glass p-8 rounded-xl"
-            >
-              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">Stile di Combattimento</h2>
-              
-              <div className="grid grid-cols-2 gap-4">
-                {fightingStyles.map((style) => (
-                  <button
-                    key={style.id}
-                    onClick={() => setCharData({ ...charData, fighting_style: style.id })}
-                    className={`p-6 rounded-lg border-2 text-left transition-all ${charData.fighting_style === style.id ? 'border-[#D00000] bg-[#D00000]/10' : 'border-[#3E2723]'}`}
-                  >
-                    <Swords className={`w-8 h-8 mb-2 ${charData.fighting_style === style.id ? 'text-[#D00000]' : 'text-[#D4AF37]'}`} />
-                    <span className="block font-bold text-[#E3D5CA]">{style.label}</span>
-                    <span className="text-xs text-[#E3D5CA]/60">{style.desc}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-4 mt-6">
-                <button onClick={() => setStep(2)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">Indietro</button>
-                <button onClick={() => setStep(4)} className="btn-gold flex-1 py-3 rounded-lg font-pirate">
-                  Continua <ChevronRight className="inline w-5 h-5" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 4: Devil Fruit */}
-          {step === 4 && (
-            <motion.div
-              key="step4"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              className="glass p-8 rounded-xl"
-            >
-              <h2 className="font-pirate text-2xl text-[#E3D5CA] mb-6">
-                <Star className="inline w-6 h-6 text-[#7209B7] mr-2" />
-                Frutto del Diavolo
-              </h2>
-              
-              <div className="space-y-3">
-                {devilFruits.map((fruit) => (
-                  <button
-                    key={fruit.id || 'none'}
-                    onClick={() => setCharData({ ...charData, devil_fruit: fruit.id })}
-                    className={`w-full p-4 rounded-lg border-2 text-left flex justify-between items-center transition-all ${charData.devil_fruit === fruit.id ? 'border-[#7209B7] bg-[#7209B7]/10' : 'border-[#3E2723]'}`}
-                  >
-                    <div>
-                      <span className="font-bold text-[#E3D5CA]">{fruit.name}</span>
-                      <span className={`ml-2 text-xs px-2 py-1 rounded ${fruit.type === 'Rogia' ? 'bg-[#D00000]/30 text-[#D00000]' : fruit.type === 'Zoan' ? 'bg-[#2A9D8F]/30 text-[#2A9D8F]' : fruit.type === 'Paramisha' ? 'bg-[#7209B7]/30 text-[#00A8E8]' : 'bg-[#3E2723]'}`}>
-                        {fruit.type}
-                      </span>
-                    </div>
-                    <span className="text-sm text-[#E3D5CA]/60">{fruit.desc}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-4 mt-6">
-                <button onClick={() => setStep(3)} className="glass px-6 py-3 rounded-lg text-[#E3D5CA]">Indietro</button>
-                <button
-                  onClick={handleCreate}
-                  disabled={loading}
-                  className="btn-gold flex-1 py-3 rounded-lg font-pirate"
-                  data-testid="create-character-btn"
-                >
-                  {loading ? 'Creazione...' : 'Crea Personaggio'}
-                </button>
-              </div>
-              {error && <p className="text-[#D00000] text-sm mt-4 text-center">{error}</p>}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
-
-// ============ WORLD MAP ============
-const WorldMap = ({ token, character }) => {
-  const navigate = useNavigate();
-  const authToken = token || localStorage.getItem('token');
-  const [islands, setIslands] = useState([]);
-  const [diceRolling, setDiceRolling] = useState(false);
-  const [diceResult, setDiceResult] = useState(null);
-  const [event, setEvent] = useState(null);
-
-  useEffect(() => {
-    const fetchIslands = async () => {
-      try {
-        const response = await axios.get(`${API}/world/islands`, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        });
-        setIslands(response.data.islands);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    if (authToken) fetchIslands();
-  }, [authToken]);
-
-  const rollDice = async (destination) => {
-    setDiceRolling(true);
-    setDiceResult(null);
-    
-    try {
-      const response = await axios.post(`${API}/world/roll-dice`, 
-        { destination },
-        { headers: { Authorization: `Bearer ${authToken}` }}
-      );
-      
-      setTimeout(() => {
-        setDiceResult(response.data.dice_result);
-        setEvent(response.data.event);
-        setDiceRolling(false);
-      }, 1000);
-    } catch (err) {
-      console.error(err);
-      setDiceRolling(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#051923]">
-      {/* Header */}
-      <div className="glass p-4 flex justify-between items-center">
-        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
-          <Home className="w-6 h-6" />
-        </button>
-        <h1 className="font-pirate text-2xl text-[#FFC300]">Mappa del Grand Line</h1>
-        <div className="w-6" />
-      </div>
-
-      {/* Map Container */}
-      <div className="relative w-full h-[60vh] bg-parchment overflow-hidden m-4 rounded-xl border-4 border-[#3E2723]">
-        <div className="absolute inset-0 bg-[#051923]/30" />
-        
-        {/* Sea Route Lines */}
-        <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
-          <path
-            d="M 10% 70% Q 25% 50% 40% 45% T 60% 40% T 85% 35% T 95% 30%"
-            fill="none"
-            stroke="#D4AF37"
-            strokeWidth="3"
-            strokeDasharray="10,5"
-            opacity="0.6"
-          />
-        </svg>
-
-        {/* Islands */}
-        {islands.map((island) => (
-          <motion.div
-            key={island.id}
-            className={`absolute map-node ${island.current ? 'active' : ''} ${!island.unlocked ? 'locked' : ''}`}
-            style={{ left: `${island.x}%`, top: `${island.y}%` }}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: Math.random() * 0.5 }}
-            onClick={() => island.unlocked && !island.current && rollDice(island.id)}
-            data-testid={`island-${island.id}`}
-          >
-            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
-              <p className={`text-xs font-bold ${island.current ? 'text-[#D00000]' : island.unlocked ? 'text-[#FFC300]' : 'text-[#3E2723]'}`}>
-                {island.name}
-              </p>
-              <p className="text-xs text-[#3E2723]/60">{island.saga}</p>
-            </div>
-          </motion.div>
-        ))}
-
-        {/* Current Ship */}
-        {character?.ship && (
-          <motion.div
-            className="absolute"
-            style={{ left: `${islands.find(i => i.current)?.x || 10}%`, top: `${(islands.find(i => i.current)?.y || 70) - 5}%` }}
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            <Ship className="w-8 h-8 text-[#3E2723]" />
-          </motion.div>
-        )}
-      </div>
-
-      {/* Controls */}
-      <div className="p-4 space-y-4">
-        {/* Dice */}
-        <div className="glass p-6 rounded-xl flex items-center justify-center gap-8">
-          <div className={`dice ${diceRolling ? 'rolling' : ''}`}>
-            {diceResult || '?'}
-          </div>
-          
-          <div className="text-center">
-            <button
-              onClick={() => rollDice('open_sea')}
-              disabled={diceRolling || !character?.ship}
-              className="btn-gold px-8 py-3 rounded-lg font-pirate"
-              data-testid="roll-dice-btn"
-            >
-              <Dice6 className="inline w-5 h-5 mr-2" />
-              Naviga in Mare Aperto
-            </button>
-            {!character?.ship && (
-              <p className="text-[#D00000] text-sm mt-2">Hai bisogno di una nave!</p>
-            )}
-          </div>
-        </div>
-
-        {/* Event Display */}
-        <AnimatePresence>
-          {event && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="glass p-6 rounded-xl"
-            >
-              <h3 className="font-pirate text-xl text-[#FFC300] mb-2">{event.name}</h3>
-              <p className="text-[#E3D5CA]/80 mb-4">{event.description}</p>
-              
-              {event.type === 'battle' && (
-                <button
-                  onClick={() => navigate('/battle')}
-                  className="btn-gold px-6 py-2 rounded-lg"
-                >
-                  <Swords className="inline w-4 h-4 mr-2" />
-                  Combatti!
-                </button>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
-
-// ============ ISLAND EXPLORER ============
-const IslandExplorer = ({ token, character }) => {
-  const navigate = useNavigate();
-  const authToken = token || localStorage.getItem('token');
-  const [zones, setZones] = useState({});
-  const [currentZone, setCurrentZone] = useState(null);
-  const [npcInteraction, setNpcInteraction] = useState(null);
-
-  useEffect(() => {
-    const fetchZones = async () => {
-      try {
-        const response = await axios.get(`${API}/island/zones`, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        });
-        setZones(response.data.zones);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    if (authToken) fetchZones();
-  }, [authToken]);
-
-  const interactWithNpc = async (npcId, zone) => {
-    try {
-      const response = await axios.post(`${API}/island/interact-npc`, 
-        { npc_id: npcId, zone },
-        { headers: { Authorization: `Bearer ${authToken}` }}
-      );
-      setNpcInteraction(response.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const zoneIcons = {
-    dock: Ship,
-    tavern: MessageCircle,
-    market: ShoppingBag,
-    plaza: Users,
-    hospital: Heart,
-    beach: Waves,
-    forest: Wind,
-    mansion: Crown
-  };
-
-  return (
-    <div className="min-h-screen bg-[#051923]">
-      {/* Header */}
-      <div className="glass p-4 flex justify-between items-center">
-        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
-          <Home className="w-6 h-6" />
-        </button>
-        <h1 className="font-pirate text-2xl text-[#FFC300]">{character?.current_island || 'Isola'}</h1>
-        <button onClick={() => navigate('/world-map')} className="text-[#E3D5CA] hover:text-[#FFC300]">
-          <Map className="w-6 h-6" />
-        </button>
-      </div>
-
-      <div className="p-4">
-        {/* Zones Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {Object.entries(zones).map(([zoneId, zone]) => {
-            const Icon = zoneIcons[zoneId] || MapPin;
-            return (
-              <motion.div
-                key={zoneId}
-                onClick={() => setCurrentZone({ id: zoneId, ...zone })}
-                className={`zone-card ${currentZone?.id === zoneId ? 'border-[#FFC300]' : ''}`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                data-testid={`zone-${zoneId}`}
-              >
-                <Icon className="w-8 h-8 text-[#D4AF37] mb-2" />
-                <h3 className="font-pirate text-lg text-[#E3D5CA]">{zone.name}</h3>
-                <p className="text-xs text-[#E3D5CA]/60">{zone.description}</p>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Zone Details */}
-        <AnimatePresence>
-          {currentZone && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="glass p-6 rounded-xl"
-            >
-              <h2 className="font-pirate text-2xl text-[#FFC300] mb-4">{currentZone.name}</h2>
-              <p className="text-[#E3D5CA]/80 mb-6">{currentZone.description}</p>
-              
-              <h3 className="text-[#D4AF37] mb-3">Personaggi Presenti:</h3>
-              <div className="space-y-2">
-                {currentZone.npcs?.map((npcId) => (
-                  <button
-                    key={npcId}
-                    onClick={() => interactWithNpc(npcId, currentZone.id)}
-                    className="w-full p-3 rounded-lg bg-[#3E2723]/50 hover:bg-[#3E2723] flex items-center gap-3 transition-colors"
-                  >
-                    <User className="w-6 h-6 text-[#D4AF37]" />
-                    <span className="text-[#E3D5CA] capitalize">{npcId.replace('_', ' ')}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* NPC Interaction Modal */}
-        <AnimatePresence>
-          {npcInteraction && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-              onClick={() => setNpcInteraction(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.9 }}
-                animate={{ scale: 1 }}
-                className="glass p-6 rounded-xl max-w-md w-full"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-pirate text-xl text-[#FFC300] capitalize">
-                    {npcInteraction.npc_id?.replace('_', ' ')}
-                  </h3>
-                  <button onClick={() => setNpcInteraction(null)} className="text-[#E3D5CA]/60 hover:text-[#E3D5CA]">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                
-                <p className="text-[#E3D5CA] mb-6 italic">"{npcInteraction.interaction?.dialogue}"</p>
-                
-                {npcInteraction.interaction?.action === 'shop' && (
-                  <button
-                    onClick={() => navigate('/shop')}
-                    className="btn-gold w-full py-3 rounded-lg"
-                  >
-                    <ShoppingBag className="inline w-4 h-4 mr-2" />
-                    Apri Negozio
-                  </button>
-                )}
-                
-                {npcInteraction.interaction?.action === 'heal' && (
-                  <button className="btn-gold w-full py-3 rounded-lg">
-                    <Heart className="inline w-4 h-4 mr-2" />
-                    Curati ({npcInteraction.interaction.cost} Berry)
-                  </button>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
-
-// ============ BATTLE ARENA ============
-const BattleArena = ({ token, character }) => {
-  const navigate = useNavigate();
-  const authToken = token || localStorage.getItem('token');
-  const [battle, setBattle] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [narration, setNarration] = useState('');
-  const [selectedAction, setSelectedAction] = useState(null);
-  const [turnTimer, setTurnTimer] = useState(180);
-  const [damageDisplay, setDamageDisplay] = useState(null);
-
-  // Start battle with NPC
-  const startBattle = async (opponentId) => {
-    setLoading(true);
-    try {
-      const response = await axios.post(`${API}/battle/start`, 
-        { opponent_type: 'npc', opponent_id: opponentId },
-        { headers: { Authorization: `Bearer ${authToken}` }}
-      );
-      setBattle(response.data.battle);
-      await getNarration(`La battaglia inizia contro ${response.data.battle.player2.name}!`);
-    } catch (err) {
-      console.error(err);
-    }
-    setLoading(false);
-  };
-
-  // Execute action
-  const executeAction = async (actionType, actionName) => {
-    if (!battle || battle.current_turn !== 'player1') return;
-
-    try {
-      const response = await axios.post(`${API}/battle/${battle.battle_id}/action`,
-        { action_type: actionType, action_name: actionName },
-        { headers: { Authorization: `Bearer ${authToken}` }}
-      );
-      
-      setBattle(response.data.battle);
-      
-      // Show damage
-      if (response.data.result.damage > 0) {
-        setDamageDisplay({ value: response.data.result.damage, target: 'enemy' });
-        setTimeout(() => setDamageDisplay(null), 1000);
-      }
-      
-      // Get narration
-      await getNarration(response.data.result.log_entry);
-      
-      // NPC turn (simulated)
-      if (!response.data.result.battle_ended && battle.player2.is_npc) {
-        setTimeout(() => simulateNpcTurn(), 2000);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const simulateNpcTurn = async () => {
-    // NPC makes a random action
-    const actions = ['basic_attack', 'special_move'];
-    const actionType = actions[Math.floor(Math.random() * actions.length)];
-    const actionName = actionType === 'basic_attack' ? 'Attacco' : battle.player2.special_moves[0];
-    
-    try {
-      // Simulate NPC action client-side for demo
-      const damage = Math.floor(Math.random() * 15) + 10;
-      
-      setBattle(prev => ({
-        ...prev,
-        player1: { ...prev.player1, hp: Math.max(0, prev.player1.hp - damage) },
-        current_turn: 'player1',
-        turn_number: prev.turn_number + 1
-      }));
-      
-      setDamageDisplay({ value: damage, target: 'player' });
-      setTimeout(() => setDamageDisplay(null), 1000);
-      
-      await getNarration(`${battle.player2.name} usa ${actionName}! Infligge ${damage} danni!`);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const getNarration = async (action) => {
-    try {
-      const response = await axios.post(`${API}/ai/narrate-battle`,
-        { context: `Battaglia tra ${character?.name} e ${battle?.player2?.name || 'nemico'}`, action },
-        { headers: { Authorization: `Bearer ${authToken}` }}
-      );
-      setNarration(response.data.narration);
-    } catch (err) {
-      setNarration(action);
-    }
-  };
-
-  // Timer effect
-  useEffect(() => {
-    if (!battle || battle.status === 'finished') return;
-    
-    const timer = setInterval(() => {
-      setTurnTimer((prev) => {
-        if (prev <= 0) return 180;
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [battle]);
-
-  const actions = [
-    { type: 'movement', name: 'Avanza', icon: Target, desc: 'Muoviti verso il nemico', cost: 3 },
-    { type: 'movement', name: 'Indietreggia', icon: Shield, desc: 'Aumenta distanza', cost: 3 },
-    { type: 'basic_attack', name: 'Pugno', icon: Swords, desc: '10-20 danni', cost: 5 },
-    { type: 'basic_attack', name: 'Calcio', icon: Swords, desc: '12-18 danni', cost: 5 },
-    ...(character?.special_moves || []).map(move => ({
-      type: 'special_move', name: move, icon: Star, desc: '20-40 danni', cost: 20
-    })),
-    { type: 'pass', name: 'Passa', icon: Clock, desc: 'Recupera energia', cost: 0 },
-  ];
-
-  if (!battle) {
-    return (
-      <div className="min-h-screen bg-[#051923] p-4">
-        <div className="glass p-4 flex justify-between items-center mb-6">
-          <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
-            <Home className="w-6 h-6" />
-          </button>
-          <h1 className="font-pirate text-2xl text-[#FFC300]">Arena di Combattimento</h1>
-          <div className="w-6" />
-        </div>
-
-        <div className="text-center mb-8">
-          <h2 className="font-pirate text-xl text-[#E3D5CA] mb-4">Scegli il tuo avversario</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { id: 'marine_grunt', name: 'Marine Soldato', difficulty: 'Facile', bounty: 0 },
-            { id: 'pirate_rookie', name: 'Pirata Novizio', difficulty: 'Facile', bounty: 5000000 },
-            { id: 'marine_captain', name: 'Marine Capitano', difficulty: 'Medio', bounty: 0 },
-            { id: 'pirate_captain', name: 'Capitano Pirata', difficulty: 'Difficile', bounty: 30000000 },
-          ].map((opponent) => (
-            <motion.button
-              key={opponent.id}
-              onClick={() => startBattle(opponent.id)}
-              disabled={loading}
-              className="wanted-poster p-6 text-left"
-              whileHover={{ rotate: 0, scale: 1.02 }}
-              initial={{ rotate: Math.random() * 4 - 2 }}
-              data-testid={`opponent-${opponent.id}`}
-            >
-              <div className="relative z-10">
-                <h3 className="font-pirate text-2xl text-[#8B0000] mb-1">WANTED</h3>
-                <div className="w-full h-24 bg-[#D7C297] border-2 border-[#3E2723] mb-2 flex items-center justify-center">
-                  <Skull className="w-12 h-12 text-[#3E2723]" />
-                </div>
-                <p className="font-pirate text-xl text-[#3E2723]">{opponent.name}</p>
-                <p className="text-sm text-[#5D4037]">Difficoltà: {opponent.difficulty}</p>
-                {opponent.bounty > 0 && (
-                  <p className="font-pirate text-[#8B0000]">{opponent.bounty.toLocaleString()} Berry</p>
-                )}
-              </div>
-            </motion.button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#0f0f1a] flex flex-col">
-      {/* Enemy Section */}
-      <div className="flex-1 p-4 bg-gradient-to-b from-[#1a1a2e] to-[#0f0f1a] relative">
-        <motion.div 
-          className="gameboy-panel p-4 rounded-lg max-w-lg mx-auto"
-          animate={damageDisplay?.target === 'enemy' ? { x: [-10, 10, -10, 0] } : {}}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h3 className="font-pixel text-2xl text-[#D00000]">{battle.player2.name}</h3>
-              <p className="font-pixel text-sm text-[#E3D5CA]/60">
-                {battle.player2.bounty > 0 ? `${battle.player2.bounty.toLocaleString()} B` : 'MARINE'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#FFC300]" />
-              <span className="font-pixel text-[#FFC300]">{Math.floor(turnTimer / 60)}:{(turnTimer % 60).toString().padStart(2, '0')}</span>
-            </div>
-          </div>
-          
-          <div className="hp-bar mb-2">
-            <div 
-              className="hp-bar-fill bg-[#D00000]" 
-              style={{ width: `${(battle.player2.hp / battle.player2.max_hp) * 100}%` }}
-            />
-          </div>
-          <p className="font-pixel text-sm text-[#E3D5CA]">HP: {battle.player2.hp}/{battle.player2.max_hp}</p>
-        </motion.div>
-
-        {/* Damage Display */}
-        <AnimatePresence>
-          {damageDisplay && (
-            <motion.div
-              className={`absolute font-pixel text-5xl ${damageDisplay.target === 'enemy' ? 'text-[#D00000] top-1/4 left-1/2' : 'text-[#D00000] bottom-1/4 left-1/2'}`}
-              initial={{ opacity: 1, y: 0, scale: 1 }}
-              animate={{ opacity: 0, y: -50, scale: 1.5 }}
-              exit={{ opacity: 0 }}
-              style={{ transform: 'translateX(-50%)' }}
-            >
-              -{damageDisplay.value}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Narration */}
-      {narration && (
-        <div className="chat-bubble narration mx-4 my-2">
-          <p className="font-pixel text-lg">{narration}</p>
-        </div>
-      )}
-
-      {/* Player Section */}
-      <motion.div 
-        className="gameboy-panel p-4"
-        animate={damageDisplay?.target === 'player' ? { x: [-10, 10, -10, 0] } : {}}
-      >
-        <div className="max-w-lg mx-auto">
-          {/* Player Stats */}
-          <div className="flex items-center gap-4 mb-4">
-            <Crown className="w-10 h-10 text-[#FFC300]" />
-            <div className="flex-1">
-              <h3 className="font-pixel text-xl text-[#FFC300]">{battle.player1.name}</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="hp-bar h-5">
-                    <div 
-                      className="hp-bar-fill bg-[#D00000]" 
-                      style={{ width: `${(battle.player1.hp / battle.player1.max_hp) * 100}%` }}
-                    />
-                  </div>
-                  <p className="font-pixel text-xs text-[#E3D5CA]">HP: {battle.player1.hp}/{battle.player1.max_hp}</p>
-                </div>
-                <div>
-                  <div className="hp-bar h-5">
-                    <div 
-                      className="hp-bar-fill bg-[#00A8E8]" 
-                      style={{ width: `${(battle.player1.energy / battle.player1.max_energy) * 100}%` }}
-                    />
-                  </div>
-                  <p className="font-pixel text-xs text-[#E3D5CA]">EN: {battle.player1.energy}/{battle.player1.max_energy}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Grid */}
-          <div className="grid grid-cols-2 gap-2">
-            {actions.slice(0, 6).map((action) => (
-              <button
-                key={action.name}
-                onClick={() => executeAction(action.type, action.name)}
-                disabled={battle.current_turn !== 'player1' || battle.player1.energy < action.cost}
-                className="gameboy-button text-left"
-                data-testid={`action-${action.name.toLowerCase()}`}
-              >
-                <action.icon className="w-4 h-4 inline mr-2" />
-                {action.name}
-                {action.cost > 0 && <span className="text-xs ml-1">(-{action.cost})</span>}
-              </button>
-            ))}
-          </div>
-
-          {battle.current_turn !== 'player1' && (
-            <p className="font-pixel text-center text-[#D00000] mt-4 animate-pulse">
-              Turno del nemico...
-            </p>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Battle End */}
-      {battle.status === 'finished' && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-        >
-          <div className="text-center">
-            <h2 className="font-pirate text-5xl text-[#FFC300] mb-4">
-              {battle.winner === 'player1' ? 'VITTORIA!' : 'SCONFITTA'}
-            </h2>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="btn-gold px-8 py-3 rounded-lg font-pirate"
-            >
-              Continua
-            </button>
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
+// Mestieri constant for dashboard display
+const mestieri = {
+  capitano: { name: "Capitano" },
+  guerriero: { name: "Guerriero" },
+  navigatore: { name: "Navigatore" },
+  cecchino: { name: "Cecchino" },
+  cuoco: { name: "Cuoco" },
+  medico: { name: "Medico" },
+  archeologo: { name: "Archeologo" },
+  carpentiere: { name: "Carpentiere" },
+  musicista: { name: "Musicista" },
+  timoniere: { name: "Timoniere" },
+  scienziato: { name: "Scienziato" },
+  ipnotista: { name: "Ipnotista" }
 };
 
 // ============ CHARACTER SHEET ============
-const CharacterSheet = ({ token, character }) => {
+const CharacterSheet = ({ token, character, setCharacter }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
+  const [showPrivate, setShowPrivate] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
-  const handleDeleteCharacter = async () => {
-    setDeleting(true);
+  const handleDelete = async () => {
     try {
-      await axios.delete(`${API}/characters/me`, {
-        headers: { Authorization: `Bearer ${authToken}` }
-      });
-      // Clear local state and redirect to character creation
+      await axios.delete(`${API}/characters/me`, { headers: { Authorization: `Bearer ${authToken}` } });
       localStorage.removeItem('token');
       window.location.href = '/';
-    } catch (err) {
-      console.error(err);
-    }
-    setDeleting(false);
+    } catch (e) {}
   };
 
   if (!character) return <LoadingScreen />;
@@ -1488,196 +892,236 @@ const CharacterSheet = ({ token, character }) => {
           <Home className="w-6 h-6" />
         </button>
         <h1 className="font-pirate text-2xl text-[#FFC300]">Scheda Personaggio</h1>
-        <div className="w-6" />
+        <button onClick={() => setShowPrivate(!showPrivate)} className="text-[#E3D5CA]">
+          {showPrivate ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+        </button>
       </div>
 
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Wanted Poster */}
-        <div className="wanted-poster p-8 mx-auto max-w-sm">
-          <div className="relative z-10 text-center">
-            <h2 className="font-pirate text-3xl text-[#8B0000] mb-1">WANTED</h2>
-            <p className="text-sm text-[#5D4037] mb-4">DEAD OR ALIVE</p>
-            
-            <div className="w-full h-48 bg-[#D7C297] border-4 border-[#3E2723] mb-4 flex items-center justify-center">
-              <User className="w-20 h-20 text-[#3E2723]" />
-            </div>
-            
-            <h3 className="font-pirate text-2xl text-[#3E2723]">{character.name}</h3>
-            <p className="text-[#5D4037]">{character.title}</p>
-            
-            <div className="border-t-2 border-dashed border-[#5D4037] mt-4 pt-4">
-              <p className="font-pirate text-3xl text-[#8B0000]">
-                {character.bounty?.toLocaleString()} <span className="text-xl">Berry</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
+      <div className="max-w-2xl mx-auto space-y-4">
+        {/* Basic Info (PUBLIC) */}
         <div className="glass p-6 rounded-xl">
-          <h3 className="font-pirate text-xl text-[#FFC300] mb-4">Statistiche</h3>
+          <h2 className="font-pirate text-2xl text-[#FFC300] mb-4">{character.nome_personaggio}</h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <p><span className="text-[#D4AF37]">Ruolo:</span> {character.ruolo}</p>
+            <p><span className="text-[#D4AF37]">Livello:</span> {character.livello}</p>
+            <p><span className="text-[#D4AF37]">EXP:</span> {character.esperienza}</p>
+            <p><span className="text-[#D4AF37]">Genere:</span> {character.genere}</p>
+            <p><span className="text-[#D4AF37]">Razza:</span> {character.razza}</p>
+            <p><span className="text-[#D4AF37]">Mestiere:</span> {mestieri[character.mestiere]?.name} ({character.mestiere_livello})</p>
+            <p><span className="text-[#D4AF37]">Stile:</span> {character.stile_combattimento}</p>
+            <p><span className="text-[#D4AF37]">Taglia:</span> {(character.taglia || 0).toLocaleString()} Berry</p>
+          </div>
+          {character.sogno && <p className="mt-3"><span className="text-[#D4AF37]">Sogno:</span> {character.sogno}</p>}
+        </div>
+
+        {/* Combat Stats (PUBLIC) */}
+        <div className="glass p-6 rounded-xl">
+          <h3 className="font-pirate text-xl text-[#D00000] mb-4">Abilità di Combattimento</h3>
           <div className="grid grid-cols-2 gap-4">
-            {Object.entries(character.stats || {}).map(([stat, value]) => (
-              <div key={stat}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-[#E3D5CA] capitalize">{stat}</span>
-                  <span className="text-[#FFC300]">{value}</span>
-                </div>
-                <div className="h-2 bg-[#3E2723] rounded-full">
-                  <div 
-                    className="h-full bg-[#D4AF37] rounded-full" 
-                    style={{ width: `${Math.min(value, 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+            <div>
+              <p className="text-[#D4AF37] text-sm">Vita</p>
+              <div className="hp-bar"><div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(character.vita / character.vita_max) * 100}%` }} /></div>
+              <p className="text-xs text-[#E3D5CA]">{character.vita}/{character.vita_max}</p>
+            </div>
+            <div>
+              <p className="text-[#D4AF37] text-sm">Energia</p>
+              <div className="hp-bar"><div className="hp-bar-fill bg-[#00A8E8]" style={{ width: `${(character.energia / character.energia_max) * 100}%` }} /></div>
+              <p className="text-xs text-[#E3D5CA]">{character.energia}/{character.energia_max}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2 mt-4 text-center">
+            <div><p className="text-xs text-[#D4AF37]">ATK</p><p className="text-[#E3D5CA] font-bold">{character.attacco}</p></div>
+            <div><p className="text-xs text-[#D4AF37]">DEF</p><p className="text-[#E3D5CA] font-bold">{character.difesa}</p></div>
+            <div><p className="text-xs text-[#D4AF37]">FOR</p><p className="text-[#E3D5CA]">{character.forza}</p></div>
+            <div><p className="text-xs text-[#D4AF37]">VEL</p><p className="text-[#E3D5CA]">{character.velocita}</p></div>
+            <div><p className="text-xs text-[#D4AF37]">RES</p><p className="text-[#E3D5CA]">{character.resistenza}</p></div>
+            <div><p className="text-xs text-[#D4AF37]">AGI</p><p className="text-[#E3D5CA]">{character.agilita}</p></div>
+            <div className="col-span-2"><p className="text-xs text-[#D4AF37]">Aspettativa Vita</p><p className="text-[#E3D5CA]">{character.aspettativa_vita}/{character.aspettativa_vita_max}</p></div>
           </div>
         </div>
 
-        {/* Devil Fruit */}
-        {character.devil_fruit && (
+        {/* Traits (PUBLIC) */}
+        {character.tratti_carattere?.length > 0 && (
           <div className="glass p-6 rounded-xl">
-            <h3 className="font-pirate text-xl text-[#7209B7] mb-2">
-              <Star className="inline w-5 h-5 mr-2" />
-              Frutto del Diavolo
-            </h3>
-            <p className="text-[#E3D5CA] capitalize">{character.devil_fruit.replace('_', ' ')}</p>
+            <h3 className="font-pirate text-xl text-[#7209B7] mb-3">Carattere</h3>
+            <div className="flex flex-wrap gap-2">
+              {character.tratti_carattere.map((t, i) => (
+                <span key={i} className="px-3 py-1 bg-[#7209B7]/30 rounded-full text-sm text-[#E3D5CA]">{t}</span>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Special Moves */}
-        <div className="glass p-6 rounded-xl">
-          <h3 className="font-pirate text-xl text-[#D00000] mb-4">Mosse Speciali</h3>
-          <div className="space-y-2">
-            {(character.special_moves || []).map((move, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 bg-[#3E2723]/50 rounded-lg">
-                <Swords className="w-5 h-5 text-[#D4AF37]" />
-                <span className="text-[#E3D5CA]">{move}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Inventory Preview */}
-        <div className="glass p-6 rounded-xl">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-pirate text-xl text-[#FFC300]">Inventario</h3>
-            <span className="text-sm text-[#E3D5CA]/60">{(character.inventory || []).length} oggetti</span>
-          </div>
-          <div className="grid grid-cols-6 gap-2">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className={`inventory-slot ${i >= (character.inventory || []).length ? 'empty' : ''}`}>
-                {i < (character.inventory || []).length && (
-                  <Package className="w-6 h-6 text-[#D4AF37]" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Delete Character */}
-        <div className="glass p-6 rounded-xl border border-[#D00000]/30">
-          <h3 className="font-pirate text-xl text-[#D00000] mb-4">Zona Pericolosa</h3>
-          {!showDeleteConfirm ? (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="bg-[#D00000]/20 text-[#D00000] py-2 px-4 rounded-lg border border-[#D00000] hover:bg-[#D00000]/30"
-              data-testid="delete-char-btn"
-            >
-              Elimina Personaggio
-            </button>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-[#E3D5CA]/80">Sei sicuro? Questa azione è irreversibile!</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDeleteCharacter}
-                  disabled={deleting}
-                  className="bg-[#D00000] text-white py-2 px-4 rounded-lg"
-                >
-                  {deleting ? 'Eliminazione...' : 'Sì, elimina'}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="glass py-2 px-4 rounded-lg text-[#E3D5CA]"
-                >
-                  Annulla
-                </button>
+        {/* PRIVATE SECTION */}
+        {showPrivate && (
+          <>
+            <div className="glass p-6 rounded-xl border border-[#FFC300]/30">
+              <h3 className="font-pirate text-xl text-[#FFC300] mb-3 flex items-center gap-2">
+                <EyeOff className="w-5 h-5" /> Info Private
+              </h3>
+              <div className="text-sm space-y-2">
+                <p><span className="text-[#D4AF37]">Abilità Base Raw:</span> FOR {character.abilita_base?.forza_raw}, VEL {character.abilita_base?.velocita_raw}, RES {character.abilita_base?.resistenza_raw}, AGI {character.abilita_base?.agilita_raw}</p>
+                <p><span className="text-[#D4AF37]">Armi Speciali:</span> {character.armi_speciali?.length || 0}</p>
+                <p><span className="text-[#D4AF37]">Poteri Segreti:</span> {character.poteri_segreti?.length || 0}</p>
+                <p><span className="text-[#D4AF37]">Missioni Attive:</span> {character.missioni_attive?.length || 0}</p>
               </div>
             </div>
-          )}
-        </div>
+
+            <div className="glass p-6 rounded-xl border border-[#D00000]/30">
+              <h3 className="font-pirate text-xl text-[#D00000] mb-3">Zona Pericolosa</h3>
+              {!showDeleteConfirm ? (
+                <button onClick={() => setShowDeleteConfirm(true)} className="bg-[#D00000]/20 text-[#D00000] py-2 px-4 rounded-lg border border-[#D00000]">
+                  Elimina Personaggio
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[#E3D5CA]/80">Sei sicuro? Questa azione è irreversibile!</p>
+                  <div className="flex gap-3">
+                    <button onClick={handleDelete} className="bg-[#D00000] text-white py-2 px-4 rounded-lg">Sì, elimina</button>
+                    <button onClick={() => setShowDeleteConfirm(false)} className="glass py-2 px-4 rounded-lg text-[#E3D5CA]">Annulla</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
 
-// ============ CARD COLLECTION ============
-const CardCollection = ({ token, character }) => {
+// ============ WORLD MAP (simplified) ============
+const WorldMap = ({ token, character }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('storytelling');
+  const authToken = token || localStorage.getItem('token');
+  const [islands, setIslands] = useState([]);
 
-  const cardTypes = [
-    { id: 'storytelling', label: 'Storytelling', color: '#00A8E8' },
-    { id: 'events', label: 'Eventi', color: '#2A9D8F' },
-    { id: 'duel', label: 'Duello', color: '#D00000' },
-    { id: 'resources', label: 'Risorse', color: '#FFC300' },
-  ];
-
-  const cards = character?.cards || {};
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await axios.get(`${API}/world/islands`, { headers: { Authorization: `Bearer ${authToken}` } });
+        setIslands(res.data.islands);
+      } catch (e) {}
+    };
+    if (authToken) fetch();
+  }, [authToken]);
 
   return (
-    <div className="min-h-screen bg-[#051923] p-4">
-      <div className="glass p-4 flex justify-between items-center mb-6">
-        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
-          <Home className="w-6 h-6" />
-        </button>
-        <h1 className="font-pirate text-2xl text-[#FFC300]">Collezione Carte</h1>
+    <div className="min-h-screen bg-[#051923]">
+      <div className="glass p-4 flex justify-between items-center">
+        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA]"><Home className="w-6 h-6" /></button>
+        <h1 className="font-pirate text-2xl text-[#FFC300]">Mappa del Grand Line</h1>
         <div className="w-6" />
       </div>
+      <div className="p-4">
+        <div className="relative w-full h-[60vh] bg-[#003566]/30 rounded-xl border-2 border-[#D4AF37] overflow-hidden">
+          {islands.map((island) => (
+            <div
+              key={island.id}
+              className={`absolute map-node ${island.corrente ? 'active' : ''} ${!island.sbloccata ? 'locked' : ''}`}
+              style={{ left: `${island.x}%`, top: `${island.y}%` }}
+            >
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
+                <p className={`text-xs font-bold ${island.corrente ? 'text-[#D00000]' : island.sbloccata ? 'text-[#FFC300]' : 'text-[#3E2723]'}`}>{island.name}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-center text-[#E3D5CA]/60 mt-4">Sistema di navigazione in sviluppo...</p>
+      </div>
+    </div>
+  );
+};
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {cardTypes.map((type) => (
-          <button
-            key={type.id}
-            onClick={() => setActiveTab(type.id)}
-            className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${activeTab === type.id ? 'bg-[#D4AF37] text-[#3E2723]' : 'glass text-[#E3D5CA]'}`}
-            style={activeTab === type.id ? { backgroundColor: type.color } : {}}
-          >
-            {type.label}
-          </button>
-        ))}
+// ============ BATTLE ARENA (simplified) ============
+const BattleArena = ({ token, character }) => {
+  const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
+  const [battle, setBattle] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const startBattle = async (opponentId) => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API}/battle/start`, { opponent_type: 'npc', opponent_id: opponentId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setBattle(res.data.battle);
+    } catch (e) {}
+    setLoading(false);
+  };
+
+  const doAction = async (actionType, actionName) => {
+    if (!battle || battle.turno_corrente !== 'player1') return;
+    try {
+      const res = await axios.post(`${API}/battle/${battle.battle_id}/action`, { action_type: actionType, action_name: actionName }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setBattle(res.data.battle);
+    } catch (e) {}
+  };
+
+  if (!battle) {
+    return (
+      <div className="min-h-screen bg-[#051923] p-4">
+        <div className="glass p-4 flex justify-between items-center mb-6">
+          <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA]"><Home className="w-6 h-6" /></button>
+          <h1 className="font-pirate text-2xl text-[#FFC300]">Arena</h1>
+          <div className="w-6" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          {['marine_soldato', 'pirata_novizio', 'marine_capitano', 'capitano_pirata'].map((id) => (
+            <button key={id} onClick={() => startBattle(id)} disabled={loading} className="glass p-4 rounded-lg text-left">
+              <Skull className="w-8 h-8 text-[#D00000] mb-2" />
+              <p className="font-bold text-[#E3D5CA] capitalize">{id.replace('_', ' ')}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0f0f1a] flex flex-col">
+      {/* Enemy */}
+      <div className="flex-1 p-4">
+        <div className="gameboy-panel p-4 rounded-lg max-w-lg mx-auto">
+          <h3 className="font-pixel text-xl text-[#D00000]">{battle.player2.nome}</h3>
+          <div className="hp-bar mt-2"><div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(battle.player2.vita / battle.player2.vita_max) * 100}%` }} /></div>
+          <p className="font-pixel text-sm text-[#E3D5CA]">HP: {battle.player2.vita}/{battle.player2.vita_max}</p>
+        </div>
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {(cards[activeTab] || []).length > 0 ? (
-          cards[activeTab].map((cardId, i) => (
-            <motion.div
-              key={`${cardId}-${i}`}
-              className={`game-card ${activeTab} p-4`}
-              whileHover={{ scale: 1.05, rotate: 2 }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-            >
-              <div className="relative z-10">
-                <div className="w-full h-24 bg-[#D7C297] rounded mb-3 flex items-center justify-center">
-                  <Scroll className="w-10 h-10 text-[#3E2723]" />
-                </div>
-                <h4 className="font-pirate text-lg text-[#3E2723]">{cardId}</h4>
-                <p className="text-xs text-[#5D4037]">Carta {activeTab}</p>
-              </div>
-            </motion.div>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12">
-            <Scroll className="w-16 h-16 text-[#3E2723] mx-auto mb-4" />
-            <p className="text-[#E3D5CA]/60">Nessuna carta in questa categoria</p>
-            <p className="text-sm text-[#E3D5CA]/40">Completa eventi e missioni per ottenere carte!</p>
+      {/* Log */}
+      <div className="p-4 max-h-32 overflow-y-auto">
+        {battle.log.slice(-3).map((l, i) => <p key={i} className="font-pixel text-sm text-[#E3D5CA]/80">&gt; {l}</p>)}
+      </div>
+
+      {/* Player */}
+      <div className="gameboy-panel p-4">
+        <div className="max-w-lg mx-auto">
+          <h3 className="font-pixel text-xl text-[#FFC300]">{battle.player1.nome}</h3>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <div className="hp-bar"><div className="hp-bar-fill bg-[#D00000]" style={{ width: `${(battle.player1.vita / battle.player1.vita_max) * 100}%` }} /></div>
+              <p className="font-pixel text-xs">HP: {battle.player1.vita}</p>
+            </div>
+            <div>
+              <div className="hp-bar"><div className="hp-bar-fill bg-[#00A8E8]" style={{ width: `${(battle.player1.energia / battle.player1.energia_max) * 100}%` }} /></div>
+              <p className="font-pixel text-xs">EN: {battle.player1.energia}</p>
+            </div>
           </div>
-        )}
+
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <button onClick={() => doAction('attacco_base', 'Pugno')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Pugno</button>
+            <button onClick={() => doAction('attacco_base', 'Calcio')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Calcio</button>
+            <button onClick={() => doAction('difesa', 'Difendi')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Difendi</button>
+            <button onClick={() => doAction('passa', 'Passa')} disabled={battle.turno_corrente !== 'player1'} className="gameboy-button">Passa</button>
+          </div>
+
+          {battle.stato === 'finita' && (
+            <div className="mt-4 text-center">
+              <p className="font-pirate text-2xl text-[#FFC300]">{battle.vincitore === 'player1' ? 'VITTORIA!' : 'SCONFITTA'}</p>
+              <button onClick={() => navigate('/dashboard')} className="btn-gold mt-2 px-6 py-2 rounded-lg">Continua</button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1688,98 +1132,47 @@ const Shop = ({ token, character }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [items, setItems] = useState({});
-  const [buying, setBuying] = useState(false);
 
   useEffect(() => {
-    const fetchItems = async () => {
+    const fetch = async () => {
       try {
-        const response = await axios.get(`${API}/shop/items`, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        });
-        setItems(response.data.items);
-      } catch (err) {
-        console.error(err);
-      }
+        const res = await axios.get(`${API}/shop/items`, { headers: { Authorization: `Bearer ${authToken}` } });
+        setItems(res.data.items);
+      } catch (e) {}
     };
-    if (authToken) fetchItems();
+    if (authToken) fetch();
   }, [authToken]);
 
-  const buyItem = async (itemId) => {
-    setBuying(true);
+  const buy = async (itemId) => {
     try {
-      await axios.post(`${API}/shop/buy`, 
-        { item_id: itemId },
-        { headers: { Authorization: `Bearer ${authToken}` }}
-      );
-      // Show success feedback
-    } catch (err) {
-      console.error(err);
-    }
-    setBuying(false);
-  };
-
-  const itemIcons = {
-    health_potion: Heart,
-    energy_drink: Zap,
-    basic_sword: Swords,
-    small_boat: Ship,
-    caravel: Ship,
-    brigantine: Ship
+      await axios.post(`${API}/shop/buy`, { item_id: itemId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      alert('Acquistato!');
+    } catch (e) {}
   };
 
   return (
     <div className="min-h-screen bg-[#051923] p-4">
       <div className="glass p-4 flex justify-between items-center mb-6">
-        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
-          <Home className="w-6 h-6" />
-        </button>
+        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA]"><Home className="w-6 h-6" /></button>
         <h1 className="font-pirate text-2xl text-[#FFC300]">Negozio</h1>
         <div className="w-6" />
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {Object.entries(items).map(([itemId, item]) => {
-          const Icon = itemIcons[itemId] || Package;
-          return (
-            <motion.div
-              key={itemId}
-              className="glass p-6 rounded-xl"
-              whileHover={{ scale: 1.02 }}
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-16 h-16 bg-[#3E2723] rounded-lg flex items-center justify-center">
-                  <Icon className="w-8 h-8 text-[#D4AF37]" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-pirate text-xl text-[#E3D5CA]">{item.name}</h3>
-                  <p className="text-sm text-[#E3D5CA]/60">
-                    {item.effect?.heal && `+${item.effect.heal} HP`}
-                    {item.effect?.energy && `+${item.effect.energy} Energia`}
-                    {item.effect?.attack_bonus && `+${item.effect.attack_bonus} ATK`}
-                    {item.type === 'ship' && `Nave - Velocità ${item.speed}`}
-                  </p>
-                  <div className="flex justify-between items-center mt-3">
-                    <p className="font-pirate text-[#FFC300]">{item.price.toLocaleString()} Berry</p>
-                    <button
-                      onClick={() => buyItem(itemId)}
-                      disabled={buying}
-                      className="btn-gold px-4 py-2 rounded text-sm"
-                      data-testid={`buy-${itemId}`}
-                    >
-                      Compra
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
+        {Object.entries(items).map(([id, item]) => (
+          <div key={id} className="glass p-4 rounded-xl flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-[#E3D5CA]">{item.name}</h3>
+              <p className="text-sm text-[#FFC300]">{item.price.toLocaleString()} Berry</p>
+            </div>
+            <button onClick={() => buy(id)} className="btn-gold px-4 py-2 rounded-lg text-sm">Compra</button>
+          </div>
+        ))}
       </div>
     </div>
   );
 };
 
-// ============ MAIN APP ============
+// ============ MAIN ============
 function App() {
   return (
     <div className="App">
