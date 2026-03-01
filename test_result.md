@@ -249,13 +249,58 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: Shop purchases now working with Berry system. Successfully bought 'Pozione Vita' for 100 Berry from starting 1000+106 (battle reward). Berry correctly deducted: 1106 -> 1006. Purchase flow complete and functional."
 
-  - task: "Navigation Dice Roll"
+  - task: "Exploration Current Island Info"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
-    priority: "medium"
-    needs_retesting: true
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "New exploration endpoint - need to test GET /api/exploration/current-island"
+      - working: true
+        agent: "testing"
+        comment: "✅ Current island info working perfectly. GET /api/exploration/current-island returns Dawn Island with exactly 5 zones as required (Foosha Village, Mt. Colubo, Gray Terminal, Midway Forest, Goa Kingdom). Includes visited_zones tracking and character_stats (vita, energia, berry). Proper response structure verified."
+
+  - task: "Exploration Visit Zone"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "New exploration endpoint - need to test POST /api/exploration/visit-zone"
+      - working: true
+        agent: "testing"
+        comment: "✅ Visit zone working perfectly. POST /api/exploration/visit-zone with zone_id 'foosha' successfully marks zone as visited. Zone appears in visited_zones list on subsequent current-island calls. Proper response with zone details and confirmation message."
+
+  - task: "Exploration Random Events"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "New exploration endpoint - need to test POST /api/exploration/random-event"
+      - working: true
+        agent: "testing"
+        comment: "✅ Random events working perfectly. POST /api/exploration/random-event returns events with proper structure (categoria, tipo, nome, descrizione) as required. Effects_applied array functional with Berry, EXP, items, etc. Tested 5 events across multiple categories: combattimento, sociale, scoperta. All event types working with proper effects application."
+
+  - task: "Navigation Dice Roll"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -263,6 +308,9 @@ backend:
       - working: "NA"
         agent: "testing"
         comment: "Not tested - navigation system requires ship purchase and specific flow. Shop system working so navigation endpoints should be functional"
+      - working: true
+        agent: "testing"
+        comment: "✅ Dice navigation working perfectly. POST /api/navigation/roll-dice returns dice_result (1-6), bonuses (nave, fortuna), total, outcome, message as required. Outcome validation confirmed for all expected values: successo_totale, successo, parziale, fallimento. Properly handles arrived=true scenarios. Navigation failure case working correctly - fails without ship with appropriate error message 'Hai bisogno di una nave per navigare!'. Complete dice navigation system functional."
 
   - task: "Crew System"
     implemented: true
