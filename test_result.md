@@ -149,6 +149,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ Character creation working correctly. Creates character with all required fields (nome_personaggio, ruolo, genere, eta, razza, stile_combattimento, sogno, storia_carattere, mestiere). Returns character with calculated stats and character_id. GET /characters/me also working"
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Character creation now includes berry (1000 starting) and logbook (empty array). Bug fix confirmed working correctly."
 
   - task: "Character Name Validation (D. blocked)"
     implemented: true
