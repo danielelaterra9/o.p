@@ -22,52 +22,56 @@ RPG One Piece con 4 piani di gioco:
 
 ## What's Been Implemented (2026-03-01)
 
-### Backend (FastAPI + MongoDB)
-- ✅ Auth system (JWT + Google OAuth via Emergent)
-- ✅ Character CRUD con stats calcolati
-- ✅ World Map con 12 isole (East Blue → Grand Line → New World)
-- ✅ Battle system a turni con formule danno
-- ✅ AI Narration endpoint (Gemini 3 Flash)
-- ✅ AI Avatar generation endpoint (Gemini Nano Banana)
-- ✅ Shop system
-- ✅ Cards collection system
-- ✅ Island zones e NPC interactions
+### Backend v2 (FastAPI + MongoDB)
+- ✅ Auth system con USERNAME separato dal nome personaggio
+- ✅ Validazione nome personaggio (blocca "D." e "D ")
+- ✅ 6 Razze con bonus stats: Umano, Uomo Pesce, Visone, Semi-gigante, Gigante, Cyborg
+- ✅ 6 Stili di combattimento con vantaggi/svantaggi
+- ✅ 12 Mestieri con abilità uniche (Capitano, Guerriero, Navigatore, Cecchino, Cuoco, Medico, Archeologo, Carpentiere, Musicista, Timoniere, Scienziato, Ipnotista)
+- ✅ Sistema stats completo: Vita, Energia, ATK=FORxVEL, DEF=RESxAGI
+- ✅ Aspettativa di vita con modificatori genere/razza
+- ✅ AI Trait extraction dal carattere del personaggio
+- ✅ Scheda personaggio con info PUBBLICHE e PRIVATE
+- ✅ Battle system semplificato (no narrazione romanzata)
+- ✅ Shop e World Map
 
-### Frontend (React + Framer Motion)
-- ✅ Landing page con tema oceano
-- ✅ Auth pages (Login, Register, Google OAuth callback)
-- ✅ Character creation wizard (4 steps)
-- ✅ Dashboard con stats e menu
-- ✅ World Map con isole interattive
-- ✅ Island Explorer con zone
-- ✅ Battle Arena (stile GameBoy)
-- ✅ Character Sheet
-- ✅ Card Collection
-- ✅ Shop
+### Frontend v2 (React + Framer Motion)
+- ✅ Registrazione con campo USERNAME
+- ✅ Character creation wizard 7 step:
+  1. Nome personaggio (con validazione D.)
+  2. Genere (M/F/Non definito) + Età (min 16)
+  3. Razza con info vantaggi/svantaggi
+  4. Stile combattimento con info
+  5. Mestiere (12 scelte)
+  6. Sogno (100 char) + Storia (1000 char) + AI traits
+  7. Aspetto fisico + Riepilogo
+- ✅ Dashboard con nuovi stats
+- ✅ Character Sheet con toggle pubblico/privato
+- ✅ Battle Arena semplificata
 
 ## Prioritized Backlog
 
 ### P0 (Critical - Next Sprint)
-- [ ] Sistema dado virtuale completo con animazione nave
-- [ ] Chat real-time (WebSocket) per interazioni
-- [ ] Crew system (ciurma multiplayer)
+- [ ] Sistema dado virtuale con animazione nave
+- [ ] Chat real-time (WebSocket)
+- [ ] Sistema crew (ciurma multiplayer)
 
 ### P1 (High Priority)
-- [ ] Carte Storytelling con effetti gameplay
-- [ ] Sistema eventi/missioni completabili
-- [ ] Inventario dettagliato con uso oggetti
-- [ ] Sistema economico (Berry) funzionante
+- [ ] Carte con effetti gameplay reali
+- [ ] Eventi/missioni completabili su isole
+- [ ] Sistema economico Berry funzionante
+- [ ] Livelli mestiere (principiante→esperto)
 
 ### P2 (Medium Priority)
-- [ ] Haki unlock tramite eventi speciali
-- [ ] Trading system tra giocatori
+- [ ] Haki unlock durante storia
+- [ ] Trading tra giocatori
 - [ ] Sistema navi con upgrade
-- [ ] Frutti del Diavolo con abilità speciali in battaglia
+- [ ] Frutti del Diavolo con abilità speciali
 
 ### P3 (Nice to Have)
-- [ ] Sound effects e musica
+- [ ] Sound effects
 - [ ] Animazioni combattimento avanzate
-- [ ] Leaderboard e classifiche
+- [ ] Leaderboard
 - [ ] Storia principale con dialoghi
 
 ## Technical Stack
@@ -81,4 +85,4 @@ RPG One Piece con 4 piani di gioco:
 2. Aggiungere WebSocket per chat real-time
 3. Sistema crew con join/leave
 4. Carte con effetti concreti
-5. Missioni ed eventi completabili
+5. Zone isola con eventi/missioni
