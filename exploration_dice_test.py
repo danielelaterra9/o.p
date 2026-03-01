@@ -328,7 +328,7 @@ class ExplorationDiceNavigationTester:
                 "genere": "maschio",
                 "eta": 17,
                 "razza": "umano",
-                "stile_combattimento": "cecchino",
+                "stile_combattimento": "tiratore",
                 "sogno": "Diventare un valoroso guerriero del mare",
                 "storia_carattere": "Un giovane bugiardo con il sogno di diventare un valoroso guerriero del mare.",
                 "mestiere": "cecchino",
