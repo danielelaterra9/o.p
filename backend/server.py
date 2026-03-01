@@ -1528,7 +1528,7 @@ async def travel_to_island(data: Dict[str, str], request: Request):
         raise HTTPException(status_code=404, detail="Personaggio non trovato")
     
     current_sea = character.get("mare_corrente", "east_blue")
-    current_island = character.get("isola_corrente", "foosha")
+    current_island = character.get("isola_corrente", "dawn_island")
     
     # Validate target island exists in current sea
     if target_island_id not in ISLANDS:
