@@ -1196,6 +1196,294 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
   );
 };
 
+// ============ EXPLORE ISLAND ============
+const ExploreIsland = ({ token, character, isDemo }) => {
+  const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
+  const [islandInfo, setIslandInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [eventResult, setEventResult] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [stats, setStats] = useState({ vita: 0, vita_max: 0, energia: 0, energia_max: 0, berry: 0 });
+
+  // Demo data
+  const demoIslandInfo = {
+    island_id: "dawn_island",
+    island: {
+      name: "Dawn Island",
+      storia: "L'isola dove tutto ha avuto inizio. Patria di Monkey D. Luffy, Portgas D. Ace e Sabo.",
+      pericolo: 2,
+      zone: [
+        { id: "foosha", name: "Foosha Village", descrizione: "Tranquillo villaggio di pescatori dove Luffy è cresciuto." },
+        { id: "mt_colubo", name: "Mt. Colubo", descrizione: "Montagna selvaggia dove vivono i banditi di montagna." },
+        { id: "gray_terminal", name: "Gray Terminal", descrizione: "Enorme discarica ai confini del regno." },
+        { id: "midway_forest", name: "Midway Forest", descrizione: "Foresta dove Ace, Sabo e Luffy costruirono la loro base." },
+        { id: "goa_kingdom", name: "Goa Kingdom", descrizione: "Il regno più ricco dell'East Blue." }
+      ]
+    },
+    visited_zones: ["foosha"],
+    character_stats: { vita: 120, vita_max: 120, energia: 100, energia_max: 100, berry: 5000 }
+  };
+
+  const fetchIslandInfo = async () => {
+    if (isDemo) {
+      setIslandInfo(demoIslandInfo);
+      setStats(demoIslandInfo.character_stats);
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await axios.get(`${API}/exploration/current-island`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setIslandInfo(res.data);
+      setStats(res.data.character_stats);
+    } catch (e) {
+      console.error('Error fetching island info:', e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchIslandInfo();
+  }, [authToken, isDemo]);
+
+  const visitZone = async (zoneId) => {
+    if (isDemo) {
+      setSelectedZone(islandInfo.island.zone.find(z => z.id === zoneId));
+      return;
+    }
+    setProcessing(true);
+    try {
+      const res = await axios.post(`${API}/exploration/visit-zone`, { zone_id: zoneId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setSelectedZone(res.data.zone);
+      fetchIslandInfo(); // Refresh to update visited zones
+    } catch (e) {
+      console.error('Error visiting zone:', e);
+    }
+    setProcessing(false);
+  };
+
+  const triggerEvent = async () => {
+    if (isDemo) {
+      // Demo random event
+      const demoEvents = [
+        { event: { categoria: "scoperta", tipo: "tesoro", nome: "Forziere abbandonato", descrizione: "Trovi un vecchio forziere nascosto!" }, effects_applied: ["+100 Berry"] },
+        { event: { categoria: "sociale", tipo: "npc", nome: "Anziano del villaggio", descrizione: "Un anziano ti racconta storie del passato." }, effects_applied: ["+25 EXP"] },
+        { event: { categoria: "riposo", tipo: "riposo", nome: "Locanda accogliente", descrizione: "Trovi una locanda dove riposarti." }, effects_applied: ["+50 Vita", "+30 Energia"] },
+        { event: { categoria: "combattimento", tipo: "nemico", nome: "Bandito di strada", descrizione: "Un bandito ti attacca per rubarti i Berry!" }, effects_applied: ["+50 Berry", "+20 EXP"] },
+      ];
+      setEventResult(demoEvents[Math.floor(Math.random() * demoEvents.length)]);
+      return;
+    }
+    setProcessing(true);
+    setEventResult(null);
+    try {
+      const res = await axios.post(`${API}/exploration/random-event`, {}, { headers: { Authorization: `Bearer ${authToken}` } });
+      setEventResult(res.data);
+      fetchIslandInfo(); // Refresh stats
+    } catch (e) {
+      console.error('Error triggering event:', e);
+    }
+    setProcessing(false);
+  };
+
+  const eventIcons = {
+    scoperta: '💎',
+    sociale: '👥',
+    riposo: '🏠',
+    combattimento: '⚔️',
+    pericolo: '⚠️'
+  };
+
+  const eventColors = {
+    scoperta: '#D4AF37',
+    sociale: '#00A8E8',
+    riposo: '#2A9D8F',
+    combattimento: '#D00000',
+    pericolo: '#F59E0B'
+  };
+
+  if (loading) return <LoadingScreen />;
+
+  return (
+    <div className="min-h-screen bg-[#051923]">
+      {/* Header */}
+      <div className="glass p-4 flex justify-between items-center">
+        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
+          <Home className="w-6 h-6" />
+        </button>
+        <div className="text-center">
+          <h1 className="font-pirate text-2xl text-[#2A9D8F]">Esplora Isola</h1>
+          <p className="text-sm text-[#E3D5CA]/60">{islandInfo?.island?.name}</p>
+        </div>
+        <button onClick={() => navigate('/world-map')} className="text-[#E3D5CA] hover:text-[#00A8E8]">
+          <Map className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="p-4 glass mx-4 mt-4 rounded-xl">
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Heart className="w-4 h-4 text-[#D00000]" />
+              <span className="text-xs text-[#E3D5CA]/70">Vita</span>
+            </div>
+            <p className="font-bold text-[#E3D5CA]">{stats.vita}/{stats.vita_max}</p>
+          </div>
+          <div>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Zap className="w-4 h-4 text-[#00A8E8]" />
+              <span className="text-xs text-[#E3D5CA]/70">Energia</span>
+            </div>
+            <p className="font-bold text-[#E3D5CA]">{stats.energia}/{stats.energia_max}</p>
+          </div>
+          <div>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <span className="text-[#D4AF37]">฿</span>
+              <span className="text-xs text-[#E3D5CA]/70">Berry</span>
+            </div>
+            <p className="font-bold text-[#D4AF37]">{stats.berry?.toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Island Info */}
+      <div className="p-4">
+        <div className="glass p-4 rounded-xl mb-4">
+          <p className="text-[#E3D5CA]/80 text-sm">{islandInfo?.island?.storia}</p>
+          <div className="flex items-center gap-2 mt-2">
+            {[...Array(islandInfo?.island?.pericolo || 1)].map((_, i) => (
+              <Skull key={i} className="w-4 h-4 text-[#D00000]" />
+            ))}
+            <span className="text-xs text-[#E3D5CA]/60">Livello pericolo</span>
+          </div>
+        </div>
+
+        {/* Event Button */}
+        <motion.button
+          onClick={triggerEvent}
+          disabled={processing}
+          className="w-full py-4 rounded-xl bg-gradient-to-r from-[#7209B7] to-[#3A0CA3] text-white font-pirate text-xl mb-4 flex items-center justify-center gap-3"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <Dice6 className="w-6 h-6" />
+          {processing ? 'Cercando evento...' : '🎲 Evento Casuale'}
+        </motion.button>
+
+        {/* Event Result */}
+        <AnimatePresence>
+          {eventResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="glass p-4 rounded-xl mb-4 border-2"
+              style={{ borderColor: eventColors[eventResult.event?.categoria] }}
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-3xl">{eventIcons[eventResult.event?.categoria]}</span>
+                <div className="flex-1">
+                  <h3 className="font-bold text-[#E3D5CA]">{eventResult.event?.nome}</h3>
+                  <p className="text-sm text-[#E3D5CA]/70 mt-1">{eventResult.event?.descrizione}</p>
+                  {eventResult.effects_applied?.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {eventResult.effects_applied.map((effect, i) => (
+                        <span key={i} className={`text-xs px-2 py-1 rounded ${effect.startsWith('+') ? 'bg-[#2A9D8F]/20 text-[#2A9D8F]' : 'bg-[#D00000]/20 text-[#D00000]'}`}>
+                          {effect}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setEventResult(null)} className="mt-3 w-full py-2 glass rounded-lg text-[#E3D5CA]/70 text-sm">
+                Chiudi
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Zone List */}
+        <h3 className="font-pirate text-xl text-[#E3D5CA] mb-3">Zone dell'Isola</h3>
+        {islandInfo?.island?.zone?.length > 0 ? (
+          <div className="space-y-2">
+            {islandInfo.island.zone.map((zone) => {
+              const isVisited = islandInfo.visited_zones?.includes(zone.id);
+              return (
+                <motion.button
+                  key={zone.id}
+                  onClick={() => visitZone(zone.id)}
+                  disabled={processing}
+                  className={`w-full p-4 rounded-xl text-left transition-all ${isVisited ? 'glass border border-[#2A9D8F]/50' : 'glass'}`}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-[#E3D5CA] flex items-center gap-2">
+                        {zone.name}
+                        {isVisited && <span className="text-xs text-[#2A9D8F]">✓ Visitata</span>}
+                      </h4>
+                      <p className="text-sm text-[#E3D5CA]/60 mt-1">{zone.descrizione}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-[#E3D5CA]/40" />
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="glass p-6 rounded-xl text-center">
+            <MapPin className="w-12 h-12 text-[#E3D5CA]/30 mx-auto mb-2" />
+            <p className="text-[#E3D5CA]/60">Quest'isola non ha zone esplorabili specifiche.</p>
+            <p className="text-[#E3D5CA]/60 text-sm mt-1">Usa "Evento Casuale" per esplorare!</p>
+          </div>
+        )}
+      </div>
+
+      {/* Zone Detail Modal */}
+      <AnimatePresence>
+        {selectedZone && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedZone(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="glass p-6 rounded-xl max-w-md w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <h2 className="font-pirate text-2xl text-[#2A9D8F] mb-2">{selectedZone.name}</h2>
+              <p className="text-[#E3D5CA]/80 mb-4">{selectedZone.descrizione}</p>
+              
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setSelectedZone(null); triggerEvent(); }}
+                  className="w-full py-3 rounded-lg bg-[#7209B7] text-white font-bold"
+                >
+                  🎲 Cerca Evento qui
+                </button>
+                <button
+                  onClick={() => setSelectedZone(null)}
+                  className="w-full py-2 glass rounded-lg text-[#E3D5CA]"
+                >
+                  Chiudi
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 // ============ WORLD MAP (Four Seas Navigation) ============
 const WorldMap = ({ token, character, isDemo }) => {
   const navigate = useNavigate();
