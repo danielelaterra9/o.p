@@ -1920,7 +1920,7 @@ const WorldMap = ({ token, character, isDemo }) => {
         {!isViewingOtherSea && (
           <div className="mt-4 flex gap-3">
             <motion.button
-              onClick={() => setShowDiceModal(true)}
+              onClick={openNavigation}
               disabled={!canUseDice}
               className={`flex-1 py-4 rounded-xl font-pirate text-lg flex items-center justify-center gap-3 ${
                 canUseDice 
@@ -1946,68 +1946,196 @@ const WorldMap = ({ token, character, isDemo }) => {
         )}
       </div>
 
-      {/* Dice Roll Modal */}
+      {/* Navigation Modal (3 Stages) */}
       <AnimatePresence>
-        {showDiceModal && (
+        {showNavModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"
-            onClick={() => !diceRolling && setShowDiceModal(false)}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50"
+            onClick={() => !diceRolling && setShowNavModal(false)}
           >
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.8 }}
-              className="glass p-8 rounded-xl max-w-md w-full text-center"
+              className="glass p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
               onClick={e => e.stopPropagation()}
             >
-              <h2 className="font-pirate text-2xl text-[#FFC300] mb-4">🎲 Dado della Navigazione</h2>
-              
-              {/* Dice Display */}
+              {/* Header */}
+              <div className="text-center mb-4">
+                <h2 className="font-pirate text-2xl text-[#FFC300]">🚢 Navigazione</h2>
+                <p className="text-[#E3D5CA]/70 text-sm">
+                  {navStatus?.current_island?.name} → {navStatus?.next_island?.name || "???"}
+                </p>
+              </div>
+
+              {/* Progress Bar */}
               <div className="mb-6">
+                <div className="flex justify-between text-xs text-[#E3D5CA]/60 mb-1">
+                  <span>Progresso</span>
+                  <span>{navStatus?.progress || 0} / {navStatus?.progress_required || 3}</span>
+                </div>
+                <div className="h-4 bg-[#3E2723] rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-[#2A9D8F] to-[#FFC300]"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${((navStatus?.progress || 0) / (navStatus?.progress_required || 3)) * 100}%` }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  {[1, 2, 3].map(step => (
+                    <div key={step} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      (navStatus?.progress || 0) >= step 
+                        ? 'bg-[#2A9D8F] text-white' 
+                        : 'bg-[#3E2723] text-[#E3D5CA]/40'
+                    }`}>
+                      {(navStatus?.progress || 0) >= step ? '✓' : step}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dice Display */}
+              <div className="flex justify-center mb-4">
                 <motion.div
-                  className="w-32 h-32 mx-auto bg-[#3E2723] rounded-2xl flex items-center justify-center border-4 border-[#D4AF37] shadow-xl"
+                  className="w-24 h-24 bg-[#3E2723] rounded-2xl flex items-center justify-center border-4 border-[#D4AF37] shadow-xl"
                   animate={diceRolling ? { 
-                    rotateX: [0, 360, 720], 
-                    rotateY: [0, 360, 720],
+                    rotateX: [0, 360], 
+                    rotateY: [0, 360],
                     scale: [1, 1.1, 1]
                   } : {}}
-                  transition={{ duration: 0.5, repeat: diceRolling ? Infinity : 0 }}
+                  transition={{ duration: 0.3, repeat: diceRolling ? Infinity : 0 }}
                 >
-                  <span className="font-pirate text-6xl text-[#FFC300]">{diceAnimation}</span>
+                  <span className="font-pirate text-5xl text-[#FFC300]">{diceAnimation}</span>
                 </motion.div>
               </div>
 
-              {/* Result */}
+              {/* Dice Result */}
               {diceResult && !diceResult.error && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-4"
+                  className="mb-4 p-4 rounded-lg border-2"
+                  style={{ 
+                    borderColor: diceResult.event_passed ? '#2A9D8F' : '#D00000',
+                    backgroundColor: diceResult.event_passed ? 'rgba(42,157,143,0.1)' : 'rgba(208,0,0,0.1)'
+                  }}
                 >
-                  <div className="flex justify-center gap-4 mb-3">
-                    <div className="text-center">
-                      <p className="text-xs text-[#E3D5CA]/60">Dado</p>
-                      <p className="font-bold text-[#FFC300]">{diceResult.dice_result}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-[#E3D5CA]/60">Bonus Nave</p>
-                      <p className="font-bold text-[#2A9D8F]">+{diceResult.bonuses?.nave || 0}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-[#E3D5CA]/60">Bonus Fortuna</p>
-                      <p className="font-bold text-[#7209B7]">+{diceResult.bonuses?.fortuna || 0}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-[#E3D5CA]/60">Totale</p>
-                      <p className="font-bold text-[#D4AF37] text-xl">{diceResult.total}</p>
-                    </div>
+                  {/* Dice stats */}
+                  <div className="flex justify-center gap-3 mb-3 text-sm">
+                    <span className="px-2 py-1 bg-[#051923] rounded">🎲 {diceResult.dice_result}</span>
+                    <span className="px-2 py-1 bg-[#051923] rounded text-[#2A9D8F]">+{diceResult.bonuses?.nave || 0} Nave</span>
+                    <span className="px-2 py-1 bg-[#051923] rounded text-[#D4AF37]">= {diceResult.total}</span>
                   </div>
-                  
-                  <div className={`p-4 rounded-lg ${
-                    diceResult.outcome === 'successo_totale' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' :
+
+                  {/* Event */}
+                  <div className="text-center mb-3">
+                    <p className={`font-bold text-lg ${
+                      diceResult.difficulty === 'facile' ? 'text-[#2A9D8F]' : 
+                      diceResult.difficulty === 'medio' ? 'text-[#F59E0B]' : 'text-[#D00000]'
+                    }`}>
+                      {diceResult.event?.nome}
+                    </p>
+                    <p className="text-[#E3D5CA]/70 text-sm">{diceResult.event?.descrizione}</p>
+                  </div>
+
+                  {/* Challenge result if any */}
+                  {diceResult.challenge && (
+                    <div className="p-2 bg-[#051923] rounded mb-3 text-sm">
+                      <p className="text-[#E3D5CA]/60">
+                        Sfida: {diceResult.challenge.stat_used} ({diceResult.challenge.stat_value}) + 🎲{diceResult.challenge.roll} = {diceResult.challenge.total}
+                      </p>
+                      <p className={diceResult.challenge.passed ? 'text-[#2A9D8F]' : 'text-[#D00000]'}>
+                        Necessario: {diceResult.challenge.needed} → {diceResult.challenge.passed ? '✓ Superato!' : '✗ Fallito!'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Effects */}
+                  {diceResult.effects_applied?.length > 0 && (
+                    <div className="flex flex-wrap gap-2 justify-center mb-3">
+                      {diceResult.effects_applied.map((effect, i) => (
+                        <span key={i} className={`text-xs px-2 py-1 rounded ${
+                          effect.startsWith('+') ? 'bg-[#2A9D8F]/20 text-[#2A9D8F]' : 'bg-[#D00000]/20 text-[#D00000]'
+                        }`}>
+                          {effect}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Result */}
+                  <p className={`text-center font-bold ${diceResult.event_passed ? 'text-[#2A9D8F]' : 'text-[#D00000]'}`}>
+                    {diceResult.event_passed ? '✓ Tappa completata!' : '✗ Tappa fallita - Riprova!'}
+                  </p>
+                </motion.div>
+              )}
+
+              {diceResult?.error && (
+                <div className="mb-4 p-4 bg-[#D00000]/20 rounded-lg border border-[#D00000]">
+                  <p className="text-[#D00000] text-center">{diceResult.error}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="space-y-3">
+                {/* Roll dice button */}
+                {(navStatus?.progress || 0) < 3 && (
+                  <motion.button
+                    onClick={rollDice}
+                    disabled={diceRolling}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#FFC300] text-[#051923] font-pirate text-xl"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {diceRolling ? '🎲 Tirando...' : `🎲 Tira il Dado (Tappa ${(navStatus?.progress || 0) + 1}/3)`}
+                  </motion.button>
+                )}
+
+                {/* Advance button when complete */}
+                {navStatus?.can_advance && (
+                  <motion.button
+                    onClick={advanceToIsland}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-[#2A9D8F] to-[#00A8E8] text-white font-pirate text-xl"
+                    whileHover={{ scale: 1.02 }}
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    ⚓ Sbarca a {navStatus?.next_island?.name}!
+                  </motion.button>
+                )}
+
+                {/* Go back button - always available except at first island */}
+                {navStatus?.can_go_back && (
+                  <button
+                    onClick={goBackToIsland}
+                    className="w-full py-3 rounded-xl glass text-[#00A8E8] border border-[#00A8E8]/50"
+                  >
+                    ⬅️ Torna a {navStatus?.prev_island?.name} (recupera)
+                  </button>
+                )}
+
+                {/* Close */}
+                <button
+                  onClick={() => { setShowNavModal(false); setDiceResult(null); }}
+                  className="w-full py-2 rounded-xl glass text-[#E3D5CA]/70 text-sm"
+                >
+                  Chiudi
+                </button>
+              </div>
+
+              {/* Legend */}
+              <div className="mt-4 p-3 bg-[#051923]/50 rounded-lg text-xs text-[#E3D5CA]/50">
+                <p>🎲 5-6: Evento facile | 🎲 3-4: Evento medio | 🎲 1-2: Evento difficile (sfida)</p>
+                <p className="mt-1">Completa 3 tappe per raggiungere l'isola successiva!</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
                     diceResult.outcome === 'successo' ? 'bg-[#00A8E8]/20 border border-[#00A8E8]' :
                     diceResult.outcome === 'parziale' ? 'bg-[#F59E0B]/20 border border-[#F59E0B]' :
                     'bg-[#D00000]/20 border border-[#D00000]'
