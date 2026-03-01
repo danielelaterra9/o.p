@@ -260,7 +260,7 @@ class FourSeasNavigationTester:
                 "stile_combattimento": "corpo_pugni",
                 "sogno": "Diventare il Re dei Pirati",
                 "storia_carattere": "Un giovane pirata con il sogno di trovare il One Piece e diventare il Re dei Pirati. Ha mangiato il frutto del diavolo Gomu Gomu.",
-                "mestiere": "pirata",
+                "mestiere": "capitano",
                 "mare_partenza": "east_blue"
             }
 
@@ -373,7 +373,7 @@ class FourSeasNavigationTester:
                     "stile_combattimento": "armi_mono",
                     "sogno": "Esplorare il mare",
                     "storia_carattere": f"Un pirata del {sea_id.replace('_', ' ').title()}",
-                    "mestiere": "pirata",
+                    "mestiere": "capitano",
                     "mare_partenza": sea_id
                 }
 
