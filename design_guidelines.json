@@ -1,132 +1,142 @@
 {
   "identity": {
-    "name": "The Grand Line Logbook",
-    "tone": "Epic, Adventurous, High-Energy, Chaotic Fun",
-    "description": "An immersive pirate RPG interface that feels like a physical logbook found on the Thousand Sunny, enhanced with Haki-infused digital overlays.",
-    "theme_strategy": "Hybrid",
-    "visual_hook": "Wood, Gold, Old Paper, and Neon Haki Effects"
+    "name": "The Grand Line Architect",
+    "mission": "Create the most immersive, gritty, and exciting One Piece RPG interface on the web. Break the standard 'SaaS Dashboard' mold. Every pixel must smell like sea salt and old parchment.",
+    "tone": "Epic, Mysterious, High-Stakes, Adventure-Ready",
+    "theme_strategy": "Dark Nautical Fantasy + Retro Pixel Combat",
+    "principles": [
+      "Fusion over Imitation: Mix Anime Aesthetics with 17th Century Naval Charts.",
+      "Texture is King: No flat colors. Use grain, wood, and paper textures.",
+      "Motion with Purpose: Ships sway, cards flip, Haki pulses.",
+      "Asymmetry: The sea is not symmetrical. Neither is our layout."
+    ]
   },
   "typography": {
     "headings": {
-      "font_family": "Cinzel Decorative, serif",
-      "weights": ["700", "900"],
-      "usage": "Page titles, Wanted Poster names, 'Victory' text",
-      "fallback": "serif"
+      "family": "'Pirata One', 'Cinzel Decorative', display",
+      "usage": "Page Titles, Character Names, 'WANTED' Text",
+      "weights": ["400", "900"],
+      "letter_spacing": "tracking-wide"
     },
     "body": {
-      "font_family": "Manrope, sans-serif",
-      "weights": ["400", "500", "600"],
-      "usage": "Stats, descriptions, chat, inventory details",
-      "fallback": "sans-serif"
+      "family": "'Manrope', sans-serif",
+      "usage": "Descriptions, UI Labels, Chat",
+      "weights": ["400", "500", "700"],
+      "letter_spacing": "tracking-normal"
     },
-    "special": {
-      "font_family": "Rye, display",
+    "combat": {
+      "family": "'VT323', monospace",
+      "usage": "Damage Numbers, HP Bars, Turn Timer",
       "weights": ["400"],
-      "usage": "Bounty amounts, 'Dead or Alive' text"
+      "letter_spacing": "tracking-tight"
     }
   },
   "colors": {
-    "primary": {
-      "gold": "#D4AF37",
-      "gold_hover": "#F9A602",
-      "ocean_blue": "#0F1C2E",
-      "luffy_red": "#FF3B30"
-    },
-    "secondary": {
-      "wood": "#5D4037",
+    "palette": {
+      "deep_sea": "#051923",
+      "ocean_blue": "#003566",
+      "azure_mist": "#00A8E8",
+      "treasure_gold": "#FFC300",
+      "old_gold": "#D4AF37",
+      "parchment": "#E3D5CA",
+      "parchment_dark": "#D6C0B0",
       "wood_dark": "#3E2723",
-      "parchment": "#F4E4BC",
-      "parchment_dark": "#D7C297"
+      "wood_light": "#5D4037",
+      "luffy_red": "#D00000",
+      "zoro_green": "#2A9D8F",
+      "sanji_blue": "#0077B6",
+      "haki_purple": "#7209B7",
+      "white_bone": "#F0F0F0",
+      "black_flag": "#000000"
     },
-    "accents": {
-      "haki_purple": "#6A0DAD",
-      "neon_cyan": "#00FFFF",
-      "devil_fruit_green": "#39FF14"
+    "gradients": {
+      "haki_aura": "radial-gradient(circle, rgba(114,9,183,0.2) 0%, rgba(114,9,183,0) 70%)",
+      "ocean_depths": "linear-gradient(180deg, #003566 0%, #051923 100%)",
+      "gold_shine": "linear-gradient(45deg, #FFC300, #FFF, #FFC300)"
     },
-    "backgrounds": {
-      "main": "#0F1C2E",
-      "paper": "#F4E4BC",
-      "overlay": "rgba(15, 28, 46, 0.85)"
-    },
-    "text": {
-      "light": "#F4E4BC",
-      "dark": "#2D2D2D",
-      "muted": "rgba(244, 228, 188, 0.7)"
+    "semantic": {
+      "background": "var(--deep-sea)",
+      "text_primary": "var(--parchment)",
+      "text_secondary": "rgba(227, 213, 202, 0.7)",
+      "accent": "var(--treasure-gold)",
+      "danger": "var(--luffy-red)",
+      "success": "var(--zoro-green)",
+      "info": "var(--azure-mist)"
     }
   },
-  "images": {
+  "visual_enhancers": {
     "textures": {
-      "paper": "https://images.unsplash.com/photo-1695390046346-b308dbeeedec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHw0fHxwaXJhdGUlMjBtYXAlMjBvbGQlMjBwYXBlciUyMHRleHR1cmUlMjBzZWFtbGVzc3xlbnwwfHx8fDE3NzExNDUwNjN8MA&ixlib=rb-4.1.0&q=85",
-      "wood_dark": "https://images.unsplash.com/photo-1603484477859-abe6a73f9366?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHwyfHxwaXJhdGUlMjBtYXAlMjBvbGQlMjBwYXBlciUyMHRleHR1cmUlMjBzZWFtbGVzc3xlbnwwfHx8fDE3NzExNDUwNjN8MA&ixlib=rb-4.1.0&q=85",
-      "ocean_bg": "https://images.unsplash.com/photo-1763927506917-37902d5429d0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHw0fHxvY2VhbiUyMHdhdmVzJTIwYW5pbWUlMjBzdHlsZSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzcxMTQ1MDY0fDA&ixlib=rb-4.1.0&q=85"
+      "wood_plank": "url('https://images.unsplash.com/photo-1524671668498-a37bb18ba8fe?auto=format&fit=crop&q=80')",
+      "parchment_paper": "url('https://images.unsplash.com/photo-1706271952257-bc67d3c2c0e4?auto=format&fit=crop&q=80')",
+      "ocean_storm": "url('https://images.unsplash.com/photo-1685908359279-abe004f8fbfe?auto=format&fit=crop&q=80')",
+      "noise": "url('data:image/svg+xml;base64,...')"
     },
-    "assets": {
-      "treasure": "https://images.unsplash.com/photo-1637597383958-d777c022e241?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwyfHxhbmltZSUyMHRyZWFzdXJlJTIwY2hlc3QlMjBnb2xkJTIwZ2xvd2luZ3xlbnwwfHx8fDE3NzExNDUwNzh8MA&ixlib=rb-4.1.0&q=85",
-      "pirate_avatar_1": "https://images.unsplash.com/photo-1571312448265-d04cb8e483a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwyfHxhbmltZSUyMHBpcmF0ZSUyMGNoYXJhY3RlciUyMHBvcnRyYWl0JTIwYXZhdGFyfGVufDB8fHx8MTc3MTE0NTA4MHww&ixlib=rb-4.1.0&q=85",
-      "pirate_avatar_2": "https://images.unsplash.com/photo-1696464760477-6b67fee714c0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwzfHxhbmltZSUyMHBpcmF0ZSUyMGNoYXJhY3RlciUyMHBvcnRyYWl0JTIwYXZhdGFyfGVufDB8fHx8MTc3MTE0NTA4MHww&ixlib=rb-4.1.0&q=85"
+    "shadows": {
+      "card_depth": "0 10px 30px -10px rgba(0,0,0,0.8)",
+      "neon_glow": "0 0 10px var(--treasure-gold), 0 0 20px var(--treasure-gold)",
+      "haki_pulse": "0 0 0 0 rgba(114, 9, 183, 0.7)"
+    },
+    "borders": {
+      "gold_frame": "2px solid var(--old-gold)",
+      "burnt_edge": "4px double var(--wood-dark)"
     }
   },
-  "ui_components": {
-    "buttons": {
-      "primary": "bg-[#D4AF37] hover:bg-[#F9A602] text-[#3E2723] border-2 border-[#5D4037] font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_#3E2723] active:translate-y-1 active:shadow-none transition-all",
-      "secondary": "bg-[#5D4037] text-[#F4E4BC] border-2 border-[#D4AF37] hover:bg-[#3E2723] shadow-md",
-      "danger": "bg-[#FF3B30] text-white border-2 border-black hover:bg-red-700 shadow-[4px_4px_0px_0px_#000000]"
+  "components": {
+    "Button": {
+      "styles": {
+        "primary": "bg-[url('https://images.unsplash.com/photo-1524671668498-a37bb18ba8fe')] bg-cover text-parchment font-pirate border-2 border-old-gold hover:scale-105 active:scale-95 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all",
+        "secondary": "bg-transparent border-2 border-parchment text-parchment hover:bg-parchment hover:text-deep-sea transition-colors font-manrope font-bold",
+        "ghost": "text-treasure-gold hover:text-white hover:bg-white/10"
+      }
     },
-    "cards": {
-      "wanted_poster": "bg-[#F4E4BC] text-[#3E2723] border-4 border-double border-[#5D4037] shadow-xl relative overflow-hidden font-serif",
-      "glass_panel": "bg-[#0F1C2E]/90 backdrop-blur-md border border-[#D4AF37]/30 text-[#F4E4BC] shadow-2xl rounded-xl"
+    "Card": {
+      "default": "bg-deep-sea/90 border border-old-gold/30 backdrop-blur-md rounded-lg p-6 shadow-card-depth relative overflow-hidden group",
+      "wanted_poster": "bg-parchment text-wood-dark font-bounty border-4 border-wood-dark shadow-xl rotate-1 hover:rotate-0 transition-transform duration-300 p-8",
+      "inventory_slot": "bg-wood-dark/80 border-2 border-old-gold aspect-square flex items-center justify-center hover:bg-wood-light cursor-pointer transition-colors"
     },
-    "inputs": {
-      "scroll_style": "bg-[#F4E4BC] border-2 border-[#5D4037] text-[#3E2723] placeholder:text-[#5D4037]/60 focus:ring-2 focus:ring-[#D4AF37] rounded-none px-4 py-2 font-serif"
+    "Input": {
+      "default": "bg-black/30 border-b-2 border-parchment/50 text-parchment placeholder:text-parchment/30 focus:border-treasure-gold focus:outline-none px-4 py-2 font-manrope"
+    },
+    "MapNode": {
+      "default": "w-4 h-4 rounded-full bg-treasure-gold border-2 border-white shadow-[0_0_10px_rgba(255,195,0,0.8)] cursor-pointer hover:scale-150 transition-transform",
+      "active": "w-6 h-6 bg-luffy-red animate-pulse"
     }
   },
   "layout_strategies": {
-    "general": "Mobile-first. Use 'p-4' as base spacing. Center main interactions but allow exploring edges.",
-    "bento_grid": "Use grid-cols-1 md:grid-cols-12 gap-4. Hero stats col-span-12 md:col-span-8. Inventory col-span-6 md:col-span-4.",
-    "combat_screen": "Split screen: Top half = Enemy view (Perspective), Bottom half = Action Deck (Controls). Floating damage numbers."
+    "dashboard": "The Captain's Table: Top-down view. Use the 'wood_plank' texture as the background. Scatter UI elements like physical objects on a desk.",
+    "battle": "Split Screen Retro: Top half is the 3D/Anime view of the battle (using Three.js or Images). Bottom half is the 'GameBoy' style command menu (green monochrome or high-contrast black/white).",
+    "world_map": "Full Screen Canvas: The map is the hero. UI controls float on top with 'Glassmorphism' (frosted glass) to not obscure the view.",
+    "crew": "Character Cards: A horizontal scroll (carousel) of 'Wanted Posters' for each crew member."
   },
-  "motion_guidelines": {
-    "transitions": "Use 'transition-all duration-300 ease-out'. Avoid linear.",
-    "haki_effect": "On critical actions, flash screen with purple/black overlay.",
-    "hover": "Scale 1.05 on hover for cards. Buttons shift up.",
-    "loading": "Spinning Ship Wheel or Compass."
+  "motion": {
+    "hover": "scale-105 rotate-1",
+    "click": "scale-95",
+    "page_load": "animate-fade-in-up",
+    "battle_hit": "animate-shake",
+    "ship_sway": "animate-float-slow"
+  },
+  "accessibility": {
+    "contrast_check": "Ensure gold text on dark blue backgrounds meets 4.5:1 ratio. Use drop shadows on text if needed.",
+    "reduced_motion": "Disable 'ship_sway' and 'battle_shake' if user prefers reduced motion.",
+    "keyboard_nav": "All 'map nodes' and 'inventory slots' must be focusable."
+  },
+  "image_urls": {
+    "textures": {
+      "wood": "https://images.unsplash.com/photo-1524671668498-a37bb18ba8fe?auto=format&fit=crop&q=80",
+      "parchment": "https://images.unsplash.com/photo-1706271952257-bc67d3c2c0e4?auto=format&fit=crop&q=80",
+      "ocean": "https://images.unsplash.com/photo-1685908359279-abe004f8fbfe?auto=format&fit=crop&q=80"
+    },
+    "icons": {
+      "gold_coin": "https://images.unsplash.com/photo-1631639025318-d72c15d39642?auto=format&fit=crop&q=80",
+      "skull": "https://images.unsplash.com/photo-1646363773055-6a50b40edb49?auto=format&fit=crop&q=80"
+    }
   },
   "universal_guidelines": [
-    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
-    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy",
-    "Use glass-morphism effects with backdrop filters (12-24px blur)",
-    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
-    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
-    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
-    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
-    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
-    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
-    "Prioritize using pre-existing components from src/components/ui when applicable",
-    "Create new components that match the style and conventions of existing components when needed",
-    "Examine existing components to understand the project's component patterns before creating new ones",
-    "Components MUST use named exports (export const ComponentName = ...)",
-    "Pages MUST use default exports (export default function PageName() {...})",
-    "Use 'sonner' for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
+    "NEVER use default Tailwind colors (e.g., bg-blue-500). Use the custom semantic palette.",
+    "NEVER center text in long paragraphs. Left align for readability.",
+    "ALWAYS add a subtle 'noise' texture overlay to solid backgrounds to prevent 'digital flatness'.",
+    "Use 'Pirata One' font ONLY for headings. It is unreadable at small sizes.",
+    "For the 'Battle' section, switch to the 'VT323' pixel font to sell the GameBoy aesthetic."
   ],
-  "main_agent_instructions": {
-    "packages_to_install": [
-      "framer-motion",
-      "lucide-react",
-      "@radix-ui/react-slot",
-      "clsx",
-      "tailwind-merge"
-    ],
-    "critical_rules": [
-      "DO NOT use the default white shadcn card. Override it with 'bg-[#F4E4BC]' or 'bg-[#0F1C2E]'.",
-      "Use 'Cinzel Decorative' from Google Fonts. Import it in index.css.",
-      "The 'Wanted Poster' component is mandatory for the Profile and Avatar Builder.",
-      "Use 'lucide-react' icons: Skull for death/danger, Anchor for home, Map for exploration, Swords for combat.",
-      "Combat screen must look like a JRPG turn-based HUD.",
-      "Map screen must look like a parchment map with interactive nodes."
-    ]
-  }
+  "instructions_to_main_agent": "You are building a high-end RPG. Treat the DOM like a canvas. Use absolute positioning for 'scattered' elements on the dashboard. Use CSS Grid for the structured 'Inventory' and 'Battle' layouts. Install 'framer-motion' for complex sequences like card dealing or battle attacks. Use 'lucide-react' for icons but style them with the 'gold' or 'parchment' colors."
 }
