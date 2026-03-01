@@ -474,6 +474,187 @@ class OnePointAPITester:
         else:
             status = response.status_code if response else "No response"
             self.add_result("Get Logbook", False, f"Failed with status: {status}")
+
+    def test_inventory_system(self):
+        """Test 11: New Inventory System (requires auth + character with Berry)"""
+        if not self.token or not self.character_id:
+            self.add_result("Inventory System", False, "No auth token or character available")
+            return
+        
+        # First ensure we have berry by winning a battle if needed
+        self.log("Testing inventory system - ensuring we have Berry...")
+        
+        # Get current character to check Berry balance
+        char_response = self.make_request("GET", "/characters/me")
+        if not char_response or char_response.status_code != 200:
+            self.add_result("Check Character Berry", False, "Cannot get character info")
+            return
+        
+        char_data = char_response.json()
+        current_berry = char_data.get("berry", 0)
+        self.log(f"Current Berry balance: {current_berry}")
+        
+        # If we don't have enough Berry (need at least 1400 for all items), skip buying
+        if current_berry < 1400:
+            self.log(f"Insufficient Berry ({current_berry}), will test with whatever we can buy...")
+        
+        # Step 1: Buy items to populate inventory
+        items_to_buy = [
+            ("pozione_vita", 100),
+            ("bevanda_energia", 80), 
+            ("spada_base", 500),
+            ("carta_vento_favorevole", 200)
+        ]
+        
+        bought_items = []
+        for item_id, price in items_to_buy:
+            if current_berry >= price:
+                self.log(f"Buying {item_id}...")
+                buy_response = self.make_request("POST", "/shop/buy", {"item_id": item_id})
+                if buy_response and buy_response.status_code == 200:
+                    buy_data = buy_response.json()
+                    bought_items.append(item_id)
+                    current_berry -= price
+                    self.add_result(f"Buy {item_id}", True, f"Successfully bought {buy_data.get('message', item_id)}")
+                else:
+                    status = buy_response.status_code if buy_response else "No response"
+                    error = buy_response.json() if buy_response else "No response"
+                    self.add_result(f"Buy {item_id}", False, f"Failed to buy {item_id}: {status} - {error}")
+            else:
+                self.log(f"Skipping {item_id} - insufficient Berry ({current_berry} < {price})")
+        
+        # Step 2: Test GET /api/inventory
+        self.log("Testing GET /api/inventory...")
+        inv_response = self.make_request("GET", "/inventory")
+        if inv_response and inv_response.status_code == 200:
+            inv_data = inv_response.json()
+            if "oggetti" in inv_data and "armi" in inv_data and "carte" in inv_data:
+                oggetti = inv_data["oggetti"]
+                armi = inv_data["armi"] 
+                carte = inv_data["carte"]
+                berry = inv_data.get("berry", 0)
+                
+                self.add_result("Get Inventory", True, 
+                    f"Inventory retrieved: {len(oggetti)} items, {len(armi)} weapons, "
+                    f"{len(carte.get('storytelling', []))} cards, {berry} Berry", inv_data)
+                
+                # Verify bought items appear in correct categories
+                if "pozione_vita" in bought_items or "bevanda_energia" in bought_items:
+                    consumables_found = [item for item in oggetti if item.get("id") in ["pozione_vita", "bevanda_energia"]]
+                    if consumables_found:
+                        self.add_result("Items in Oggetti Category", True, 
+                            f"Found {len(consumables_found)} consumable items in oggetti")
+                    else:
+                        self.add_result("Items in Oggetti Category", False, 
+                            f"No consumable items found in oggetti, expected some")
+                
+                if "spada_base" in bought_items:
+                    weapons_found = [weapon for weapon in armi if weapon.get("id") == "spada_base"]
+                    if weapons_found:
+                        self.add_result("Weapons in Armi Category", True, 
+                            f"Found weapon in armi category: {weapons_found[0].get('name')}")
+                    else:
+                        self.add_result("Weapons in Armi Category", False, 
+                            f"Spada Base not found in armi category")
+                
+                if "carta_vento_favorevole" in bought_items:
+                    cards_found = [card for card in carte.get("storytelling", []) if card.get("id") == "carta_vento_favorevole"]
+                    if cards_found:
+                        self.add_result("Cards in Carte Category", True, 
+                            f"Found card in storytelling category: {cards_found[0].get('name')}")
+                    else:
+                        self.add_result("Cards in Carte Category", False, 
+                            f"Carta Vento Favorevole not found in storytelling cards")
+                        
+            else:
+                self.add_result("Get Inventory", False, f"Missing inventory categories: {inv_data}")
+        else:
+            status = inv_response.status_code if inv_response else "No response"
+            error = inv_response.json() if inv_response else "No response"
+            self.add_result("Get Inventory", False, f"Failed with status {status}: {error}")
+            return
+        
+        # Step 3: Test POST /api/inventory/use-item
+        if "pozione_vita" in bought_items:
+            self.log("Testing use-item endpoint with pozione_vita...")
+            use_response = self.make_request("POST", "/inventory/use-item", {"item_id": "pozione_vita"})
+            if use_response and use_response.status_code == 200:
+                use_data = use_response.json()
+                if "effects_applied" in use_data and "message" in use_data:
+                    effects = use_data["effects_applied"]
+                    self.add_result("Use Item (Pozione Vita)", True, 
+                        f"Item used successfully: {use_data['message']}, Effects: {effects}", use_data)
+                    
+                    # Verify item was removed from inventory
+                    self.log("Verifying item was removed from inventory...")
+                    verify_response = self.make_request("GET", "/inventory")
+                    if verify_response and verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        remaining_potions = [item for item in verify_data.get("oggetti", []) if item.get("id") == "pozione_vita"]
+                        if len(remaining_potions) == 0:
+                            self.add_result("Item Removed After Use", True, "Pozione Vita correctly removed from inventory")
+                        else:
+                            self.add_result("Item Removed After Use", False, f"Pozione Vita still in inventory: {remaining_potions}")
+                else:
+                    self.add_result("Use Item (Pozione Vita)", False, f"Missing effects/message in response: {use_data}")
+            else:
+                status = use_response.status_code if use_response else "No response"
+                error = use_response.json() if use_response else "No response"
+                self.add_result("Use Item (Pozione Vita)", False, f"Failed with status {status}: {error}")
+        
+        # Step 4: Test POST /api/inventory/equip-weapon
+        if "spada_base" in bought_items:
+            self.log("Testing equip-weapon endpoint with spada_base...")
+            equip_response = self.make_request("POST", "/inventory/equip-weapon", {"weapon_id": "spada_base"})
+            if equip_response and equip_response.status_code == 200:
+                equip_data = equip_response.json()
+                if "message" in equip_data:
+                    self.add_result("Equip Weapon", True, f"Weapon equipped: {equip_data['message']}", equip_data)
+                    
+                    # Verify weapon is marked as equipped in inventory
+                    self.log("Verifying weapon is marked as equipped...")
+                    verify_response = self.make_request("GET", "/inventory")
+                    if verify_response and verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        equipped_weapons = [weapon for weapon in verify_data.get("armi", []) 
+                                          if weapon.get("id") == "spada_base" and weapon.get("equipped", False)]
+                        if equipped_weapons:
+                            self.add_result("Weapon Equipped Status", True, "Spada Base correctly marked as equipped")
+                        else:
+                            self.add_result("Weapon Equipped Status", False, "Spada Base not marked as equipped in inventory")
+                else:
+                    self.add_result("Equip Weapon", False, f"Missing message in response: {equip_data}")
+            else:
+                status = equip_response.status_code if equip_response else "No response"  
+                error = equip_response.json() if equip_response else "No response"
+                self.add_result("Equip Weapon", False, f"Failed with status {status}: {error}")
+        
+        # Step 5: Test POST /api/cards/use
+        if "carta_vento_favorevole" in bought_items:
+            self.log("Testing use card endpoint with carta_vento_favorevole...")
+            card_response = self.make_request("POST", "/cards/use", {"card_id": "carta_vento_favorevole"})
+            if card_response and card_response.status_code == 200:
+                card_data = card_response.json()
+                if "message" in card_data:
+                    self.add_result("Use Card", True, f"Card used: {card_data['message']}", card_data)
+                    
+                    # Verify card was removed from inventory
+                    self.log("Verifying card was removed from inventory...")
+                    verify_response = self.make_request("GET", "/inventory")
+                    if verify_response and verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        remaining_cards = [card for card in verify_data.get("carte", {}).get("storytelling", []) 
+                                         if card.get("id") == "carta_vento_favorevole"]
+                        if len(remaining_cards) == 0:
+                            self.add_result("Card Removed After Use", True, "Carta Vento Favorevole correctly removed from inventory")
+                        else:
+                            self.add_result("Card Removed After Use", False, f"Carta Vento Favorevole still in inventory: {remaining_cards}")
+                else:
+                    self.add_result("Use Card", False, f"Missing message in response: {card_data}")
+            else:
+                status = card_response.status_code if card_response else "No response"
+                error = card_response.json() if card_response else "No response"
+                self.add_result("Use Card", False, f"Failed with status {status}: {error}")
     
     def run_all_tests(self):
         """Run all test sequences"""
