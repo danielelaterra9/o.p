@@ -195,13 +195,22 @@ const RegisterPage = ({ login }) => {
     setError('');
 
     try {
+      console.log('Registering user...', { username, email });
       const response = await axios.post(`${API}/auth/register`, { username, email, password });
-      login(response.data.token, response.data.user);
-      navigate('/create-character');
+      console.log('Registration response:', response.data);
+      
+      if (response.data.token) {
+        login(response.data.token, response.data.user);
+        navigate('/create-character');
+      } else {
+        setError('Risposta server non valida');
+        setLoading(false);
+      }
     } catch (err) {
+      console.error('Registration error:', err);
       setError(err.response?.data?.detail || 'Errore durante la registrazione');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
