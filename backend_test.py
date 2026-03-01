@@ -264,29 +264,51 @@ class OnePieceRPGAPITester:
         return True
 
     def test_character_system(self):
-        """Test character creation and management"""
+        """Test v2 character creation and management system"""
         print("\n" + "="*50)
-        print("TESTING CHARACTER SYSTEM")
+        print("TESTING CHARACTER SYSTEM V2")
         print("="*50)
         
         if not self.token:
             print("❌ No auth token, skipping character tests")
             return False
         
-        # Test character creation
-        character_data = {
-            "name": "Monkey D. Test Luffy",
-            "title": "Test Pirate King",
-            "body_type": "normal",
-            "hair_color": "#000000",
-            "outfit": "pirate",
-            "race": "human", 
-            "fighting_style": "brawler",
-            "devil_fruit": "gomu_gomu"
+        # Test AI trait extraction first
+        traits_data = {
+            "storia_carattere": "Un giovane pirata coraggioso che sogna di diventare il Re dei Pirati. È molto determinato ma a volte impulsivo nelle sue decisioni. Ama aiutare i suoi amici e non sopporta le ingiustizie."
         }
         
         success, response = self.run_test(
-            "Create Character",
+            "AI Trait Extraction",
+            "POST",
+            "characters/extract-traits",
+            200,
+            traits_data
+        )
+        
+        extracted_traits = []
+        if success and 'traits' in response:
+            extracted_traits = response['traits']
+            print(f"✅ AI extracted {len(extracted_traits)} traits: {', '.join(extracted_traits)}")
+        
+        # Test full character creation with v2 system
+        character_data = {
+            "nome_personaggio": self.test_character_name,
+            "ruolo": "pirata",
+            "genere": "maschio",
+            "eta": 17,
+            "razza": "umano",  # Using race from the races endpoint
+            "stile_combattimento": "corpo_misto",  # Using fighting style from styles endpoint
+            "sogno": "Diventare il Re dei Pirati!",
+            "storia_carattere": "Un giovane pirata coraggioso che sogna di diventare il Re dei Pirati. È molto determinato ma a volte impulsivo nelle sue decisioni.",
+            "mestiere": "capitano",  # Using mestiere from mestieri endpoint
+            "colore_capelli": "Nero",
+            "colore_occhi": "Marroni", 
+            "particolarita": "Cicatrice sotto l'occhio sinistro"
+        }
+        
+        success, response = self.run_test(
+            "Create Character V2",
             "POST",
             "characters",
             200,
@@ -296,22 +318,40 @@ class OnePieceRPGAPITester:
         if success and 'character_id' in response:
             self.character_id = response['character_id']
             print(f"✅ Character created with ID: {self.character_id}")
+            
+            # Verify character has expected v2 fields
+            expected_fields = ['nome_personaggio', 'razza', 'stile_combattimento', 'mestiere', 'sogno', 'aspetto']
+            for field in expected_fields:
+                if field in response:
+                    print(f"   ✅ Character has {field}: {response.get(field)}")
+                else:
+                    print(f"   ❌ Character missing {field}")
+        
+        # Test update character traits (if we have extracted traits)
+        if extracted_traits:
+            traits_update_data = {"traits": extracted_traits}
+            success, response = self.run_test(
+                "Update Character Traits",
+                "PUT",
+                "characters/me/traits", 
+                200,
+                traits_update_data
+            )
+            
+            if success:
+                print(f"✅ Character traits updated successfully")
         
         # Test get my character
-        self.run_test("Get My Character", "GET", "characters/me", 200)
+        success, response = self.run_test("Get My Character", "GET", "characters/me", 200)
         
-        # Test character update
-        update_data = {
-            "title": "Updated Test Pirate",
-            "hp": 95
-        }
-        self.run_test(
-            "Update Character",
-            "PUT", 
-            "characters/me",
-            200,
-            update_data
-        )
+        if success and self.character_id:
+            # Test get character public info
+            self.run_test(
+                "Get Character Public Info",
+                "GET", 
+                f"characters/{self.character_id}/public",
+                200
+            )
         
         return True
 
