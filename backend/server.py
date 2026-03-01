@@ -867,6 +867,9 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
         battle = battle_doc
         active_battles[battle_id] = battle
     
+    if battle["stato"] == "finita":
+        raise HTTPException(status_code=400, detail="Battaglia già terminata")
+    
     is_player1 = battle["player1"]["user_id"] == user["user_id"]
     current_player = "player1" if is_player1 else "player2"
     opponent = "player2" if is_player1 else "player1"
@@ -877,21 +880,81 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
     action_type = data.get("action_type")
     action_name = data.get("action_name")
     
+    # Player action
     result = process_battle_action(battle, current_player, opponent, action_type, action_name)
-    
-    battle["turno_corrente"] = opponent if not result.get("battaglia_finita") else None
-    battle["numero_turno"] += 1
-    battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
     battle["log"].append(result["log_entry"])
     
+    # Check if battle ended after player action
     if result.get("battaglia_finita"):
         battle["stato"] = "finita"
         battle["vincitore"] = result.get("vincitore")
+        battle["turno_corrente"] = None
+        
+        # Award experience and berry if player won
+        if result.get("vincitore") == "player1":
+            exp_gain = 50 + battle["player2"].get("taglia", 0) // 100000
+            berry_gain = 100 + random.randint(0, 200)
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"esperienza": exp_gain, "berry": berry_gain}}
+            )
+            battle["rewards"] = {"exp": exp_gain, "berry": berry_gain}
+    else:
+        # NPC Turn (automatic)
+        if battle["player2"].get("is_npc"):
+            npc_result = process_npc_turn(battle, "player2", "player1")
+            battle["log"].append(npc_result["log_entry"])
+            battle["numero_turno"] += 1
+            
+            # Check if NPC won
+            if npc_result.get("battaglia_finita"):
+                battle["stato"] = "finita"
+                battle["vincitore"] = "player2"
+                battle["turno_corrente"] = None
+            else:
+                battle["turno_corrente"] = "player1"
+                battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
+        else:
+            # PvP - switch turn
+            battle["turno_corrente"] = opponent
+            battle["numero_turno"] += 1
+            battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
     
     active_battles[battle_id] = battle
     await db.battles.update_one({"battle_id": battle_id}, {"$set": battle})
     
     return {"result": result, "battle": battle}
+
+def process_npc_turn(battle: Dict, attacker: str, defender: str) -> Dict:
+    """Process NPC automatic turn"""
+    attacker_data = battle[attacker]
+    defender_data = battle[defender]
+    
+    # NPC AI: choose action based on energy and health
+    if attacker_data["energia"] < 10:
+        # Low energy - rest
+        recovery = 15
+        attacker_data["energia"] = min(attacker_data["energia_max"], attacker_data["energia"] + recovery)
+        log_entry = f"{attacker_data['nome']} recupera energia. +{recovery}"
+        return {"danno": 0, "log_entry": log_entry, "battaglia_finita": False}
+    
+    # Choose attack type based on probability
+    attack_roll = random.random()
+    
+    if attack_roll < 0.3 and attacker_data["energia"] >= 20:
+        # 30% chance special attack
+        action_type = "attacco_speciale"
+        action_name = random.choice(["Colpo Potente", "Tecnica Segreta", "Assalto Furioso"])
+    elif attack_roll < 0.9:
+        # 60% chance basic attack
+        action_type = "attacco_base"
+        action_name = random.choice(["Pugno", "Calcio", "Colpo Rapido"])
+    else:
+        # 10% chance defend
+        action_type = "difesa"
+        action_name = "Difende"
+    
+    return process_battle_action(battle, attacker, defender, action_type, action_name)
 
 def process_battle_action(battle: Dict, attacker: str, defender: str, action_type: str, action_name: str) -> Dict:
     attacker_data = battle[attacker]
