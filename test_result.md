@@ -245,6 +245,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ Shop system working correctly. GET /shop/items returns 9 items with prices and effects. POST /shop/buy correctly fails with 'Berry insufficienti' when character has no money (expected behavior). Error handling working properly"
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Shop purchases now working with Berry system. Successfully bought 'Pozione Vita' for 100 Berry from starting 1000+106 (battle reward). Berry correctly deducted: 1106 -> 1006. Purchase flow complete and functional."
 
   - task: "Navigation Dice Roll"
     implemented: true
