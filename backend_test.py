@@ -661,7 +661,7 @@ class OnePointAPITester:
         self.log("Starting comprehensive backend API testing...")
         self.log(f"Testing against: {self.base_url}")
         
-        # Test sequence as per review request
+        # Test sequence as per review request - focusing on inventory testing
         self.test_health_check()
         self.test_auth_flow()
         self.test_game_data()
@@ -672,6 +672,7 @@ class OnePointAPITester:
         self.test_shop_system()
         self.test_crew_system()
         self.test_logbook_system()
+        self.test_inventory_system()  # NEW: Focus test for inventory endpoints
         
         self.print_summary()
     
