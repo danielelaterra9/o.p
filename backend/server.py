@@ -1006,6 +1006,11 @@ SHOP_ITEMS = {
     "spada_base": {"name": "Spada Base", "price": 500, "tipo": "arma", "bonus_attacco": 10},
     "barca_piccola": {"name": "Barca Piccola", "price": 5000, "tipo": "nave", "velocita": 1},
     "caravella": {"name": "Caravella", "price": 20000, "tipo": "nave", "velocita": 2},
+    "brigantino": {"name": "Brigantino", "price": 50000, "tipo": "nave", "velocita": 3},
+    # Cards
+    "carta_vento_favorevole": {"name": "Carta Vento Favorevole", "price": 200, "tipo": "carta", "categoria": "storytelling", "effect": {"bonus_dado": 2}},
+    "carta_fuga_rapida": {"name": "Carta Fuga Rapida", "price": 300, "tipo": "carta", "categoria": "duello", "effect": {"skip_turno_nemico": True}},
+    "carta_tesoro_nascosto": {"name": "Carta Tesoro Nascosto", "price": 500, "tipo": "carta", "categoria": "eventi", "effect": {"bonus_berry": 1000}},
 }
 
 @api_router.get("/shop/items")
@@ -1022,6 +1027,18 @@ async def buy_item(data: Dict[str, str], request: Request):
         raise HTTPException(status_code=400, detail="Oggetto non trovato")
     
     item = SHOP_ITEMS[item_id]
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    # Check berry balance
+    berry = character.get("berry", 0)
+    if berry < item["price"]:
+        raise HTTPException(status_code=400, detail=f"Berry insufficienti! Hai {berry}, servono {item['price']}")
+    
+    # Deduct price
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$inc": {"berry": -item["price"]}}
+    )
     
     if item.get("tipo") == "nave":
         await db.characters.update_one(
@@ -1033,19 +1050,641 @@ async def buy_item(data: Dict[str, str], request: Request):
             {"user_id": user["user_id"]},
             {"$push": {"armi": {"id": item_id, **item}}}
         )
+    elif item.get("tipo") == "carta":
+        categoria = item.get("categoria", "risorse")
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$push": {f"carte.{categoria}": {"id": item_id, **item}}}
+        )
     else:
         await db.characters.update_one(
             {"user_id": user["user_id"]},
             {"$push": {"oggetti": {"id": item_id, **item}}}
         )
     
+    # Log to logbook
+    await add_logbook_entry(user["user_id"], "acquisto", f"Hai acquistato {item['name']} per {item['price']} Berry")
+    
     return {"message": f"Acquistato {item['name']}", "item": item}
+
+# ============ LOG BOOK SYSTEM ============
+
+async def add_logbook_entry(user_id: str, tipo: str, descrizione: str, dettagli: Dict = None):
+    """Add an entry to the character's logbook"""
+    entry = {
+        "entry_id": f"log_{uuid.uuid4().hex[:8]}",
+        "tipo": tipo,  # navigazione, combattimento, evento, acquisto, ciurma, altro
+        "descrizione": descrizione,
+        "dettagli": dettagli or {},
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.characters.update_one(
+        {"user_id": user_id},
+        {"$push": {"logbook": {"$each": [entry], "$slice": -100}}}  # Keep last 100 entries
+    )
+    return entry
+
+async def generate_ai_logbook_entry(user_id: str, evento: str, contesto: Dict):
+    """Generate a narrative logbook entry using AI"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.getenv("EMERGENT_LLM_KEY")
+        session_id = f"logbook_{uuid.uuid4().hex[:8]}"
+        
+        character = await db.characters.find_one({"user_id": user_id}, {"_id": 0})
+        char_name = character.get("nome_personaggio", "Pirata")
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message=f"""Sei lo scrittore del diario di bordo di {char_name}, un pirata nel mondo di One Piece.
+Scrivi in prima persona come se fossi il personaggio che annota nel suo diario.
+Sii conciso (max 2-3 frasi), evocativo e in stile piratesco.
+Usa termini nautici e riferimenti al mondo di One Piece quando appropriato."""
+        )
+        chat.with_model("gemini", "gemini-3-flash-preview")
+        
+        message = UserMessage(text=f"Scrivi un'annotazione nel diario di bordo per questo evento: {evento}\nContesto: {contesto}")
+        response = await chat.send_message(message)
+        
+        entry = await add_logbook_entry(user_id, "diario", response, {"evento_originale": evento})
+        return entry
+        
+    except Exception as e:
+        logger.error(f"AI logbook error: {e}")
+        return await add_logbook_entry(user_id, "evento", evento)
+
+@api_router.get("/logbook")
+async def get_logbook(request: Request, limit: int = 20):
+    """Get character's logbook entries"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    logbook = character.get("logbook", [])
+    # Return most recent entries first
+    return {"entries": list(reversed(logbook[-limit:]))}
+
+@api_router.post("/logbook/add")
+async def add_manual_logbook_entry(data: Dict[str, str], request: Request):
+    """Manually add a logbook entry"""
+    user = await get_current_user(request)
+    
+    descrizione = data.get("descrizione", "")
+    if not descrizione:
+        raise HTTPException(status_code=400, detail="Descrizione richiesta")
+    
+    entry = await add_logbook_entry(user["user_id"], "nota", descrizione)
+    return {"entry": entry}
+
+# ============ NAVIGATION WITH DICE ============
+
+NAVIGATION_EVENTS = [
+    {"tipo": "calma", "nome": "Mare Calmo", "desc": "Navigazione tranquilla.", "effect": {"energia_recovery": 10}},
+    {"tipo": "tempesta", "nome": "Tempesta!", "desc": "Una tempesta colpisce la nave!", "effect": {"danno_nave": 10, "ritardo": 1}},
+    {"tipo": "pirati", "nome": "Pirati Nemici!", "desc": "Una nave pirata vi attacca!", "effect": {"combattimento": "pirata_novizio"}},
+    {"tipo": "marine", "nome": "Pattuglia Marina!", "desc": "La Marina vi ha avvistato!", "effect": {"combattimento": "marine_soldato"}},
+    {"tipo": "tesoro", "nome": "Tesoro alla Deriva!", "desc": "Trovate un forziere galleggiante!", "effect": {"berry": 500, "chance_carta": 0.3}},
+    {"tipo": "mercante", "nome": "Nave Mercantile", "desc": "Incontrate un mercante viaggiatore.", "effect": {"shop_sconto": 0.2}},
+    {"tipo": "mostro", "nome": "Re del Mare!", "desc": "Un gigantesco mostro marino emerge!", "effect": {"combattimento": "re_del_mare", "fuga_possibile": True}},
+    {"tipo": "isola_misteriosa", "nome": "Isola Misteriosa!", "desc": "Avvistate un'isola non segnata sulla mappa!", "effect": {"evento_speciale": True}},
+    {"tipo": "corrente", "nome": "Corrente Favorevole", "desc": "Una corrente marina vi spinge avanti!", "effect": {"bonus_movimento": 2}},
+    {"tipo": "nebbia", "nome": "Nebbia Fitta", "desc": "La nebbia rallenta il viaggio.", "effect": {"ritardo": 1}},
+]
+
+@api_router.post("/navigation/roll-dice")
+async def roll_navigation_dice(data: Dict[str, Any], request: Request):
+    """Roll dice for navigation and generate event"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    if not character.get("nave"):
+        raise HTTPException(status_code=400, detail="Hai bisogno di una nave per navigare!")
+    
+    destinazione = data.get("destinazione", "open_sea")
+    carta_usata = data.get("carta_id")
+    
+    # Base dice roll (1-6)
+    dado = random.randint(1, 6)
+    bonus = 0
+    
+    # Apply card bonus if used
+    if carta_usata:
+        carte_storytelling = character.get("carte", {}).get("storytelling", [])
+        for i, carta in enumerate(carte_storytelling):
+            if carta.get("id") == carta_usata:
+                bonus = carta.get("effect", {}).get("bonus_dado", 0)
+                # Remove used card
+                await db.characters.update_one(
+                    {"user_id": user["user_id"]},
+                    {"$pull": {"carte.storytelling": {"id": carta_usata}}}
+                )
+                break
+    
+    # Ship speed bonus
+    nave_id = character.get("nave")
+    nave_speed = SHOP_ITEMS.get(nave_id, {}).get("velocita", 1)
+    
+    movimento_totale = dado + bonus + nave_speed
+    
+    # Generate random event
+    evento = random.choice(NAVIGATION_EVENTS)
+    
+    # Apply event effects
+    effects_applied = []
+    
+    if evento["effect"].get("energia_recovery"):
+        recovery = evento["effect"]["energia_recovery"]
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"energia": recovery}}
+        )
+        effects_applied.append(f"+{recovery} Energia")
+    
+    if evento["effect"].get("berry"):
+        berry_gain = evento["effect"]["berry"]
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"berry": berry_gain}}
+        )
+        effects_applied.append(f"+{berry_gain} Berry")
+    
+    if evento["effect"].get("bonus_movimento"):
+        movimento_totale += evento["effect"]["bonus_movimento"]
+        effects_applied.append(f"+{evento['effect']['bonus_movimento']} Movimento")
+    
+    # Update navigation progress
+    progress = character.get("navigazione_progresso", 0) + movimento_totale
+    distanza_necessaria = 10  # Default distance to next island
+    
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"navigazione_progresso": progress}}
+    )
+    
+    # Check if arrived
+    arrivato = progress >= distanza_necessaria
+    
+    # Log to logbook
+    await generate_ai_logbook_entry(
+        user["user_id"],
+        f"Navigazione: dado {dado}, movimento {movimento_totale}. Evento: {evento['nome']}",
+        {"destinazione": destinazione, "evento": evento["tipo"]}
+    )
+    
+    return {
+        "dado": dado,
+        "bonus": bonus,
+        "velocita_nave": nave_speed,
+        "movimento_totale": movimento_totale,
+        "progresso": progress,
+        "distanza_necessaria": distanza_necessaria,
+        "arrivato": arrivato,
+        "evento": evento,
+        "effetti_applicati": effects_applied
+    }
+
+@api_router.post("/navigation/arrive")
+async def arrive_at_destination(data: Dict[str, str], request: Request):
+    """Arrive at destination island"""
+    user = await get_current_user(request)
+    island_id = data.get("island_id")
+    
+    if island_id not in ISLANDS:
+        raise HTTPException(status_code=400, detail="Isola non trovata")
+    
+    island = ISLANDS[island_id]
+    
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "isola_corrente": island_id,
+            "navigazione_progresso": 0
+        }}
+    )
+    
+    # Log arrival
+    await generate_ai_logbook_entry(
+        user["user_id"],
+        f"Arrivo a {island['name']}",
+        {"island_id": island_id, "saga": island["saga"]}
+    )
+    
+    return {"message": f"Arrivato a {island['name']}", "island": island}
+
+# ============ CREW SYSTEM ============
+
+@api_router.post("/crew/create")
+async def create_crew(data: Dict[str, str], request: Request):
+    """Create a new crew"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    if character.get("ciurma_id"):
+        raise HTTPException(status_code=400, detail="Sei già in una ciurma!")
+    
+    nome_ciurma = data.get("nome")
+    if not nome_ciurma:
+        raise HTTPException(status_code=400, detail="Nome ciurma richiesto")
+    
+    # Check if crew name exists
+    existing = await db.crews.find_one({"nome": nome_ciurma})
+    if existing:
+        raise HTTPException(status_code=400, detail="Nome ciurma già in uso")
+    
+    crew_id = f"crew_{uuid.uuid4().hex[:12]}"
+    crew = {
+        "crew_id": crew_id,
+        "nome": nome_ciurma,
+        "fondatore_id": character["character_id"],
+        "fondatore_nome": character["nome_personaggio"],
+        "capitano_id": character["character_id"],
+        "membri": [{
+            "character_id": character["character_id"],
+            "nome": character["nome_personaggio"],
+            "ruolo": "capitano",
+            "mestiere": character["mestiere"]
+        }],
+        "nave": character.get("nave"),
+        "jolly_roger": data.get("jolly_roger", "default"),
+        "taglia_totale": character.get("taglia", 0),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.crews.insert_one(crew)
+    
+    # Update character
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "ciurma_id": crew_id,
+            "ciurma_ruolo": "fondatore"
+        }}
+    )
+    
+    # Log
+    await add_logbook_entry(user["user_id"], "ciurma", f"Hai fondato la ciurma '{nome_ciurma}'!")
+    
+    crew.pop("_id", None)
+    return {"crew": crew}
+
+@api_router.post("/crew/join")
+async def join_crew(data: Dict[str, str], request: Request):
+    """Join an existing crew"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    if character.get("ciurma_id"):
+        raise HTTPException(status_code=400, detail="Sei già in una ciurma!")
+    
+    crew_id = data.get("crew_id")
+    crew = await db.crews.find_one({"crew_id": crew_id}, {"_id": 0})
+    
+    if not crew:
+        raise HTTPException(status_code=404, detail="Ciurma non trovata")
+    
+    # Add member
+    nuovo_membro = {
+        "character_id": character["character_id"],
+        "nome": character["nome_personaggio"],
+        "ruolo": "membro",
+        "mestiere": character["mestiere"]
+    }
+    
+    await db.crews.update_one(
+        {"crew_id": crew_id},
+        {
+            "$push": {"membri": nuovo_membro},
+            "$inc": {"taglia_totale": character.get("taglia", 0)}
+        }
+    )
+    
+    # Update character
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "ciurma_id": crew_id,
+            "ciurma_ruolo": "membro"
+        }}
+    )
+    
+    # Log
+    await add_logbook_entry(user["user_id"], "ciurma", f"Ti sei unito alla ciurma '{crew['nome']}'!")
+    
+    return {"message": f"Ti sei unito alla ciurma {crew['nome']}!"}
+
+@api_router.post("/crew/leave")
+async def leave_crew(request: Request):
+    """Leave current crew"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    crew_id = character.get("ciurma_id")
+    if not crew_id:
+        raise HTTPException(status_code=400, detail="Non sei in una ciurma")
+    
+    crew = await db.crews.find_one({"crew_id": crew_id}, {"_id": 0})
+    
+    # Check if founder
+    if crew.get("fondatore_id") == character["character_id"]:
+        # If founder leaves, disband crew or transfer ownership
+        if len(crew.get("membri", [])) <= 1:
+            # Disband
+            await db.crews.delete_one({"crew_id": crew_id})
+        else:
+            # Transfer to first other member
+            new_captain = next((m for m in crew["membri"] if m["character_id"] != character["character_id"]), None)
+            if new_captain:
+                await db.crews.update_one(
+                    {"crew_id": crew_id},
+                    {
+                        "$set": {"capitano_id": new_captain["character_id"]},
+                        "$pull": {"membri": {"character_id": character["character_id"]}},
+                        "$inc": {"taglia_totale": -character.get("taglia", 0)}
+                    }
+                )
+    else:
+        # Regular member leaves
+        await db.crews.update_one(
+            {"crew_id": crew_id},
+            {
+                "$pull": {"membri": {"character_id": character["character_id"]}},
+                "$inc": {"taglia_totale": -character.get("taglia", 0)}
+            }
+        )
+    
+    # Update character
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "ciurma_id": None,
+            "ciurma_ruolo": None
+        }}
+    )
+    
+    await add_logbook_entry(user["user_id"], "ciurma", f"Hai lasciato la ciurma '{crew['nome']}'")
+    
+    return {"message": "Hai lasciato la ciurma"}
+
+@api_router.get("/crew/my")
+async def get_my_crew(request: Request):
+    """Get current user's crew info"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    crew_id = character.get("ciurma_id")
+    if not crew_id:
+        return {"crew": None}
+    
+    crew = await db.crews.find_one({"crew_id": crew_id}, {"_id": 0})
+    return {"crew": crew}
+
+@api_router.get("/crew/search")
+async def search_crews(request: Request, query: str = ""):
+    """Search for crews to join"""
+    await get_current_user(request)
+    
+    filter_query = {}
+    if query:
+        filter_query["nome"] = {"$regex": query, "$options": "i"}
+    
+    crews = await db.crews.find(filter_query, {"_id": 0}).limit(20).to_list(20)
+    return {"crews": crews}
+
+# ============ WEBSOCKET CHAT ============
+
+chat_rooms: Dict[str, Dict[str, WebSocket]] = {}  # room_id -> {user_id: websocket}
+
+@app.websocket("/ws/chat/{room_id}")
+async def websocket_chat(websocket: WebSocket, room_id: str):
+    """WebSocket endpoint for real-time chat"""
+    await websocket.accept()
+    
+    # Get token from query params
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Token required")
+        return
+    
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+    except JWTError:
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+    
+    # Get user info
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    character = await db.characters.find_one({"user_id": user_id}, {"_id": 0})
+    username = character.get("nome_personaggio") if character else user.get("display_username", "Anonimo")
+    
+    # Add to room
+    if room_id not in chat_rooms:
+        chat_rooms[room_id] = {}
+    chat_rooms[room_id][user_id] = websocket
+    
+    try:
+        # Notify join
+        join_msg = {
+            "type": "system",
+            "message": f"{username} è entrato nella chat",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        await broadcast_to_room(room_id, join_msg)
+        
+        while True:
+            data = await websocket.receive_json()
+            
+            message = {
+                "type": "message",
+                "user_id": user_id,
+                "username": username,
+                "content": data.get("content", ""),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+            # Save to DB
+            await db.chat_messages.insert_one({
+                "room_id": room_id,
+                **message
+            })
+            
+            # Broadcast to room
+            await broadcast_to_room(room_id, message)
+            
+    except WebSocketDisconnect:
+        # Remove from room
+        if room_id in chat_rooms and user_id in chat_rooms[room_id]:
+            del chat_rooms[room_id][user_id]
+        
+        # Notify leave
+        leave_msg = {
+            "type": "system",
+            "message": f"{username} ha lasciato la chat",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        await broadcast_to_room(room_id, leave_msg)
+
+async def broadcast_to_room(room_id: str, message: Dict):
+    """Broadcast message to all users in a chat room"""
+    if room_id not in chat_rooms:
+        return
+    
+    disconnected = []
+    for uid, ws in chat_rooms[room_id].items():
+        try:
+            await ws.send_json(message)
+        except:
+            disconnected.append(uid)
+    
+    # Clean up disconnected
+    for uid in disconnected:
+        del chat_rooms[room_id][uid]
+
+@api_router.get("/chat/{room_id}/history")
+async def get_chat_history(room_id: str, request: Request, limit: int = 50):
+    """Get chat history for a room"""
+    await get_current_user(request)
+    
+    messages = await db.chat_messages.find(
+        {"room_id": room_id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    return {"messages": list(reversed(messages))}
+
+# ============ CARD EFFECTS ============
+
+CARD_EFFECTS = {
+    "carta_vento_favorevole": {
+        "tipo": "navigazione",
+        "descrizione": "+2 al tiro del dado durante la navigazione",
+        "effect": {"bonus_dado": 2}
+    },
+    "carta_fuga_rapida": {
+        "tipo": "combattimento",
+        "descrizione": "Il nemico perde un turno",
+        "effect": {"skip_turno_nemico": True}
+    },
+    "carta_tesoro_nascosto": {
+        "tipo": "evento",
+        "descrizione": "Guadagni 1000 Berry extra",
+        "effect": {"bonus_berry": 1000}
+    },
+    "carta_cura_miracolosa": {
+        "tipo": "combattimento",
+        "descrizione": "Recupera 50% della vita massima",
+        "effect": {"heal_percent": 0.5}
+    },
+    "carta_attacco_sorpresa": {
+        "tipo": "combattimento",
+        "descrizione": "Il prossimo attacco infligge il doppio del danno",
+        "effect": {"damage_multiplier": 2}
+    },
+    "carta_scudo_temporale": {
+        "tipo": "combattimento",
+        "descrizione": "Riduce i danni subiti del 50% per 2 turni",
+        "effect": {"damage_reduction": 0.5, "durata": 2}
+    }
+}
+
+@api_router.post("/cards/use")
+async def use_card(data: Dict[str, str], request: Request):
+    """Use a card and apply its effects"""
+    user = await get_current_user(request)
+    card_id = data.get("card_id")
+    contesto = data.get("contesto", "generale")  # navigazione, combattimento, evento
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    # Find card in character's collection
+    card_found = None
+    card_categoria = None
+    
+    for categoria in ["storytelling", "eventi", "duello", "risorse"]:
+        carte = character.get("carte", {}).get(categoria, [])
+        for carta in carte:
+            if carta.get("id") == card_id:
+                card_found = carta
+                card_categoria = categoria
+                break
+        if card_found:
+            break
+    
+    if not card_found:
+        raise HTTPException(status_code=400, detail="Carta non trovata nel tuo inventario")
+    
+    effect = card_found.get("effect", {})
+    effects_applied = []
+    
+    # Apply effects based on context
+    if effect.get("bonus_berry"):
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"berry": effect["bonus_berry"]}}
+        )
+        effects_applied.append(f"+{effect['bonus_berry']} Berry")
+    
+    if effect.get("heal_percent"):
+        heal_amount = int(character["vita_max"] * effect["heal_percent"])
+        new_vita = min(character["vita_max"], character["vita"] + heal_amount)
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"vita": new_vita}}
+        )
+        effects_applied.append(f"+{heal_amount} Vita")
+    
+    # Remove used card
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$pull": {f"carte.{card_categoria}": {"id": card_id}}}
+    )
+    
+    # Log
+    await add_logbook_entry(
+        user["user_id"], 
+        "carta", 
+        f"Hai usato la carta '{card_found.get('name', card_id)}'"
+    )
+    
+    return {
+        "message": f"Carta usata: {card_found.get('name', card_id)}",
+        "effects_applied": effects_applied,
+        "effect": effect
+    }
+
+@api_router.get("/cards/effects")
+async def get_card_effects(request: Request):
+    """Get all available card effects"""
+    await get_current_user(request)
+    return {"effects": CARD_EFFECTS}
 
 # ============ ROOT & HEALTH ============
 
 @api_router.get("/")
 async def root():
-    return {"message": "One Piece RPG - The Grand Line Architect API", "version": "2.0.0"}
+    return {"message": "One Piece RPG - The Grand Line Architect API", "version": "3.0.0"}
 
 @api_router.get("/health")
 async def health():
