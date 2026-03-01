@@ -450,10 +450,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Inventory System"
+    - "Four Seas Navigation System"
   stuck_tasks: []
   test_all: false
-  test_priority: "inventory_complete"
+  test_priority: "four_seas_complete"
 
 agent_communication:
   - agent: "main"
