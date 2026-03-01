@@ -109,6 +109,7 @@ const AppRouter = ({ user, character, setCharacter, token, login, logout }) => {
       <Route path="/battle" element={<BattleArena token={token} character={character} />} />
       <Route path="/character" element={<CharacterSheet token={token} character={character} setCharacter={setCharacter} />} />
       <Route path="/shop" element={<Shop token={token} character={character} />} />
+      <Route path="/inventory" element={<Inventory token={token} character={character} />} />
     </Routes>
   );
 };
