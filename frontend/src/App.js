@@ -170,6 +170,7 @@ const AppRouter = ({ user, character, setCharacter, token, login, logout }) => {
       <Route path="/dashboard" element={<Dashboard user={effectiveUser} character={effectiveCharacter} token={effectiveToken} logout={isDemo ? exitDemo : logout} isDemo={isDemo} />} />
       <Route path="/create-character" element={<CharacterCreation token={effectiveToken} setCharacter={setCharacter} />} />
       <Route path="/world-map" element={<WorldMap token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
+      <Route path="/explore" element={<ExploreIsland token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
       <Route path="/battle" element={<BattleArena token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
       <Route path="/character" element={<CharacterSheet token={effectiveToken} character={effectiveCharacter} setCharacter={setCharacter} isDemo={isDemo} />} />
       <Route path="/shop" element={<Shop token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
