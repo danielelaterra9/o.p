@@ -523,20 +523,21 @@ class OnePieceRPGAPITester:
         return len(self.failed_tests) == 0
 
 def main():
-    print("🏴‍☠️ ONE PIECE RPG API TESTING")
+    print("🏴‍☠️ ONE PIECE RPG V2 API TESTING")
     print("=" * 60)
     
     tester = OnePieceRPGAPITester()
     
-    # Run all test suites
+    # Run all test suites for v2 system
     tester.test_root_endpoints()
     tester.test_authentication()
+    tester.test_game_data_endpoints()  # New: test races, fighting styles, mestieri
+    tester.test_character_name_validation()  # New: test D. pattern blocking
     tester.test_character_system()
     tester.test_world_system()
     tester.test_battle_system()
     tester.test_ai_features()
     tester.test_shop_system()
-    tester.test_cards_system()
     
     # Print summary and return appropriate exit code
     success = tester.print_summary()
