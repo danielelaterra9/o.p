@@ -677,6 +677,13 @@ async def create_character(char_data: CharacterCreate, request: Request):
         # Location
         "isola_corrente": "foosha",
         "nave": None,
+        "navigazione_progresso": 0,
+        
+        # Economy
+        "berry": 1000,  # Starting money
+        
+        # Logbook
+        "logbook": [],
         
         # Metadata
         "created_at": datetime.now(timezone.utc).isoformat(),
