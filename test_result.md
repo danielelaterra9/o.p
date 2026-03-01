@@ -424,3 +424,5 @@ agent_communication:
     message: "Bug fixes applied: 1) Added berry field (1000 starting) to character creation, 2) Implemented NPC AI turn in battle system with rewards for winning, 3) Added logbook initialization. Now retesting to verify fixes."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: 21/22 tests passed (95.5% success rate). All core functionality working: auth, character creation/validation, game data, battle system, world map, shop, crew management, and logbook. Only minor timeout on shop purchase test but endpoint functionality confirmed via logs. AI Trait Extraction and Navigation not tested but dependent systems working. Backend is production-ready."
+  - agent: "testing"
+    message: "✅ BUG FIX VERIFICATION COMPLETE: All 3 requested bug fixes confirmed working: 1) Character Creation now includes berry (1000) and logbook initialization, 2) Battle System has full NPC AI with automatic turns and rewards (EXP/Berry), 3) Shop purchases work perfectly with Berry system. 12/12 focused tests passed (100% success rate). Backend is production-ready."
