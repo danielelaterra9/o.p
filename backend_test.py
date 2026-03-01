@@ -17,10 +17,13 @@ class OnePieceRPGAPITester:
         self.tests_passed = 0
         self.failed_tests = []
         
-        # Test data
-        self.test_email = f"test_pirate_{int(time.time())}@grandline.com"
+        # Test data for v2 system
+        timestamp = int(time.time())
+        self.test_email = f"test_pirate_{timestamp}@grandline.com"
         self.test_password = "StrawHat123!"
-        self.test_name = "Test Monkey D. Luffy"
+        self.test_username = f"testuser_{timestamp}"
+        self.test_character_name = "Monkey Luffy"  # Valid name without D.
+        self.invalid_character_name = "Monkey D. Luffy"  # Should be blocked
 
     def run_test(self, name, method, endpoint, expected_status, data=None, headers=None, skip_auth=False):
         """Run a single API test"""
