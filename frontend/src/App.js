@@ -2393,7 +2393,7 @@ const Inventory = ({ token, character }) => {
     setUsing(false);
   };
 
-  const useCard = async (cardId, categoria) => {
+  const activateCard = async (cardId, categoria) => {
     setUsing(true);
     setMessage({ type: '', text: '' });
     try {
