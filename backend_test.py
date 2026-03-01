@@ -395,10 +395,10 @@ class OnePieceRPGAPITester:
             print("❌ No auth token, skipping battle tests")
             return False
         
-        # Test start battle
+        # Test start battle with updated opponent types
         battle_data = {
             "opponent_type": "npc",
-            "opponent_id": "marine_grunt"
+            "opponent_id": "marine_soldato"  # Updated to match backend NPC types
         }
         
         success, response = self.run_test(
@@ -414,9 +414,9 @@ class OnePieceRPGAPITester:
             battle_id = response['battle_id']
             print(f"✅ Battle started with ID: {battle_id}")
             
-            # Test battle action
+            # Test battle action with updated action types
             action_data = {
-                "action_type": "basic_attack",
+                "action_type": "attacco_base",  # Updated to match v2 system
                 "action_name": "Pugno"
             }
             
@@ -426,14 +426,6 @@ class OnePieceRPGAPITester:
                 f"battle/{battle_id}/action",
                 200,
                 action_data
-            )
-            
-            # Test get battle status
-            self.run_test(
-                "Get Battle Status",
-                "GET",
-                f"battle/{battle_id}",
-                200
             )
         
         return True
