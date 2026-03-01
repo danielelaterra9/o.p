@@ -785,7 +785,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
                     color: '#3B82F6',
                     icon: '🌅',
                     description: 'Il mare più debole dei quattro, ma patria di grandi pirati come Gol D. Roger e Monkey D. Luffy.',
-                    start: 'Foosha Village'
+                    start: 'Dawn Island (Foosha Village)'
                   },
                   { 
                     id: 'west_blue', 
@@ -793,7 +793,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
                     color: '#10B981',
                     icon: '🌿',
                     description: 'Mare occidentale, patria degli studiosi di Ohara e del potente regno di Kano.',
-                    start: 'Regno di Ilisia'
+                    start: 'Ohara'
                   },
                   { 
                     id: 'north_blue', 
@@ -801,7 +801,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
                     color: '#8B5CF6',
                     icon: '❄️',
                     description: 'Mare settentrionale, freddo e misterioso. Patria del Supernova Trafalgar Law.',
-                    start: 'Regno di Lvneel'
+                    start: 'Downs'
                   },
                   { 
                     id: 'south_blue', 
@@ -809,7 +809,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
                     color: '#F59E0B',
                     icon: '☀️',
                     description: 'Mare meridionale, noto per le arti marziali e come luogo di nascita di Portgas D. Ace.',
-                    start: 'Regno di Briss'
+                    start: 'Baterilla'
                   }
                 ].map((sea) => (
                   <motion.button
