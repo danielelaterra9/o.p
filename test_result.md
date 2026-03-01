@@ -294,6 +294,21 @@ backend:
         agent: "testing"
         comment: "✅ Logbook system working correctly. GET /logbook returns character's logbook entries (2 entries from previous actions). POST /logbook/add successfully adds manual entries. Logbook properly tracks character actions"
 
+  - task: "Inventory System"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "New inventory endpoints added - need comprehensive testing"
+      - working: true
+        agent: "testing"
+        comment: "✅ INVENTORY SYSTEM COMPLETE: All endpoints working perfectly. GET /inventory returns oggetti, armi, carte, nave, berry. POST /inventory/use-item removes item and applies effects (+30 HP from pozione_vita). POST /inventory/equip-weapon marks weapons as equipped. POST /cards/use removes cards from inventory. Items properly categorized: consumables in oggetti, weapons in armi, cards in carte.storytelling. 19/19 inventory tests passed (100% success rate)."
+
 frontend:
   - task: "Landing Page"
     implemented: true
