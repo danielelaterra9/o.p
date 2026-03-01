@@ -411,5 +411,7 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Initial testing of all backend endpoints to identify bugs. Focus on auth flow, character creation, and core game systems."
+  - agent: "main"
+    message: "Bug fixes applied: 1) Added berry field (1000 starting) to character creation, 2) Implemented NPC AI turn in battle system with rewards for winning, 3) Added logbook initialization. Now retesting to verify fixes."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: 21/22 tests passed (95.5% success rate). All core functionality working: auth, character creation/validation, game data, battle system, world map, shop, crew management, and logbook. Only minor timeout on shop purchase test but endpoint functionality confirmed via logs. AI Trait Extraction and Navigation not tested but dependent systems working. Backend is production-ready."
