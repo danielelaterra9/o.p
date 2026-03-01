@@ -531,13 +531,33 @@ const CharacterCreation = ({ token, setCharacter }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkingExisting, setCheckingExisting] = useState(true);
 
-  // Redirect if not authenticated
+  // Check if character already exists and redirect
   useEffect(() => {
-    if (!authToken) {
-      navigate('/login');
-    }
-  }, [authToken, navigate]);
+    const checkExistingCharacter = async () => {
+      if (!authToken) {
+        navigate('/login');
+        return;
+      }
+      
+      try {
+        const response = await axios.get(`${API}/characters/me`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (response.data && response.data.character_id) {
+          // Character exists, redirect to dashboard
+          setCharacter(response.data);
+          navigate('/dashboard');
+        }
+      } catch (err) {
+        // No character exists, proceed with creation
+      }
+      setCheckingExisting(false);
+    };
+    
+    checkExistingCharacter();
+  }, [authToken, navigate, setCharacter]);
 
   const bodyTypes = [
     { id: 'slim', label: 'Agile', desc: '+10 ATK, +15 SPD, -5 DEF' },
@@ -581,10 +601,27 @@ const CharacterCreation = ({ token, setCharacter }) => {
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Errore durante la creazione del personaggio');
+      if (err.response?.data?.detail === 'Character already exists') {
+        // Character already exists, try to fetch it and redirect
+        try {
+          const charResponse = await axios.get(`${API}/characters/me`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+          });
+          setCharacter(charResponse.data);
+          navigate('/dashboard');
+        } catch (e) {
+          setError('Personaggio già esistente. Vai alla dashboard.');
+        }
+      } else {
+        setError(err.response?.data?.detail || 'Errore durante la creazione del personaggio');
+      }
     }
     setLoading(false);
   };
+
+  if (checkingExisting) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-[#051923] p-4 md:p-8">
