@@ -2622,7 +2622,7 @@ const Inventory = ({ token, character }) => {
                           </div>
                           {selectedItem?.id === carta.id && selectedItem?.type === 'carta' && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); useCard(carta.id, categoria); }}
+                              onClick={(e) => { e.stopPropagation(); activateCard(carta.id, categoria); }}
                               disabled={using}
                               className="bg-[#7209B7] text-white px-4 py-2 rounded-lg text-sm font-bold"
                             >
