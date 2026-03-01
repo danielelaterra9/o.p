@@ -1195,7 +1195,7 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
 };
 
 // ============ WORLD MAP (Four Seas Navigation) ============
-const WorldMap = ({ token, character }) => {
+const WorldMap = ({ token, character, isDemo }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [islands, setIslands] = useState([]);
