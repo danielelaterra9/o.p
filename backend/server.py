@@ -1033,18 +1033,295 @@ async def narrate_action(data: Dict[str, Any], request: Request):
 
 # ============ WORLD & NAVIGATION ============
 
-ISLANDS = {
-    "foosha": {"name": "Foosha Village", "saga": "East Blue", "x": 10, "y": 70, "eventi_richiesti": 0},
-    "shells_town": {"name": "Shells Town", "saga": "East Blue", "x": 18, "y": 55, "eventi_richiesti": 1},
-    "orange_town": {"name": "Orange Town", "saga": "East Blue", "x": 25, "y": 60, "eventi_richiesti": 2},
-    "baratie": {"name": "Baratie", "saga": "East Blue", "x": 35, "y": 50, "eventi_richiesti": 3},
-    "arlong_park": {"name": "Arlong Park", "saga": "East Blue", "x": 42, "y": 45, "eventi_richiesti": 4},
-    "loguetown": {"name": "Loguetown", "saga": "East Blue", "x": 50, "y": 55, "eventi_richiesti": 5},
-    "alabasta": {"name": "Alabasta", "saga": "Grand Line", "x": 60, "y": 40, "eventi_richiesti": 8},
-    "skypiea": {"name": "Skypiea", "saga": "Grand Line", "x": 65, "y": 20, "eventi_richiesti": 12},
-    "water_seven": {"name": "Water 7", "saga": "Grand Line", "x": 72, "y": 45, "eventi_richiesti": 15},
-    "wano": {"name": "Wano", "saga": "New World", "x": 92, "y": 30, "eventi_richiesti": 30}
+# ============ FOUR SEAS MAPS ============
+
+SEAS = {
+    "east_blue": {
+        "name": "East Blue",
+        "description": "Il mare più debole dei quattro, ma patria di grandi pirati come Gol D. Roger e Monkey D. Luffy.",
+        "color": "#3B82F6"
+    },
+    "west_blue": {
+        "name": "West Blue",
+        "description": "Mare occidentale, patria degli studiosi di Ohara e del potente regno di Kano.",
+        "color": "#10B981"
+    },
+    "north_blue": {
+        "name": "North Blue",
+        "description": "Mare settentrionale, freddo e misterioso. Patria del Supernova Trafalgar Law.",
+        "color": "#8B5CF6"
+    },
+    "south_blue": {
+        "name": "South Blue",
+        "description": "Mare meridionale, noto per le arti marziali e come luogo di nascita di Portgas D. Ace.",
+        "color": "#F59E0B"
+    }
 }
+
+ISLANDS = {
+    # ============ EAST BLUE ============
+    "foosha": {
+        "name": "Foosha Village",
+        "sea": "east_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "Un tranquillo villaggio di pescatori nell'isola di Dawn. Qui il leggendario pirata Shanks il Rosso salvò un giovane Monkey D. Luffy da un Re del Mare, perdendo il braccio sinistro. Prima di partire, Shanks affidò a Luffy il suo prezioso cappello di paglia.",
+        "luoghi": ["Taverna del villaggio", "Porto"],
+        "pericolo": 1
+    },
+    "goa_kingdom": {
+        "name": "Regno di Goa",
+        "sea": "east_blue",
+        "order": 2,
+        "x": 15, "y": 65,
+        "storia": "Il regno più potente dell'East Blue, situato sull'isola di Dawn. Un regno di nobili corrotti che ha bruciato il Gray Terminal per nascondere la povertà durante la visita di un Drago Celeste. Qui sono cresciuti Luffy, Ace e Sabo.",
+        "luoghi": ["Palazzo Reale", "Gray Terminal", "Monte Colubo"],
+        "pericolo": 2
+    },
+    "shells_town": {
+        "name": "Shells Town",
+        "sea": "east_blue",
+        "order": 3,
+        "x": 22, "y": 55,
+        "storia": "Città portuale con una base della Marina comandata dal Capitano Morgan. Qui Roronoa Zoro era tenuto prigioniero, legato a un palo, dopo aver salvato una bambina dal lupo del figlio di Morgan. Luffy lo liberò e Zoro divenne il primo membro della ciurma dei Mugiwara.",
+        "luoghi": ["Base della Marina", "Piazza delle Esecuzioni", "Ristorante Rika"],
+        "pericolo": 3
+    },
+    "shimotsuki": {
+        "name": "Villaggio Shimotsuki",
+        "sea": "east_blue",
+        "order": 4,
+        "x": 28, "y": 60,
+        "storia": "Villaggio fondato da samurai fuggiti da Wano 50 anni fa. Qui si trova il dojo del maestro Koshiro dove Roronoa Zoro si allenò fin da bambino insieme a Kuina, giurando di diventare il più grande spadaccino del mondo.",
+        "luoghi": ["Dojo Isshin", "Tomba di Kuina"],
+        "pericolo": 2
+    },
+    "orange_town": {
+        "name": "Orange Town",
+        "sea": "east_blue",
+        "order": 5,
+        "x": 35, "y": 58,
+        "storia": "Città un tempo prospera, devastata dalla ciurma di Buggy il Clown. Qui Luffy sconfisse Buggy, il pirata che aveva mangiato il frutto Bara Bara, e aiutò il sindaco Boodle a difendere la sua amata città.",
+        "luoghi": ["Taverna del sindaco", "Negozio di animali"],
+        "pericolo": 4
+    },
+    "syrup_village": {
+        "name": "Syrup Village",
+        "sea": "east_blue",
+        "order": 6,
+        "x": 42, "y": 52,
+        "storia": "Tranquillo villaggio sull'isola Gecko, casa di Usopp e della sua amica d'infanzia Kaya. Il Capitano Kuro della Ciurma dei Gatti Neri tentò di assassinare Kaya per la sua eredità, ma fu fermato da Luffy. Qui i Mugiwara ottennero la Going Merry.",
+        "luoghi": ["Villa di Kaya", "Costa Nord", "Collina delle bugie"],
+        "pericolo": 3
+    },
+    "baratie": {
+        "name": "Baratie",
+        "sea": "east_blue",
+        "order": 7,
+        "x": 50, "y": 48,
+        "storia": "Il famoso ristorante galleggiante gestito dallo chef Zeff 'Gamba Rossa', ex pirata. Qui Sanji lavorava come sous-chef finché Luffy non lo convinse a unirsi alla ciurma. Il Baratie fu attaccato da Don Krieg, il pirata più temuto dell'East Blue.",
+        "luoghi": ["Sala principale", "Cucina", "Ponte di combattimento"],
+        "pericolo": 5
+    },
+    "arlong_park": {
+        "name": "Arlong Park",
+        "sea": "east_blue",
+        "order": 8,
+        "x": 58, "y": 42,
+        "storia": "La fortezza del tritone Arlong, costruita sulle Isole Conomi. Per otto anni Arlong terrorizzò gli abitanti, costringendo Nami a disegnare mappe per lui. Luffy distrusse Arlong Park e liberò Nami dalla sua prigionia, salvando il villaggio di Cocoyasi.",
+        "luoghi": ["Torre di Arlong", "Cocoyasi Village", "Casa di Nami"],
+        "pericolo": 6
+    },
+    "loguetown": {
+        "name": "Loguetown",
+        "sea": "east_blue",
+        "order": 9,
+        "x": 65, "y": 50,
+        "storia": "La 'Città dell'Inizio e della Fine', dove Gol D. Roger nacque e fu giustiziato 22 anni fa. Le sue ultime parole diedero inizio alla Grande Era della Pirateria. Qui Luffy sfuggì all'esecuzione di Buggy grazie a un fulmine, e la ciurma partì verso la Grand Line.",
+        "luoghi": ["Piattaforma dell'Esecuzione", "Negozio di armi", "Gold Roger Bar"],
+        "pericolo": 5
+    },
+    
+    # ============ WEST BLUE ============
+    "ilisia": {
+        "name": "Regno di Ilisia",
+        "sea": "west_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "Un pacifico regno del West Blue, affiliato al Governo Mondiale. Punto di partenza per molti avventurieri che vogliono esplorare questo mare.",
+        "luoghi": ["Porto Reale", "Piazza del Mercato"],
+        "pericolo": 1
+    },
+    "ohara": {
+        "name": "Ohara",
+        "sea": "west_blue",
+        "order": 2,
+        "x": 20, "y": 65,
+        "storia": "L'isola degli studiosi, un tempo sede della più grande biblioteca del mondo e dell'Albero della Conoscenza. Gli archeologi di Ohara studiavano i Ponegliff, considerati illegali dal Governo Mondiale. 20 anni fa, il Buster Call distrusse l'intera isola. L'unica sopravvissuta fu Nico Robin.",
+        "luoghi": ["Rovine dell'Albero della Conoscenza", "Lago Ohara"],
+        "pericolo": 2
+    },
+    "kano_country": {
+        "name": "Paese di Kano",
+        "sea": "west_blue",
+        "order": 3,
+        "x": 32, "y": 55,
+        "storia": "Potente nazione del West Blue, patria della famiglia Chinjao e dell'Armata Happo. Don Chinjao, con la sua testa a punta, era un temuto pirata con una taglia di 500 milioni. Sai, suo nipote, è ora il 13° comandante della Flotta dei Cappelli di Paglia.",
+        "luoghi": ["Quartier Generale Happo", "Arena di allenamento"],
+        "pericolo": 5
+    },
+    "toroa": {
+        "name": "Toroa",
+        "sea": "west_blue",
+        "order": 4,
+        "x": 42, "y": 48,
+        "storia": "Isola nota per i suoi abili artigiani di spade. Molte lame famose del mondo provengono da qui. I fabbri di Toroa sono rispettati in tutto il West Blue.",
+        "luoghi": ["Fucina Principale", "Mercato delle Armi"],
+        "pericolo": 3
+    },
+    "las_camp": {
+        "name": "Las Camp",
+        "sea": "west_blue",
+        "order": 5,
+        "x": 52, "y": 42,
+        "storia": "Isola desertica con un clima arido. Nonostante le difficili condizioni, è un importante punto commerciale per i viaggiatori del West Blue.",
+        "luoghi": ["Oasi Centrale", "Mercato dei Viaggiatori"],
+        "pericolo": 4
+    },
+    "soja": {
+        "name": "Isola Soja",
+        "sea": "west_blue",
+        "order": 6,
+        "x": 62, "y": 38,
+        "storia": "Un'isola agricola del West Blue, famosa per la produzione di cereali e legumi. La sua economia è basata sull'agricoltura e il commercio.",
+        "luoghi": ["Campi di grano", "Porto mercantile"],
+        "pericolo": 2
+    },
+    
+    # ============ NORTH BLUE ============
+    "lvneel": {
+        "name": "Regno di Lvneel",
+        "sea": "north_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "Antico e prospero regno del North Blue. 400 anni fa, l'esploratore Montblanc Noland partì da qui per scoprire la leggendaria Città d'Oro di Shandora. Tornato senza prove, fu giustiziato come bugiardo, ma la verità era che Shandora era stata spinta nel cielo.",
+        "luoghi": ["Palazzo Reale", "Statua di Noland"],
+        "pericolo": 1
+    },
+    "spider_miles": {
+        "name": "Spider Miles",
+        "sea": "north_blue",
+        "order": 2,
+        "x": 22, "y": 62,
+        "storia": "Un'isola portuale senza legge, rifugio di pirati e criminali. Qui il giovane Donquixote Doflamingo, dopo essere stato cacciato da Mary Geoise, assassinò suo padre. È anche il luogo dove Doflamingo formò la sua famiglia di pirati.",
+        "luoghi": ["Porto dei Fuorilegge", "Vicoli Oscuri"],
+        "pericolo": 6
+    },
+    "flevance": {
+        "name": "Flevance",
+        "sea": "north_blue",
+        "order": 3,
+        "x": 34, "y": 55,
+        "storia": "La 'Città Bianca', un tempo splendente per la piombo ambrato che ricopriva tutto di bianco. Ma il minerale era velenoso. Quando la popolazione si ammalò del 'Morbo del Piombo Ambrato', il Governo insabbiò la verità. L'isola fu sterminata. L'unico sopravvissuto fu il bambino Trafalgar Law.",
+        "luoghi": ["Rovine della Città", "Ospedale abbandonato"],
+        "pericolo": 3
+    },
+    "swallow": {
+        "name": "Isola Swallow",
+        "sea": "north_blue",
+        "order": 4,
+        "x": 45, "y": 48,
+        "storia": "Isola pacifica del North Blue. Qui la ciurma di Donquixote Rosinante (Corazon) cercò disperatamente una cura per Law. L'isola è nota per i suoi medici competenti.",
+        "luoghi": ["Ospedale Centrale", "Porto"],
+        "pericolo": 2
+    },
+    "minion": {
+        "name": "Isola Minion",
+        "sea": "north_blue",
+        "order": 5,
+        "x": 55, "y": 42,
+        "storia": "Isola innevata dove si svolse una delle tragedie più grandi. Qui la ciurma di Barrels custodiva l'Ope Ope no Mi. Doflamingo attaccò per rubare il frutto, ma Corazon lo prese prima e lo diede a Law, sacrificando la sua vita. Law mangiò il frutto e fu salvato.",
+        "luoghi": ["Fortezza di Barrels", "Cumulo di neve (tomba di Corazon)"],
+        "pericolo": 5
+    },
+    "notice": {
+        "name": "Notice",
+        "sea": "north_blue",
+        "order": 6,
+        "x": 65, "y": 35,
+        "storia": "Isola del North Blue nota come punto di ritrovo per mercanti e viaggiatori. Un luogo dove le informazioni viaggiano veloci.",
+        "luoghi": ["Taverna delle Notizie", "Ufficio Postale"],
+        "pericolo": 2
+    },
+    
+    # ============ SOUTH BLUE ============
+    "briss": {
+        "name": "Regno di Briss",
+        "sea": "south_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "Un regno pacifico del South Blue, punto di partenza per i viaggiatori che vogliono esplorare questo mare. Noto per le sue acque calde e il clima temperato.",
+        "luoghi": ["Porto Reale", "Spiaggia di Briss"],
+        "pericolo": 1
+    },
+    "karate_island": {
+        "name": "Isola Karate",
+        "sea": "south_blue",
+        "order": 2,
+        "x": 22, "y": 62,
+        "storia": "L'isola sacra delle arti marziali, dove i più grandi combattenti del mondo vengono ad allenarsi. Il Karate dei Tritoni ha le sue radici qui. Molti maestri di arti marziali hanno fondato dojo su quest'isola.",
+        "luoghi": ["Dojo Centrale", "Arena dei Tornei", "Tempio del Pugno"],
+        "pericolo": 4
+    },
+    "centaurea": {
+        "name": "Centaurea",
+        "sea": "south_blue",
+        "order": 3,
+        "x": 34, "y": 55,
+        "storia": "Isola natale di Nico Olvia, la madre di Nico Robin. Da qui Olvia partì per unirsi agli studiosi di Ohara nella loro ricerca della storia perduta.",
+        "luoghi": ["Casa natale di Olvia", "Porto"],
+        "pericolo": 2
+    },
+    "baterilla": {
+        "name": "Baterilla",
+        "sea": "south_blue",
+        "order": 4,
+        "x": 45, "y": 48,
+        "storia": "L'isola dove nacque Portgas D. Ace, figlio di Gol D. Roger. Sua madre, Portgas D. Rouge, tenne Ace nel grembo per 20 mesi per proteggerlo dalla Marina, morendo dopo il parto. Garp prese il neonato e lo affidò a Dadan.",
+        "luoghi": ["Casa di Rouge", "Cimitero (tomba di Rouge)"],
+        "pericolo": 3
+    },
+    "torino": {
+        "name": "Regno di Torino",
+        "sea": "south_blue",
+        "order": 5,
+        "x": 55, "y": 42,
+        "storia": "Isola primitiva abitata da una tribù di umani e giganteschi uccelli. Qui Tony Tony Chopper fu mandato da Bartholomew Kuma durante la separazione della ciurma. Chopper studiò le erbe medicinali avanzate dell'isola per due anni.",
+        "luoghi": ["Villaggio della Tribù", "Foresta delle Erbe Medicinali"],
+        "pericolo": 3
+    },
+    "sorbet": {
+        "name": "Regno di Sorbet",
+        "sea": "south_blue",
+        "order": 6,
+        "x": 65, "y": 35,
+        "storia": "Piccolo regno povero del South Blue, patria di Bartholomew Kuma e Jewelry Bonney. Kuma era il re amato del popolo prima di diventare uno Shichibukai e poi un cyborg della Marina.",
+        "luoghi": ["Palazzo Reale", "Chiesa di Kuma"],
+        "pericolo": 2
+    }
+}
+
+# Helper to get islands by sea
+def get_islands_by_sea(sea_id: str) -> list:
+    """Get all islands from a specific sea, ordered"""
+    islands = [(k, v) for k, v in ISLANDS.items() if v["sea"] == sea_id]
+    return sorted(islands, key=lambda x: x[1]["order"])
+
+@api_router.get("/world/seas")
+async def get_seas(request: Request):
+    """Get list of all four seas"""
+    await get_current_user(request)
+    return {"seas": SEAS}
 
 @api_router.get("/world/islands")
 async def get_islands(request: Request):
@@ -1054,18 +1331,107 @@ async def get_islands(request: Request):
     if not character:
         raise HTTPException(status_code=404, detail="Personaggio non trovato")
     
-    eventi_completati = len(character.get("carte", {}).get("eventi", []))
+    current_sea = character.get("mare_corrente", "east_blue")
+    current_island = character.get("isola_corrente", "foosha")
+    
+    # Get islands for current sea
+    sea_islands = get_islands_by_sea(current_sea)
+    
+    # Find current island index
+    current_index = 0
+    for i, (island_id, _) in enumerate(sea_islands):
+        if island_id == current_island:
+            current_index = i
+            break
     
     islands_list = []
-    for island_id, data in ISLANDS.items():
+    for i, (island_id, data) in enumerate(sea_islands):
+        # Islands are unlocked if they are current, previous, or next
+        is_accessible = i <= current_index + 1
         islands_list.append({
             "id": island_id,
-            **data,
-            "sbloccata": eventi_completati >= data["eventi_richiesti"],
-            "corrente": character.get("isola_corrente") == island_id
+            "name": data["name"],
+            "sea": data["sea"],
+            "order": data["order"],
+            "x": data["x"],
+            "y": data["y"],
+            "storia": data["storia"],
+            "luoghi": data["luoghi"],
+            "pericolo": data["pericolo"],
+            "sbloccata": is_accessible,
+            "corrente": island_id == current_island,
+            "can_travel_back": i < current_index,
+            "can_travel_forward": i == current_index + 1 and is_accessible
         })
     
-    return {"islands": islands_list, "isola_corrente": character.get("isola_corrente")}
+    return {
+        "islands": islands_list,
+        "isola_corrente": current_island,
+        "mare_corrente": current_sea,
+        "sea_info": SEAS.get(current_sea, {})
+    }
+
+@api_router.post("/world/travel")
+async def travel_to_island(data: Dict[str, str], request: Request):
+    """Travel to an adjacent island (forward or backward)"""
+    user = await get_current_user(request)
+    target_island_id = data.get("island_id")
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_sea = character.get("mare_corrente", "east_blue")
+    current_island = character.get("isola_corrente", "foosha")
+    
+    # Validate target island exists in current sea
+    if target_island_id not in ISLANDS:
+        raise HTTPException(status_code=400, detail="Isola non trovata")
+    
+    target_island = ISLANDS[target_island_id]
+    if target_island["sea"] != current_sea:
+        raise HTTPException(status_code=400, detail="Puoi viaggiare solo tra isole dello stesso mare")
+    
+    # Get ordered islands for this sea
+    sea_islands = get_islands_by_sea(current_sea)
+    island_ids = [iid for iid, _ in sea_islands]
+    
+    current_index = island_ids.index(current_island) if current_island in island_ids else 0
+    target_index = island_ids.index(target_island_id) if target_island_id in island_ids else -1
+    
+    if target_index == -1:
+        raise HTTPException(status_code=400, detail="Isola non trovata in questo mare")
+    
+    # Can only travel to adjacent islands (one forward or any backward)
+    if target_index > current_index + 1:
+        raise HTTPException(status_code=400, detail="Non puoi saltare isole! Devi navigare una alla volta.")
+    
+    # Check if player has a ship for forward travel
+    if target_index > current_index:
+        if not character.get("nave"):
+            raise HTTPException(status_code=400, detail="Hai bisogno di una nave per viaggiare verso nuove isole!")
+    
+    # Update character location
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"isola_corrente": target_island_id}}
+    )
+    
+    # Add to logbook
+    direction = "⬅️ Ritorno" if target_index < current_index else "➡️ Avanzamento"
+    await add_logbook_entry(
+        user["user_id"],
+        "navigazione",
+        f"{direction} verso {target_island['name']}"
+    )
+    
+    return {
+        "message": f"Sei arrivato a {target_island['name']}!",
+        "island": {
+            "id": target_island_id,
+            **target_island
+        }
+    }
 
 # ============ SHOP ============
 
