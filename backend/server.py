@@ -1822,11 +1822,83 @@ async def trigger_random_event(request: Request):
         "island": island["name"]
     }
 
-# ============ DICE ROLL NAVIGATION ============
+# ============ DICE ROLL NAVIGATION (3 STAGES) ============
+
+# Eventi di navigazione in base al dado
+NAVIGATION_EVENTS = {
+    "facile": [  # Dado 5-6
+        {"nome": "Mare Calmo", "descrizione": "La navigazione procede senza intoppi.", "tipo": "positivo", "effetti": []},
+        {"nome": "Vento Favorevole", "descrizione": "Un vento favorevole ti spinge avanti!", "tipo": "positivo", "effetti": [{"tipo": "energia", "valore": 10}]},
+        {"nome": "Banco di Pesci", "descrizione": "Trovi un banco di pesci e fai scorta di cibo.", "tipo": "positivo", "effetti": [{"tipo": "berry", "valore": 30}]},
+    ],
+    "medio": [  # Dado 3-4
+        {"nome": "Corrente Contraria", "descrizione": "Una corrente rallenta il viaggio.", "tipo": "neutro", "effetti": [{"tipo": "energia", "valore": -10}]},
+        {"nome": "Nebbia Fitta", "descrizione": "La nebbia rende la navigazione difficile.", "tipo": "neutro", "effetti": [{"tipo": "energia", "valore": -15}]},
+        {"nome": "Uccelli Marini", "descrizione": "Degli uccelli marini indicano la rotta giusta.", "tipo": "positivo", "effetti": []},
+    ],
+    "difficile": [  # Dado 1-2
+        {"nome": "Tempesta!", "descrizione": "Una tempesta si abbatte sulla nave!", "tipo": "sfida", "difficolta": 3, "stat": "difesa", "successo": {"berry": 50, "exp": 20}, "fallimento": {"vita": -25}},
+        {"nome": "Pirati Nemici!", "descrizione": "Una nave pirata vi attacca!", "tipo": "sfida", "difficolta": 4, "stat": "attacco", "successo": {"berry": 100, "exp": 30}, "fallimento": {"vita": -30, "berry": -50}},
+        {"nome": "Mostro Marino!", "descrizione": "Un mostro marino emerge dalle profondità!", "tipo": "sfida", "difficolta": 5, "stat": "attacco", "successo": {"berry": 150, "exp": 50}, "fallimento": {"vita": -40}},
+        {"nome": "Pattuglia Marina!", "descrizione": "Una nave della Marina vi intercetta!", "tipo": "sfida", "difficolta": 4, "stat": "velocita", "successo": {"exp": 40}, "fallimento": {"berry": -100}},
+    ]
+}
+
+@api_router.get("/navigation/status")
+async def get_navigation_status(request: Request):
+    """Get current navigation progress"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_sea = character.get("mare_corrente", "east_blue")
+    current_island = character.get("isola_corrente", "dawn_island")
+    nav_progress = character.get("navigazione_progresso", 0)
+    
+    # Get islands info
+    sea_islands = get_islands_by_sea(current_sea)
+    island_ids = [iid for iid, _ in sea_islands]
+    current_index = island_ids.index(current_island) if current_island in island_ids else 0
+    
+    # Get next and previous islands
+    next_island = None
+    prev_island = None
+    
+    if current_index < len(island_ids) - 1:
+        next_island_id = island_ids[current_index + 1]
+        next_island = {"id": next_island_id, **ISLANDS[next_island_id]}
+    
+    if current_index > 0:
+        prev_island_id = island_ids[current_index - 1]
+        prev_island = {"id": prev_island_id, **ISLANDS[prev_island_id]}
+    
+    return {
+        "current_island": {"id": current_island, **ISLANDS.get(current_island, {})},
+        "next_island": next_island,
+        "prev_island": prev_island,
+        "progress": nav_progress,
+        "progress_required": 3,
+        "has_ship": bool(character.get("nave")),
+        "ship_type": character.get("nave"),
+        "can_advance": nav_progress >= 3 and next_island is not None,
+        "can_go_back": prev_island is not None,
+        "character_stats": {
+            "vita": character.get("vita", 100),
+            "vita_max": character.get("vita_max", 100),
+            "energia": character.get("energia", 100),
+            "energia_max": character.get("energia_max", 100),
+            "berry": character.get("berry", 0),
+            "attacco": character.get("attacco", 10),
+            "difesa": character.get("difesa", 10),
+            "velocita": character.get("velocita", 10)
+        }
+    }
 
 @api_router.post("/navigation/roll-dice")
 async def roll_navigation_dice(request: Request):
-    """Roll dice for navigation - determines travel success and events"""
+    """Roll dice for navigation - each roll is a stage with an event"""
     user = await get_current_user(request)
     
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
@@ -1838,11 +1910,15 @@ async def roll_navigation_dice(request: Request):
     
     current_sea = character.get("mare_corrente", "east_blue")
     current_island = character.get("isola_corrente", "dawn_island")
+    nav_progress = character.get("navigazione_progresso", 0)
+    
+    # Check if already at max progress
+    if nav_progress >= 3:
+        raise HTTPException(status_code=400, detail="Hai già completato la navigazione! Usa 'Avanza' per raggiungere l'isola.")
     
     # Get next island
     sea_islands = get_islands_by_sea(current_sea)
     island_ids = [iid for iid, _ in sea_islands]
-    
     current_index = island_ids.index(current_island) if current_island in island_ids else 0
     
     if current_index >= len(island_ids) - 1:
@@ -1854,96 +1930,215 @@ async def roll_navigation_dice(request: Request):
     # Roll the dice (1-6)
     dice_result = random.randint(1, 6)
     
-    # Calculate bonuses from ship speed and cards
+    # Calculate bonuses
     nave_tipo = character.get("nave", "barca_piccola")
     nave_bonus = {"barca_piccola": 0, "caravella": 1, "brigantino": 2}.get(nave_tipo, 0)
-    
     fortuna = character.get("fortuna", 10)
-    fortuna_bonus = fortuna // 20  # +1 for every 20 fortuna
+    fortuna_bonus = fortuna // 20
     
     total_roll = dice_result + nave_bonus + fortuna_bonus
     
-    # Determine outcome based on roll
-    navigation_events = []
-    
-    if total_roll >= 6:
-        # Great success - smooth sailing
-        outcome = "successo_totale"
-        message = f"Navigazione perfetta! Arrivi a {next_island['name']} senza problemi."
-        # Bonus berry for good navigation
-        await db.characters.update_one(
-            {"user_id": user["user_id"]},
-            {"$inc": {"berry": 50}}
-        )
-        navigation_events.append("+50 Berry (navigazione perfetta)")
-        
-    elif total_roll >= 4:
-        # Success - arrive safely
-        outcome = "successo"
-        message = f"Arrivi a {next_island['name']}."
-        
-    elif total_roll >= 2:
-        # Partial success - arrive but something happens
-        outcome = "parziale"
-        # Random minor event
-        event_roll = random.randint(1, 3)
-        if event_roll == 1:
-            message = f"Durante il viaggio incontri una tempesta! Perdi 20 Vita ma arrivi a {next_island['name']}."
-            await db.characters.update_one(
-                {"user_id": user["user_id"]},
-                {"$inc": {"vita": -20}}
-            )
-            navigation_events.append("-20 Vita (tempesta)")
-        elif event_roll == 2:
-            message = f"Vieni attaccato da pirati! Perdi 30 Berry ma arrivi a {next_island['name']}."
-            await db.characters.update_one(
-                {"user_id": user["user_id"]},
-                {"$inc": {"berry": -30}}
-            )
-            navigation_events.append("-30 Berry (pirati)")
-        else:
-            message = f"Il viaggio è lungo e faticoso. Perdi 15 Energia ma arrivi a {next_island['name']}."
-            await db.characters.update_one(
-                {"user_id": user["user_id"]},
-                {"$inc": {"energia": -15}}
-            )
-            navigation_events.append("-15 Energia (viaggio faticoso)")
+    # Determine event difficulty based on roll
+    if total_roll >= 5:
+        difficulty = "facile"
+    elif total_roll >= 3:
+        difficulty = "medio"
     else:
-        # Failure - don't move but lose resources
-        outcome = "fallimento"
-        message = f"La navigazione fallisce! Devi tornare a {ISLANDS[current_island]['name']}."
-        await db.characters.update_one(
-            {"user_id": user["user_id"]},
-            {"$inc": {"energia": -30}}
-        )
-        navigation_events.append("-30 Energia (navigazione fallita)")
+        difficulty = "difficile"
     
-    # Update location if successful
-    if outcome in ["successo_totale", "successo", "parziale"]:
+    # Select random event from category
+    event = random.choice(NAVIGATION_EVENTS[difficulty])
+    
+    # Process event
+    effects_applied = []
+    event_passed = True
+    challenge_result = None
+    
+    if event["tipo"] == "sfida":
+        # This is a challenge - check if character can pass
+        stat_name = event["stat"]
+        stat_value = character.get(stat_name, 10)
+        difficulty_value = event["difficolta"] * 10  # Convert to comparable value
+        
+        # Roll for challenge (stat + random vs difficulty)
+        challenge_roll = stat_value + random.randint(1, 20)
+        challenge_result = {
+            "stat_used": stat_name,
+            "stat_value": stat_value,
+            "roll": challenge_roll - stat_value,
+            "total": challenge_roll,
+            "needed": difficulty_value,
+            "passed": challenge_roll >= difficulty_value
+        }
+        
+        if challenge_roll >= difficulty_value:
+            # Success!
+            event_passed = True
+            for key, value in event.get("successo", {}).items():
+                if key == "berry":
+                    effects_applied.append(f"+{value} Berry")
+                    await db.characters.update_one({"user_id": user["user_id"]}, {"$inc": {"berry": value}})
+                elif key == "exp":
+                    effects_applied.append(f"+{value} EXP")
+                    await db.characters.update_one({"user_id": user["user_id"]}, {"$inc": {"esperienza": value}})
+        else:
+            # Failure
+            event_passed = False
+            for key, value in event.get("fallimento", {}).items():
+                if key == "vita":
+                    effects_applied.append(f"{value} Vita")
+                    new_vita = max(1, character.get("vita", 100) + value)
+                    await db.characters.update_one({"user_id": user["user_id"]}, {"$set": {"vita": new_vita}})
+                elif key == "berry":
+                    current_berry = character.get("berry", 0)
+                    loss = min(abs(value), current_berry)
+                    effects_applied.append(f"-{loss} Berry")
+                    await db.characters.update_one({"user_id": user["user_id"]}, {"$inc": {"berry": -loss}})
+    else:
+        # Simple event - apply effects
+        for effect in event.get("effetti", []):
+            if effect["tipo"] == "energia":
+                value = effect["valore"]
+                if value > 0:
+                    max_energia = character.get("energia_max", 100)
+                    current = character.get("energia", 100)
+                    actual = min(value, max_energia - current)
+                    if actual > 0:
+                        effects_applied.append(f"+{actual} Energia")
+                        await db.characters.update_one({"user_id": user["user_id"]}, {"$inc": {"energia": actual}})
+                else:
+                    effects_applied.append(f"{value} Energia")
+                    await db.characters.update_one({"user_id": user["user_id"]}, {"$inc": {"energia": value}})
+            elif effect["tipo"] == "berry":
+                value = effect["valore"]
+                effects_applied.append(f"+{value} Berry" if value > 0 else f"{value} Berry")
+                await db.characters.update_one({"user_id": user["user_id"]}, {"$inc": {"berry": value}})
+            elif effect["tipo"] == "vita":
+                value = effect["valore"]
+                effects_applied.append(f"{value} Vita")
+                new_vita = max(1, character.get("vita", 100) + value)
+                await db.characters.update_one({"user_id": user["user_id"]}, {"$set": {"vita": new_vita}})
+    
+    # Update progress only if event was passed
+    new_progress = nav_progress
+    if event_passed:
+        new_progress = nav_progress + 1
         await db.characters.update_one(
             {"user_id": user["user_id"]},
-            {"$set": {"isola_corrente": next_island_id}}
+            {"$set": {"navigazione_progresso": new_progress}}
         )
-        
-        # Add to logbook
-        await add_logbook_entry(
-            user["user_id"],
-            "navigazione",
-            f"Dado: {dice_result} (+{nave_bonus + fortuna_bonus} bonus) = {total_roll}. {message}"
-        )
+    
+    # Add to logbook
+    await add_logbook_entry(
+        user["user_id"],
+        "navigazione",
+        f"Tappa {nav_progress + 1}/3 verso {next_island['name']}: {event['nome']} - {'Superato!' if event_passed else 'Fallito!'}"
+    )
     
     return {
         "dice_result": dice_result,
-        "bonuses": {
-            "nave": nave_bonus,
-            "fortuna": fortuna_bonus
-        },
+        "bonuses": {"nave": nave_bonus, "fortuna": fortuna_bonus},
         "total": total_roll,
-        "outcome": outcome,
-        "message": message,
-        "events": navigation_events,
-        "destination": next_island if outcome != "fallimento" else ISLANDS[current_island],
-        "arrived": outcome != "fallimento"
+        "difficulty": difficulty,
+        "event": {
+            "nome": event["nome"],
+            "descrizione": event["descrizione"],
+            "tipo": event["tipo"]
+        },
+        "challenge": challenge_result,
+        "event_passed": event_passed,
+        "effects_applied": effects_applied,
+        "progress": {
+            "before": nav_progress,
+            "after": new_progress,
+            "required": 3,
+            "complete": new_progress >= 3
+        },
+        "destination": next_island["name"]
+    }
+
+@api_router.post("/navigation/advance")
+async def advance_to_next_island(request: Request):
+    """Move to the next island after completing 3 navigation stages"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    nav_progress = character.get("navigazione_progresso", 0)
+    if nav_progress < 3:
+        raise HTTPException(status_code=400, detail=f"Devi completare la navigazione! Progresso: {nav_progress}/3")
+    
+    current_sea = character.get("mare_corrente", "east_blue")
+    current_island = character.get("isola_corrente", "dawn_island")
+    
+    # Get next island
+    sea_islands = get_islands_by_sea(current_sea)
+    island_ids = [iid for iid, _ in sea_islands]
+    current_index = island_ids.index(current_island) if current_island in island_ids else 0
+    
+    if current_index >= len(island_ids) - 1:
+        raise HTTPException(status_code=400, detail="Sei già all'ultima isola!")
+    
+    next_island_id = island_ids[current_index + 1]
+    next_island = ISLANDS[next_island_id]
+    
+    # Move to next island and reset progress
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"isola_corrente": next_island_id, "navigazione_progresso": 0}}
+    )
+    
+    await add_logbook_entry(
+        user["user_id"],
+        "navigazione",
+        f"Arrivato a {next_island['name']}!"
+    )
+    
+    return {
+        "message": f"Sei arrivato a {next_island['name']}!",
+        "island": {"id": next_island_id, **next_island}
+    }
+
+@api_router.post("/navigation/go-back")
+async def go_back_to_previous_island(request: Request):
+    """Return to the previous island (always available)"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_sea = character.get("mare_corrente", "east_blue")
+    current_island = character.get("isola_corrente", "dawn_island")
+    
+    # Get previous island
+    sea_islands = get_islands_by_sea(current_sea)
+    island_ids = [iid for iid, _ in sea_islands]
+    current_index = island_ids.index(current_island) if current_island in island_ids else 0
+    
+    if current_index <= 0:
+        raise HTTPException(status_code=400, detail="Sei già alla prima isola di questo mare!")
+    
+    prev_island_id = island_ids[current_index - 1]
+    prev_island = ISLANDS[prev_island_id]
+    
+    # Move back and reset progress
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"isola_corrente": prev_island_id, "navigazione_progresso": 0}}
+    )
+    
+    await add_logbook_entry(
+        user["user_id"],
+        "navigazione",
+        f"Tornato a {prev_island['name']} per riposare"
+    )
+    
+    return {
+        "message": f"Sei tornato a {prev_island['name']}",
+        "island": {"id": prev_island_id, **prev_island}
     }
 
 # ============ SHOP ============
