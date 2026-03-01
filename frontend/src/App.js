@@ -8,7 +8,7 @@ import {
   Anchor, Map, Swords, Users, Package, User, Skull, Shield, Heart, 
   Zap, ChevronRight, ChevronLeft, Star, Crown, Compass, LogOut, Dice6, Ship,
   MessageCircle, ShoppingBag, Scroll, Target, Home, MapPin, Info, AlertTriangle,
-  Eye, EyeOff, Briefcase, UserCircle
+  Eye, EyeOff, Briefcase, UserCircle, Backpack, Sword, FlaskConical, CreditCard
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
