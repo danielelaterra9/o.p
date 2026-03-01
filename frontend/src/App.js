@@ -56,10 +56,21 @@ const AuthContext = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const login = (newToken, userData) => {
+  const login = async (newToken, userData) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(userData);
+    
+    // Load character after login
+    try {
+      const charResponse = await axios.get(`${API}/characters/me`, {
+        headers: { Authorization: `Bearer ${newToken}` }
+      });
+      setCharacter(charResponse.data);
+    } catch (e) {
+      // No character yet - that's ok
+      setCharacter(null);
+    }
   };
 
   const logout = async () => {
