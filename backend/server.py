@@ -261,6 +261,7 @@ class CharacterCreate(BaseModel):
     sogno: str = Field(max_length=100)
     storia_carattere: str = Field(max_length=1000)
     mestiere: str
+    mare_partenza: str = "east_blue"  # east_blue, west_blue, north_blue, south_blue
     # Aspetto fisico (opzionale per avatar)
     colore_capelli: Optional[str] = None
     colore_occhi: Optional[str] = None
