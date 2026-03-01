@@ -210,6 +210,11 @@ const AuthCallback = ({ login }) => {
 const LandingPage = () => {
   const navigate = useNavigate();
 
+  const enterDemo = () => {
+    localStorage.setItem('demoMode', 'true');
+    window.location.href = '/dashboard';
+  };
+
   return (
     <div className="min-h-screen bg-[#051923] relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-[#003566]/30 to-[#051923]" />
@@ -238,6 +243,25 @@ const LandingPage = () => {
           }} className="glass py-3 px-8 rounded-lg text-[#E3D5CA] font-medium flex items-center justify-center gap-2" whileHover={{ scale: 1.02 }} data-testid="google-login-btn">
             <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
             Accedi con Google
+          </motion.button>
+
+          <div className="relative my-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[#E3D5CA]/20"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-[#051923] text-[#E3D5CA]/50">oppure</span>
+            </div>
+          </div>
+
+          <motion.button 
+            onClick={enterDemo} 
+            className="py-3 px-8 rounded-lg text-[#2A9D8F] font-medium border-2 border-[#2A9D8F]/50 hover:bg-[#2A9D8F]/10 transition-colors flex items-center justify-center gap-2" 
+            whileHover={{ scale: 1.02 }}
+            data-testid="demo-btn"
+          >
+            <Eye className="w-5 h-5" />
+            🎮 Modalità Demo / Preview
           </motion.button>
         </motion.div>
       </div>
