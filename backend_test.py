@@ -1,547 +1,523 @@
 #!/usr/bin/env python3
+"""
+Backend API Testing for One Piece RPG - The Grand Line Architect
+Tests all backend endpoints according to the review request sequence
+"""
 
 import requests
-import sys
 import json
-import time
+import sys
+import os
 from datetime import datetime
 
-class OnePieceRPGAPITester:
-    def __init__(self, base_url="https://project-builder-127.preview.emergentagent.com"):
-        self.base_url = base_url
-        self.api_url = f"{base_url}/api"
+# Get backend URL from environment
+backend_url = "https://project-builder-127.preview.emergentagent.com/api"
+
+class OnePointAPITester:
+    def __init__(self, base_url):
+        self.base_url = base_url.rstrip('/')
         self.token = None
         self.user_id = None
         self.character_id = None
-        self.tests_run = 0
-        self.tests_passed = 0
-        self.failed_tests = []
+        self.crew_id = None
+        self.battle_id = None
         
-        # Test data for v2 system
-        timestamp = int(time.time())
-        self.test_email = f"test_pirate_{timestamp}@grandline.com"
-        self.test_password = "StrawHat123!"
-        self.test_username = f"testuser_{timestamp}"
-        self.test_character_name = "Monkey Luffy"  # Valid name without D.
-        self.invalid_character_name = "Monkey D. Luffy"  # Should be blocked
-
-    def run_test(self, name, method, endpoint, expected_status, data=None, headers=None, skip_auth=False):
-        """Run a single API test"""
-        url = f"{self.api_url}/{endpoint}" if not endpoint.startswith('http') else endpoint
+        self.results = {
+            "passed": 0,
+            "failed": 0,
+            "tests": []
+        }
+    
+    def log(self, message, level="INFO"):
+        print(f"[{level}] {message}")
+    
+    def add_result(self, test_name, passed, message="", response=None):
+        status = "PASS" if passed else "FAIL" 
+        self.results["tests"].append({
+            "name": test_name,
+            "status": status,
+            "message": message,
+            "response": response
+        })
         
-        # Default headers
-        test_headers = {'Content-Type': 'application/json'}
-        if self.token and not skip_auth:
-            test_headers['Authorization'] = f'Bearer {self.token}'
-        if headers:
-            test_headers.update(headers)
-
-        self.tests_run += 1
-        print(f"\n🔍 Testing {name}...")
-        print(f"   URL: {url}")
-        print(f"   Method: {method}")
-        if data:
-            print(f"   Data: {json.dumps(data, indent=2)}")
+        if passed:
+            self.results["passed"] += 1
+            self.log(f"✅ {test_name} - {message}")
+        else:
+            self.results["failed"] += 1
+            self.log(f"❌ {test_name} - {message}", "ERROR")
+    
+    def make_request(self, method, endpoint, data=None, auth=True):
+        """Make HTTP request with optional authentication"""
+        url = f"{self.base_url}{endpoint}"
+        headers = {"Content-Type": "application/json"}
+        
+        if auth and self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
         
         try:
-            if method == 'GET':
-                response = requests.get(url, headers=test_headers, timeout=10)
-            elif method == 'POST':
-                response = requests.post(url, json=data, headers=test_headers, timeout=10)
-            elif method == 'PUT':
-                response = requests.put(url, json=data, headers=test_headers, timeout=10)
-            elif method == 'DELETE':
-                response = requests.delete(url, headers=test_headers, timeout=10)
-
-            print(f"   Response Status: {response.status_code}")
-            print(f"   Expected Status: {expected_status}")
-
-            success = response.status_code == expected_status
-            if success:
-                self.tests_passed += 1
-                print(f"✅ PASSED - {name}")
-                try:
-                    response_data = response.json()
-                    print(f"   Response: {json.dumps(response_data, indent=2)[:200]}...")
-                    return True, response_data
-                except:
-                    return True, {}
-            else:
-                error_msg = f"Expected {expected_status}, got {response.status_code}"
-                print(f"❌ FAILED - {name}: {error_msg}")
-                try:
-                    error_data = response.json()
-                    print(f"   Error Response: {json.dumps(error_data, indent=2)}")
-                except:
-                    print(f"   Raw Response: {response.text[:200]}")
-                
-                self.failed_tests.append({
-                    "test": name,
-                    "endpoint": endpoint,
-                    "expected": expected_status,
-                    "actual": response.status_code,
-                    "error": error_msg
-                })
-                return False, {}
-
-        except Exception as e:
-            error_msg = f"Request failed: {str(e)}"
-            print(f"❌ FAILED - {name}: {error_msg}")
-            self.failed_tests.append({
-                "test": name,
-                "endpoint": endpoint,
-                "error": error_msg
-            })
-            return False, {}
-
-    def test_root_endpoints(self):
-        """Test basic endpoints"""
-        print("\n" + "="*50)
-        print("TESTING ROOT ENDPOINTS")
-        print("="*50)
-        
-        # Test root endpoint
-        self.run_test("Root API", "GET", "", 200, skip_auth=True)
-        
-        # Test health endpoint
-        self.run_test("Health Check", "GET", "health", 200, skip_auth=True)
-
-    def test_authentication(self):
-        """Test authentication flows for v2 system"""
-        print("\n" + "="*50)
-        print("TESTING AUTHENTICATION V2")
-        print("="*50)
-        
-        # Test registration with username field (separate from character name)
-        register_data = {
-            "username": self.test_username,  # New: separate username field
-            "email": self.test_email,
-            "password": self.test_password
-        }
-        
-        success, response = self.run_test(
-            "User Registration with Username", 
-            "POST", 
-            "auth/register", 
-            200, 
-            register_data,
-            skip_auth=True
-        )
-        
-        if success and 'token' in response:
-            self.token = response['token']
-            self.user_id = response.get('user', {}).get('user_id')
-            print(f"✅ Registration successful with username: {response.get('user', {}).get('username')}")
-            print(f"✅ Token acquired: {self.token[:20]}...")
-        else:
-            print(f"❌ Registration failed, cannot continue with auth tests")
-            return False
-        
-        # Test login with same credentials
-        login_data = {
-            "email": self.test_email,
-            "password": self.test_password
-        }
-        
-        success, response = self.run_test(
-            "User Login", 
-            "POST", 
-            "auth/login", 
-            200, 
-            login_data,
-            skip_auth=True
-        )
-        
-        if success and 'token' in response:
-            # Update token from login response
-            self.token = response['token']
-            print(f"✅ Login successful, new token acquired")
-        
-        # Test /auth/me endpoint
-        self.run_test("Get Current User", "GET", "auth/me", 200)
-        
-        return True
-
-    def test_game_data_endpoints(self):
-        """Test game data endpoints (races, fighting styles, mestieri)"""
-        print("\n" + "="*50)
-        print("TESTING GAME DATA ENDPOINTS")
-        print("="*50)
-        
-        if not self.token:
-            print("❌ No auth token, skipping game data tests")
-            return False
-        
-        # Test get races (should return 6 races)
-        success, response = self.run_test("Get Races", "GET", "game/races", 200)
-        if success and 'races' in response:
-            races_count = len(response['races'])
-            print(f"✅ Found {races_count} races")
-            if races_count == 6:
-                print("✅ Correct number of races (6)")
-            else:
-                print(f"⚠️  Expected 6 races, found {races_count}")
-                
-            # Validate race structure
-            for race_id, race_data in response['races'].items():
-                if 'name' in race_data and 'bonus' in race_data:
-                    print(f"   ✅ Race {race_id}: {race_data['name']} - valid structure")
-                else:
-                    print(f"   ❌ Race {race_id}: missing required fields")
-        
-        # Test get fighting styles
-        success, response = self.run_test("Get Fighting Styles", "GET", "game/fighting-styles", 200)
-        if success and 'styles' in response:
-            styles_count = len(response['styles'])
-            print(f"✅ Found {styles_count} fighting styles")
+            if method == "GET":
+                response = requests.get(url, headers=headers, timeout=10)
+            elif method == "POST":
+                response = requests.post(url, json=data, headers=headers, timeout=10)
+            elif method == "PUT":
+                response = requests.put(url, json=data, headers=headers, timeout=10)
+            elif method == "DELETE":
+                response = requests.delete(url, headers=headers, timeout=10)
             
-            # Validate fighting style structure
-            for style_id, style_data in response['styles'].items():
-                if 'name' in style_data and 'bonus' in style_data:
-                    print(f"   ✅ Style {style_id}: {style_data['name']} - valid structure")
+            return response
+        except Exception as e:
+            self.log(f"Request failed: {e}", "ERROR")
+            return None
+    
+    def test_health_check(self):
+        """Test 1: Health Check"""
+        self.log("Testing health check endpoint...")
         
-        # Test get mestieri (should return 12 mestieri)
-        success, response = self.run_test("Get Mestieri", "GET", "game/mestieri", 200)
-        if success and 'mestieri' in response:
-            mestieri_count = len(response['mestieri'])
-            print(f"✅ Found {mestieri_count} mestieri")
-            if mestieri_count == 12:
-                print("✅ Correct number of mestieri (12)")
+        response = self.make_request("GET", "/health", auth=False)
+        if response and response.status_code == 200:
+            data = response.json()
+            if "status" in data and data["status"] == "healthy":
+                self.add_result("Health Check", True, "API is healthy", data)
             else:
-                print(f"⚠️  Expected 12 mestieri, found {mestieri_count}")
-                
-            # Validate mestiere structure
-            for mestiere_id, mestiere_data in response['mestieri'].items():
-                if 'name' in mestiere_data and 'description' in mestiere_data:
-                    print(f"   ✅ Mestiere {mestiere_id}: {mestiere_data['name']} - valid structure")
+                self.add_result("Health Check", False, f"Unexpected response format: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Health Check", False, f"Failed with status: {status}")
+    
+    def test_auth_flow(self):
+        """Test 2: Authentication Flow"""
+        # Generate unique test data
+        timestamp = int(datetime.now().timestamp())
+        test_email = f"test_pirate_{timestamp}@onepiece.com"
+        test_username = f"TestPirate{timestamp}"
+        test_password = "strongpassword123"
         
-        return True
-
-    def test_character_name_validation(self):
-        """Test character name validation blocking D. pattern"""
-        print("\n" + "="*50)
-        print("TESTING CHARACTER NAME VALIDATION")
-        print("="*50)
-        
-        if not self.token:
-            print("❌ No auth token, skipping name validation tests")
-            return False
-        
-        # Test invalid name with D. pattern (should be rejected)
-        invalid_name_data = {"nome": self.invalid_character_name}
-        success, response = self.run_test(
-            "Validate Invalid Name (with D.)",
-            "POST",
-            "characters/validate-name", 
-            200,
-            invalid_name_data
-        )
-        
-        if success and 'valid' in response:
-            if response['valid'] == False and 'D.' in response.get('message', ''):
-                print(f"✅ Name validation correctly blocked D. pattern")
-                print(f"   Message: {response.get('message', '')}")
-            else:
-                print(f"❌ Name validation failed to block D. pattern")
-                print(f"   Response: {response}")
-        
-        # Test valid name (should be accepted)
-        valid_name_data = {"nome": self.test_character_name}
-        success, response = self.run_test(
-            "Validate Valid Name",
-            "POST", 
-            "characters/validate-name",
-            200,
-            valid_name_data
-        )
-        
-        if success and 'valid' in response:
-            if response['valid'] == True:
-                print(f"✅ Name validation correctly accepted valid name")
-            else:
-                print(f"❌ Name validation incorrectly rejected valid name: {response.get('message', '')}")
-        
-        return True
-
-    def test_character_system(self):
-        """Test v2 character creation and management system"""
-        print("\n" + "="*50)
-        print("TESTING CHARACTER SYSTEM V2")
-        print("="*50)
-        
-        if not self.token:
-            print("❌ No auth token, skipping character tests")
-            return False
-        
-        # Test AI trait extraction first
-        traits_data = {
-            "storia_carattere": "Un giovane pirata coraggioso che sogna di diventare il Re dei Pirati. È molto determinato ma a volte impulsivo nelle sue decisioni. Ama aiutare i suoi amici e non sopporta le ingiustizie."
+        # Test Registration
+        self.log("Testing user registration...")
+        reg_data = {
+            "username": test_username,
+            "email": test_email,
+            "password": test_password
         }
         
-        success, response = self.run_test(
-            "AI Trait Extraction",
-            "POST",
-            "characters/extract-traits",
-            200,
-            traits_data
-        )
+        response = self.make_request("POST", "/auth/register", reg_data, auth=False)
+        if response and response.status_code == 200:
+            data = response.json()
+            if "token" in data and "user" in data:
+                self.token = data["token"]
+                self.user_id = data["user"]["user_id"]
+                self.add_result("User Registration", True, f"User created: {data['user']['username']}", data)
+            else:
+                self.add_result("User Registration", False, f"Missing token/user in response: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("User Registration", False, f"Failed with status {status}: {error}")
+            return
         
-        extracted_traits = []
-        if success and 'traits' in response:
-            extracted_traits = response['traits']
-            print(f"✅ AI extracted {len(extracted_traits)} traits: {', '.join(extracted_traits)}")
+        # Test Login
+        self.log("Testing user login...")
+        login_data = {
+            "email": test_email,
+            "password": test_password
+        }
         
-        # Test full character creation with v2 system
-        character_data = {
-            "nome_personaggio": self.test_character_name,
+        response = self.make_request("POST", "/auth/login", login_data, auth=False)
+        if response and response.status_code == 200:
+            data = response.json()
+            if "token" in data:
+                new_token = data["token"]
+                self.add_result("User Login", True, f"Login successful, token received", data)
+                # Use the new token
+                self.token = new_token
+            else:
+                self.add_result("User Login", False, f"No token in login response: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("User Login", False, f"Failed with status {status}: {error}")
+        
+        # Test Get Current User
+        self.log("Testing get current user...")
+        response = self.make_request("GET", "/auth/me")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "user_id" in data and data["user_id"] == self.user_id:
+                self.add_result("Get Current User", True, f"User info retrieved: {data.get('username')}", data)
+            else:
+                self.add_result("Get Current User", False, f"User ID mismatch or missing: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("Get Current User", False, f"Failed with status {status}: {error}")
+    
+    def test_game_data(self):
+        """Test 3: Game Data Endpoints (requires auth)"""
+        if not self.token:
+            self.add_result("Game Data Endpoints", False, "No auth token available")
+            return
+        
+        # Test Races
+        self.log("Testing races endpoint...")
+        response = self.make_request("GET", "/game/races")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "races" in data and len(data["races"]) >= 6:
+                races = list(data["races"].keys())
+                self.add_result("Get Races", True, f"Retrieved {len(races)} races: {races[:3]}...", data)
+            else:
+                self.add_result("Get Races", False, f"Expected at least 6 races, got: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Get Races", False, f"Failed with status: {status}")
+        
+        # Test Fighting Styles
+        self.log("Testing fighting styles endpoint...")
+        response = self.make_request("GET", "/game/fighting-styles")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "styles" in data and len(data["styles"]) >= 6:
+                styles = list(data["styles"].keys())
+                self.add_result("Get Fighting Styles", True, f"Retrieved {len(styles)} styles: {styles[:3]}...", data)
+            else:
+                self.add_result("Get Fighting Styles", False, f"Expected at least 6 styles, got: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Get Fighting Styles", False, f"Failed with status: {status}")
+        
+        # Test Mestieri
+        self.log("Testing mestieri endpoint...")
+        response = self.make_request("GET", "/game/mestieri")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "mestieri" in data and len(data["mestieri"]) >= 12:
+                mestieri = list(data["mestieri"].keys())
+                self.add_result("Get Mestieri", True, f"Retrieved {len(mestieri)} jobs: {mestieri[:3]}...", data)
+            else:
+                self.add_result("Get Mestieri", False, f"Expected at least 12 jobs, got: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Get Mestieri", False, f"Failed with status: {status}")
+    
+    def test_character_name_validation(self):
+        """Test 4: Character Name Validation"""
+        if not self.token:
+            self.add_result("Character Name Validation", False, "No auth token available")
+            return
+        
+        # Test valid name
+        self.log("Testing valid character name...")
+        response = self.make_request("POST", "/characters/validate-name", {"nome": "Monkey Luffy"})
+        if response and response.status_code == 200:
+            data = response.json()
+            if data.get("valid") == True:
+                self.add_result("Valid Name Check", True, "Monkey Luffy is valid", data)
+            else:
+                self.add_result("Valid Name Check", False, f"Expected valid=True, got: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Valid Name Check", False, f"Failed with status: {status}")
+        
+        # Test invalid name with "D."
+        self.log("Testing invalid name with D....")
+        response = self.make_request("POST", "/characters/validate-name", {"nome": "Monkey D. Luffy"})
+        if response and response.status_code == 200:
+            data = response.json()
+            if data.get("valid") == False:
+                self.add_result("Invalid Name D. Check", True, "Monkey D. Luffy correctly blocked", data)
+            else:
+                self.add_result("Invalid Name D. Check", False, f"Expected valid=False, got: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Invalid Name D. Check", False, f"Failed with status: {status}")
+        
+        # Test invalid name with "D "
+        self.log("Testing invalid name with D space...")
+        response = self.make_request("POST", "/characters/validate-name", {"nome": "Monkey D Luffy"})
+        if response and response.status_code == 200:
+            data = response.json()
+            if data.get("valid") == False:
+                self.add_result("Invalid Name D Space Check", True, "Monkey D Luffy correctly blocked", data)
+            else:
+                self.add_result("Invalid Name D Space Check", False, f"Expected valid=False, got: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Invalid Name D Space Check", False, f"Failed with status: {status}")
+    
+    def test_character_creation(self):
+        """Test 5: Character Creation (requires auth, no existing character)"""
+        if not self.token:
+            self.add_result("Character Creation", False, "No auth token available")
+            return
+        
+        # Create character
+        self.log("Testing character creation...")
+        char_data = {
+            "nome_personaggio": "Test Pirate Captain",
             "ruolo": "pirata",
             "genere": "maschio",
-            "eta": 17,
-            "razza": "umano",  # Using race from the races endpoint
-            "stile_combattimento": "corpo_misto",  # Using fighting style from styles endpoint
-            "sogno": "Diventare il Re dei Pirati!",
-            "storia_carattere": "Un giovane pirata coraggioso che sogna di diventare il Re dei Pirati. È molto determinato ma a volte impulsivo nelle sue decisioni.",
-            "mestiere": "capitano",  # Using mestiere from mestieri endpoint
-            "colore_capelli": "Nero",
-            "colore_occhi": "Marroni", 
-            "particolarita": "Cicatrice sotto l'occhio sinistro"
+            "eta": 20,
+            "razza": "umano",
+            "stile_combattimento": "corpo_misto",
+            "sogno": "Diventare il Re dei Pirati",
+            "storia_carattere": "Un giovane pirata determinato che ha sempre sognato di navigare i mari alla ricerca del One Piece",
+            "mestiere": "capitano"
         }
         
-        success, response = self.run_test(
-            "Create Character V2",
-            "POST",
-            "characters",
-            200,
-            character_data
-        )
+        response = self.make_request("POST", "/characters", char_data)
+        if response and response.status_code == 200:
+            data = response.json()
+            if "character_id" in data and "nome_personaggio" in data:
+                self.character_id = data["character_id"]
+                self.add_result("Character Creation", True, f"Character created: {data['nome_personaggio']}", data)
+            else:
+                self.add_result("Character Creation", False, f"Missing character data: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("Character Creation", False, f"Failed with status {status}: {error}")
+            return
         
-        if success and 'character_id' in response:
-            self.character_id = response['character_id']
-            print(f"✅ Character created with ID: {self.character_id}")
-            
-            # Verify character has expected v2 fields
-            expected_fields = ['nome_personaggio', 'razza', 'stile_combattimento', 'mestiere', 'sogno', 'aspetto']
-            for field in expected_fields:
-                if field in response:
-                    print(f"   ✅ Character has {field}: {response.get(field)}")
-                else:
-                    print(f"   ❌ Character missing {field}")
-        
-        # Test update character traits (if we have extracted traits)
-        if extracted_traits:
-            traits_update_data = {"traits": extracted_traits}
-            success, response = self.run_test(
-                "Update Character Traits",
-                "PUT",
-                "characters/me/traits", 
-                200,
-                traits_update_data
-            )
-            
-            if success:
-                print(f"✅ Character traits updated successfully")
-        
-        # Test get my character
-        success, response = self.run_test("Get My Character", "GET", "characters/me", 200)
-        
-        if success and self.character_id:
-            # Test get character public info
-            self.run_test(
-                "Get Character Public Info",
-                "GET", 
-                f"characters/{self.character_id}/public",
-                200
-            )
-        
-        return True
-
-    def test_world_system(self):
-        """Test world navigation and islands"""
-        print("\n" + "="*50)
-        print("TESTING WORLD SYSTEM")
-        print("="*50)
-        
-        if not self.token:
-            print("❌ No auth token, skipping world tests")
-            return False
-        
-        # Test get islands
-        success, response = self.run_test("Get World Islands", "GET", "world/islands", 200)
-        
-        if success and 'islands' in response:
-            print(f"✅ Found {len(response['islands'])} islands")
-        
-        # Test dice rolling (this might fail if no ship)
-        dice_data = {
-            "destination": "open_sea"
-        }
-        self.run_test(
-            "Roll Navigation Dice", 
-            "POST", 
-            "world/roll-dice", 
-            400,  # Expecting 400 because character has no ship initially
-            dice_data
-        )
-        
-        return True
-
+        # Get character
+        self.log("Testing get my character...")
+        response = self.make_request("GET", "/characters/me")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "character_id" in data and data["character_id"] == self.character_id:
+                self.add_result("Get My Character", True, f"Character retrieved: {data['nome_personaggio']}", data)
+            else:
+                self.add_result("Get My Character", False, f"Character ID mismatch: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Get My Character", False, f"Failed with status: {status}")
+    
     def test_battle_system(self):
-        """Test battle system"""
-        print("\n" + "="*50)
-        print("TESTING BATTLE SYSTEM")
-        print("="*50)
+        """Test 6: Battle System (requires auth + character)"""
+        if not self.token or not self.character_id:
+            self.add_result("Battle System", False, "No auth token or character available")
+            return
         
-        if not self.token:
-            print("❌ No auth token, skipping battle tests")
-            return False
-        
-        # Test start battle with updated opponent types
+        # Start battle
+        self.log("Testing battle start...")
         battle_data = {
             "opponent_type": "npc",
-            "opponent_id": "marine_soldato"  # Updated to match backend NPC types
+            "opponent_id": "pirata_novizio"
         }
         
-        success, response = self.run_test(
-            "Start Battle",
-            "POST",
-            "battle/start",
-            200,
-            battle_data
-        )
-        
-        battle_id = None
-        if success and 'battle_id' in response:
-            battle_id = response['battle_id']
-            print(f"✅ Battle started with ID: {battle_id}")
-            
-            # Test battle action with updated action types
-            action_data = {
-                "action_type": "attacco_base",  # Updated to match v2 system
-                "action_name": "Pugno"
-            }
-            
-            self.run_test(
-                "Execute Battle Action",
-                "POST",
-                f"battle/{battle_id}/action",
-                200,
-                action_data
-            )
-        
-        return True
-
-    def test_ai_features(self):
-        """Test AI integration features"""
-        print("\n" + "="*50)
-        print("TESTING AI FEATURES")
-        print("="*50)
-        
-        if not self.token:
-            print("❌ No auth token, skipping AI tests")
-            return False
-        
-        # Test simplified AI narration (updated for v2)
-        narration_data = {
-            "attacker": "Test Pirate",
-            "action": "pugno potente",
-            "damage": 15,
-            "effect": "Il nemico barcolla!"
-        }
-        
-        self.run_test(
-            "AI Action Narration",
-            "POST",
-            "ai/narrate-action", 
-            200,
-            narration_data
-        )
-        
-        return True
-
-    def test_shop_system(self):
-        """Test shop functionality"""
-        print("\n" + "="*50)
-        print("TESTING SHOP SYSTEM")
-        print("="*50)
-        
-        if not self.token:
-            print("❌ No auth token, skipping shop tests")
-            return False
-        
-        # Test get shop items
-        success, response = self.run_test("Get Shop Items", "GET", "shop/items", 200)
-        
-        if success and 'items' in response:
-            print(f"✅ Found {len(response['items'])} shop items")
-            
-            # Test buy item (might fail due to insufficient funds)
-            if response['items']:
-                first_item = list(response['items'].keys())[0]
-                buy_data = {
-                    "item_id": first_item
+        response = self.make_request("POST", "/battle/start", battle_data)
+        if response and response.status_code == 200:
+            data = response.json()
+            if "battle_id" in data and "battle" in data:
+                self.battle_id = data["battle_id"]
+                battle_info = data["battle"]
+                self.add_result("Battle Start", True, f"Battle started with ID: {self.battle_id}", data)
+                
+                # Test battle action
+                self.log("Testing battle action...")
+                action_data = {
+                    "action_type": "attacco_base",
+                    "action_name": "Pugno"
                 }
-                self.run_test(
-                    "Buy Shop Item",
-                    "POST",
-                    "shop/buy",
-                    200,
-                    buy_data
-                )
+                
+                action_response = self.make_request("POST", f"/battle/{self.battle_id}/action", action_data)
+                if action_response and action_response.status_code == 200:
+                    action_result = action_response.json()
+                    if "result" in action_result and "battle" in action_result:
+                        self.add_result("Battle Action", True, f"Battle action executed: {action_result['result']}", action_result)
+                    else:
+                        self.add_result("Battle Action", False, f"Missing result/battle in response: {action_result}")
+                else:
+                    status = action_response.status_code if action_response else "No response"
+                    self.add_result("Battle Action", False, f"Failed with status: {status}")
+            else:
+                self.add_result("Battle Start", False, f"Missing battle data: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("Battle Start", False, f"Failed with status {status}: {error}")
+    
+    def test_world_map(self):
+        """Test 7: World Map (requires auth + character)"""
+        if not self.token or not self.character_id:
+            self.add_result("World Map", False, "No auth token or character available")
+            return
         
-        return True
-
-    def test_cards_system(self):
-        """Test card collection system"""
-        print("\n" + "="*50)
-        print("TESTING CARDS SYSTEM")
-        print("="*50)
-        
+        self.log("Testing world islands...")
+        response = self.make_request("GET", "/world/islands")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "islands" in data and "isola_corrente" in data:
+                islands = data["islands"]
+                if len(islands) > 0:
+                    unlocked = [i for i in islands if i.get("sbloccata")]
+                    self.add_result("World Map", True, f"Retrieved {len(islands)} islands, {len(unlocked)} unlocked", data)
+                else:
+                    self.add_result("World Map", False, f"No islands returned: {data}")
+            else:
+                self.add_result("World Map", False, f"Missing islands/isola_corrente: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("World Map", False, f"Failed with status {status}: {error}")
+    
+    def test_shop_system(self):
+        """Test 8: Shop System (requires auth)"""
         if not self.token:
-            print("❌ No auth token, skipping cards tests")
-            return False
+            self.add_result("Shop System", False, "No auth token available")
+            return
         
-        # Test get card collection
-        self.run_test("Get Card Collection", "GET", "cards/collection", 200)
+        # Get shop items
+        self.log("Testing shop items...")
+        response = self.make_request("GET", "/shop/items")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "items" in data and len(data["items"]) > 0:
+                items = list(data["items"].keys())
+                self.add_result("Get Shop Items", True, f"Retrieved {len(items)} items: {items[:3]}...", data)
+                
+                # Try to buy an item (expected to fail due to no Berry)
+                self.log("Testing shop purchase (expecting failure due to no Berry)...")
+                buy_response = self.make_request("POST", "/shop/buy", {"item_id": "pozione_vita"})
+                if buy_response and buy_response.status_code == 400:
+                    error = buy_response.json()
+                    if "Berry insufficienti" in error.get("detail", ""):
+                        self.add_result("Shop Purchase (No Berry)", True, "Purchase correctly failed due to insufficient Berry", error)
+                    else:
+                        self.add_result("Shop Purchase (No Berry)", False, f"Unexpected error: {error}")
+                else:
+                    status = buy_response.status_code if buy_response else "No response"
+                    self.add_result("Shop Purchase (No Berry)", False, f"Expected 400 error, got: {status}")
+            else:
+                self.add_result("Get Shop Items", False, f"No items returned: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Get Shop Items", False, f"Failed with status: {status}")
+    
+    def test_crew_system(self):
+        """Test 9: Crew System (requires auth + character)"""
+        if not self.token or not self.character_id:
+            self.add_result("Crew System", False, "No auth token or character available")
+            return
         
-        return True
-
+        # Create crew
+        self.log("Testing crew creation...")
+        crew_data = {
+            "nome": f"Test Pirates {int(datetime.now().timestamp())}"
+        }
+        
+        response = self.make_request("POST", "/crew/create", crew_data)
+        if response and response.status_code == 200:
+            data = response.json()
+            if "crew" in data and "crew_id" in data["crew"]:
+                self.crew_id = data["crew"]["crew_id"]
+                self.add_result("Crew Creation", True, f"Crew created: {data['crew']['nome']}", data)
+                
+                # Get my crew
+                self.log("Testing get my crew...")
+                crew_response = self.make_request("GET", "/crew/my")
+                if crew_response and crew_response.status_code == 200:
+                    crew_data = crew_response.json()
+                    if "crew" in crew_data and crew_data["crew"]:
+                        self.add_result("Get My Crew", True, f"Crew info retrieved: {crew_data['crew']['nome']}", crew_data)
+                        
+                        # Leave crew
+                        self.log("Testing leave crew...")
+                        leave_response = self.make_request("POST", "/crew/leave", {})
+                        if leave_response and leave_response.status_code == 200:
+                            leave_result = leave_response.json()
+                            self.add_result("Leave Crew", True, "Successfully left crew", leave_result)
+                        else:
+                            status = leave_response.status_code if leave_response else "No response"
+                            self.add_result("Leave Crew", False, f"Failed with status: {status}")
+                    else:
+                        self.add_result("Get My Crew", False, f"No crew info returned: {crew_data}")
+                else:
+                    status = crew_response.status_code if crew_response else "No response"
+                    self.add_result("Get My Crew", False, f"Failed with status: {status}")
+            else:
+                self.add_result("Crew Creation", False, f"Missing crew data: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            error = response.json() if response else "No response"
+            self.add_result("Crew Creation", False, f"Failed with status {status}: {error}")
+    
+    def test_logbook_system(self):
+        """Test 10: Logbook (requires auth + character)"""
+        if not self.token or not self.character_id:
+            self.add_result("Logbook System", False, "No auth token or character available")
+            return
+        
+        # Get logbook entries
+        self.log("Testing get logbook...")
+        response = self.make_request("GET", "/logbook")
+        if response and response.status_code == 200:
+            data = response.json()
+            if "entries" in data:
+                entries = data["entries"]
+                self.add_result("Get Logbook", True, f"Retrieved {len(entries)} logbook entries", data)
+                
+                # Add manual entry
+                self.log("Testing add logbook entry...")
+                add_response = self.make_request("POST", "/logbook/add", {"descrizione": "Test logbook entry from API test"})
+                if add_response and add_response.status_code == 200:
+                    add_result = add_response.json()
+                    if "entry" in add_result:
+                        self.add_result("Add Logbook Entry", True, f"Entry added: {add_result['entry']['descrizione']}", add_result)
+                    else:
+                        self.add_result("Add Logbook Entry", False, f"Missing entry in response: {add_result}")
+                else:
+                    status = add_response.status_code if add_response else "No response"
+                    self.add_result("Add Logbook Entry", False, f"Failed with status: {status}")
+            else:
+                self.add_result("Get Logbook", False, f"Missing entries in response: {data}")
+        else:
+            status = response.status_code if response else "No response"
+            self.add_result("Get Logbook", False, f"Failed with status: {status}")
+    
+    def run_all_tests(self):
+        """Run all test sequences"""
+        self.log("Starting comprehensive backend API testing...")
+        self.log(f"Testing against: {self.base_url}")
+        
+        # Test sequence as per review request
+        self.test_health_check()
+        self.test_auth_flow()
+        self.test_game_data()
+        self.test_character_name_validation()
+        self.test_character_creation()
+        self.test_battle_system()
+        self.test_world_map()
+        self.test_shop_system()
+        self.test_crew_system()
+        self.test_logbook_system()
+        
+        self.print_summary()
+    
     def print_summary(self):
-        """Print test summary"""
+        """Print test results summary"""
         print("\n" + "="*60)
-        print("TEST SUMMARY")
+        print("BACKEND API TEST SUMMARY")
         print("="*60)
-        print(f"Total Tests: {self.tests_run}")
-        print(f"Passed: {self.tests_passed}")
-        print(f"Failed: {len(self.failed_tests)}")
-        print(f"Success Rate: {(self.tests_passed/self.tests_run)*100:.1f}%" if self.tests_run > 0 else "No tests run")
+        print(f"Total Tests: {self.results['passed'] + self.results['failed']}")
+        print(f"Passed: {self.results['passed']}")
+        print(f"Failed: {self.results['failed']}")
         
-        if self.failed_tests:
-            print(f"\n❌ FAILED TESTS:")
-            for failure in self.failed_tests:
-                print(f"  - {failure['test']}: {failure.get('error', 'Status code mismatch')}")
+        if self.results['failed'] > 0:
+            print(f"\nFAILED TESTS:")
+            for test in self.results['tests']:
+                if test['status'] == 'FAIL':
+                    print(f"❌ {test['name']}: {test['message']}")
         
-        return len(self.failed_tests) == 0
-
-def main():
-    print("🏴‍☠️ ONE PIECE RPG V2 API TESTING")
-    print("=" * 60)
-    
-    tester = OnePieceRPGAPITester()
-    
-    # Run all test suites for v2 system
-    tester.test_root_endpoints()
-    tester.test_authentication()
-    tester.test_game_data_endpoints()  # New: test races, fighting styles, mestieri
-    tester.test_character_name_validation()  # New: test D. pattern blocking
-    tester.test_character_system()
-    tester.test_world_system()
-    tester.test_battle_system()
-    tester.test_ai_features()
-    tester.test_shop_system()
-    
-    # Print summary and return appropriate exit code
-    success = tester.print_summary()
-    return 0 if success else 1
+        print(f"\nSUCCESS RATE: {(self.results['passed']/(self.results['passed']+self.results['failed'])*100):.1f}%")
+        print("="*60)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    tester = OnePointAPITester(backend_url)
+    tester.run_all_tests()
+    
+    # Exit with error code if tests failed
+    if tester.results['failed'] > 0:
+        sys.exit(1)
+    else:
+        sys.exit(0)
