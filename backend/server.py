@@ -1319,6 +1319,16 @@ def get_islands_by_sea(sea_id: str) -> list:
     islands = [(k, v) for k, v in ISLANDS.items() if v["sea"] == sea_id]
     return sorted(islands, key=lambda x: x[1]["order"])
 
+def get_starting_island(sea_id: str) -> str:
+    """Get the first island of a sea"""
+    starting_islands = {
+        "east_blue": "foosha",
+        "west_blue": "ilisia",
+        "north_blue": "lvneel",
+        "south_blue": "briss"
+    }
+    return starting_islands.get(sea_id, "foosha")
+
 @api_router.get("/world/seas")
 async def get_seas(request: Request):
     """Get list of all four seas"""
