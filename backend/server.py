@@ -1062,42 +1062,360 @@ SEAS = {
 
 ISLANDS = {
     # ============ EAST BLUE ============
-    "foosha": {
-        "name": "Foosha Village",
+    "dawn_island": {
+        "name": "Dawn Island",
         "sea": "east_blue",
         "order": 1,
         "x": 10, "y": 70,
-        "storia": "Un tranquillo villaggio di pescatori nell'isola di Dawn. Qui il leggendario pirata Shanks il Rosso salvò un giovane Monkey D. Luffy da un Re del Mare, perdendo il braccio sinistro. Prima di partire, Shanks affidò a Luffy il suo prezioso cappello di paglia.",
-        "luoghi": ["Taverna del villaggio", "Porto"],
-        "pericolo": 1
-    },
-    "goa_kingdom": {
-        "name": "Regno di Goa",
-        "sea": "east_blue",
-        "order": 2,
-        "x": 15, "y": 65,
-        "storia": "Il regno più potente dell'East Blue, situato sull'isola di Dawn. Un regno di nobili corrotti che ha bruciato il Gray Terminal per nascondere la povertà durante la visita di un Drago Celeste. Qui sono cresciuti Luffy, Ace e Sabo.",
-        "luoghi": ["Palazzo Reale", "Gray Terminal", "Monte Colubo"],
+        "storia": "L'isola dove tutto ha avuto inizio. Patria di Monkey D. Luffy, Portgas D. Ace e Sabo. Qui il leggendario pirata Shanks il Rosso salvò un giovane Luffy da un Re del Mare, perdendo il braccio sinistro e affidandogli il suo prezioso cappello di paglia.",
+        "zone": [
+            {"id": "foosha", "name": "Foosha Village", "descrizione": "Tranquillo villaggio di pescatori dove Luffy è cresciuto. Qui si trova la taverna di Makino."},
+            {"id": "mt_colubo", "name": "Mt. Colubo", "descrizione": "Montagna selvaggia dove vivono i banditi di montagna guidati da Curly Dadan, che ha cresciuto Ace e Luffy."},
+            {"id": "gray_terminal", "name": "Gray Terminal", "descrizione": "Enorme discarica ai confini del regno di Goa, dove vivevano i reietti della società. Fu bruciata per ordine dei nobili."},
+            {"id": "midway_forest", "name": "Midway Forest", "descrizione": "Foresta tra il Gray Terminal e il regno di Goa. Qui Ace, Sabo e Luffy costruirono la loro base segreta."},
+            {"id": "goa_kingdom", "name": "Goa Kingdom", "descrizione": "Il regno più ricco dell'East Blue, governato da nobili corrotti che disprezzano i poveri."}
+        ],
         "pericolo": 2
     },
     "shells_town": {
         "name": "Shells Town",
         "sea": "east_blue",
-        "order": 3,
-        "x": 22, "y": 55,
-        "storia": "Città portuale con una base della Marina comandata dal Capitano Morgan. Qui Roronoa Zoro era tenuto prigioniero, legato a un palo, dopo aver salvato una bambina dal lupo del figlio di Morgan. Luffy lo liberò e Zoro divenne il primo membro della ciurma dei Mugiwara.",
-        "luoghi": ["Base della Marina", "Piazza delle Esecuzioni", "Ristorante Rika"],
+        "order": 2,
+        "x": 20, "y": 60,
+        "storia": "Città portuale nella regione di Yotsuba Island con una base della Marina comandata dal Capitano Morgan. Qui Roronoa Zoro era tenuto prigioniero dopo aver salvato una bambina. Luffy lo liberò e Zoro divenne il primo membro della ciurma.",
+        "zone": [],
         "pericolo": 3
     },
-    "shimotsuki": {
-        "name": "Villaggio Shimotsuki",
+    "shimotsuki_village": {
+        "name": "Shimotsuki Village",
         "sea": "east_blue",
-        "order": 4,
-        "x": 28, "y": 60,
+        "order": 3,
+        "x": 28, "y": 55,
         "storia": "Villaggio fondato da samurai fuggiti da Wano 50 anni fa. Qui si trova il dojo del maestro Koshiro dove Roronoa Zoro si allenò fin da bambino insieme a Kuina, giurando di diventare il più grande spadaccino del mondo.",
-        "luoghi": ["Dojo Isshin", "Tomba di Kuina"],
+        "zone": [],
         "pericolo": 2
     },
+    "organ_islands": {
+        "name": "Organ Islands",
+        "sea": "east_blue",
+        "order": 4,
+        "x": 36, "y": 50,
+        "storia": "Arcipelago un tempo prospero, devastato dalla ciurma di Buggy il Clown. Qui Luffy sconfisse Buggy, il pirata che aveva mangiato il frutto Bara Bara.",
+        "zone": [
+            {"id": "orange_town", "name": "Orange Town", "descrizione": "Città principale dell'arcipelago, attaccata da Buggy il Clown. Il sindaco Boodle difese la città con coraggio."}
+        ],
+        "pericolo": 4
+    },
+    "island_rare_animals": {
+        "name": "Island of Rare Animals",
+        "sea": "east_blue",
+        "order": 5,
+        "x": 44, "y": 45,
+        "storia": "Isola misteriosa abitata da creature ibride uniche al mondo. Qui vive Gaimon, un uomo intrappolato in un forziere per 20 anni mentre cercava un tesoro.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "gecko_islands": {
+        "name": "Gecko Islands",
+        "sea": "east_blue",
+        "order": 6,
+        "x": 52, "y": 48,
+        "storia": "Arcipelago pacifico, casa di Usopp e della sua amica d'infanzia Kaya. Il Capitano Kuro tentò di assassinare Kaya per la sua eredità, ma fu fermato da Luffy. Qui i Mugiwara ottennero la Going Merry.",
+        "zone": [
+            {"id": "syrup_village", "name": "Syrup Village", "descrizione": "Tranquillo villaggio dove Usopp raccontava le sue bugie quotidiane. Qui si trova la villa di Kaya."}
+        ],
+        "pericolo": 3
+    },
+    "baratie": {
+        "name": "Baratie",
+        "sea": "east_blue",
+        "order": 7,
+        "x": 60, "y": 42,
+        "storia": "Il famoso ristorante galleggiante nella regione di Sambas, gestito dallo chef Zeff 'Gamba Rossa'. Qui Sanji lavorava come sous-chef finché Luffy non lo convinse a unirsi alla ciurma. Il Baratie fu attaccato da Don Krieg.",
+        "zone": [],
+        "pericolo": 5
+    },
+    "conomi_islands": {
+        "name": "Conomi Islands",
+        "sea": "east_blue",
+        "order": 8,
+        "x": 70, "y": 38,
+        "storia": "Arcipelago terrorizzato per otto anni dal tritone Arlong. Nami fu costretta a disegnare mappe per lui. Luffy distrusse Arlong Park e liberò Nami dalla sua prigionia.",
+        "zone": [
+            {"id": "gosa_village", "name": "Gosa Village", "descrizione": "Villaggio distrutto da Arlong come monito per chi osava ribellarsi."},
+            {"id": "cocoyasi_village", "name": "Cocoyasi Village", "descrizione": "Villaggio natale di Nami, dove visse con Bellemere e Nojiko."},
+            {"id": "ex_arlong_park", "name": "Ex Arlong Park", "descrizione": "Le rovine della fortezza di Arlong, ora simbolo della liberazione dell'arcipelago."}
+        ],
+        "pericolo": 6
+    },
+    "loguetown": {
+        "name": "Loguetown",
+        "sea": "east_blue",
+        "order": 9,
+        "x": 85, "y": 50,
+        "storia": "La 'Città dell'Inizio e della Fine' nelle Polestar Islands, dove Gol D. Roger nacque e fu giustiziato 22 anni fa. Le sue ultime parole diedero inizio alla Grande Era della Pirateria. Qui Luffy sfuggì all'esecuzione grazie a un fulmine.",
+        "zone": [],
+        "pericolo": 5
+    },
+    
+    # ============ WEST BLUE ============
+    "ohara": {
+        "name": "Ohara",
+        "sea": "west_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "L'isola degli studiosi, un tempo sede della più grande biblioteca del mondo e dell'Albero della Conoscenza. Gli archeologi di Ohara studiavano i Ponegliff. 20 anni fa, il Buster Call distrusse l'intera isola. L'unica sopravvissuta fu Nico Robin.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "ilisia_kingdom": {
+        "name": "Ilisia Kingdom",
+        "sea": "west_blue",
+        "order": 2,
+        "x": 22, "y": 62,
+        "storia": "Un pacifico regno del West Blue, affiliato al Governo Mondiale. Importante centro commerciale e diplomatico della regione.",
+        "zone": [],
+        "pericolo": 1
+    },
+    "thriller_bark_origin": {
+        "name": "Thriller Bark (Origine)",
+        "sea": "west_blue",
+        "order": 3,
+        "x": 34, "y": 55,
+        "storia": "Il luogo d'origine della gigantesca nave-isola Thriller Bark, creata da Gecko Moria. Prima di essere portata nel Florian Triangle, questa nave fantasma fu costruita qui nel West Blue.",
+        "zone": [],
+        "pericolo": 4
+    },
+    "toroa": {
+        "name": "Toroa",
+        "sea": "west_blue",
+        "order": 4,
+        "x": 46, "y": 48,
+        "storia": "Isola nota per i suoi abili artigiani di spade. Molte lame famose del mondo provengono da qui. I fabbri di Toroa sono rispettati in tutto il West Blue.",
+        "zone": [],
+        "pericolo": 3
+    },
+    "las_camp": {
+        "name": "Las Camp",
+        "sea": "west_blue",
+        "order": 5,
+        "x": 58, "y": 42,
+        "storia": "Isola con un clima arido. Nonostante le difficili condizioni, è un importante punto commerciale per i viaggiatori del West Blue.",
+        "zone": [],
+        "pericolo": 3
+    },
+    "kano_country": {
+        "name": "Kano Country",
+        "sea": "west_blue",
+        "order": 6,
+        "x": 70, "y": 38,
+        "storia": "Potente nazione del West Blue, patria della famiglia Chinjao e dell'Armata Happo. Don Chinjao era un temuto pirata con una taglia di 500 milioni. Sai, suo nipote, è ora il 13° comandante della Flotta dei Cappelli di Paglia.",
+        "zone": [],
+        "pericolo": 5
+    },
+    "god_valley": {
+        "name": "God Valley",
+        "sea": "west_blue",
+        "order": 7,
+        "x": 85, "y": 50,
+        "storia": "Isola misteriosa dove 38 anni fa si svolse l'epica battaglia tra i Rocks Pirates e l'alleanza tra Monkey D. Garp e Gol D. Roger. Dopo la battaglia, l'isola scomparve dalle mappe. I suoi segreti sono ancora avvolti nel mistero.",
+        "zone": [],
+        "pericolo": 10
+    },
+    
+    # ============ NORTH BLUE ============
+    "downs": {
+        "name": "Downs",
+        "sea": "north_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "Isola fredda del North Blue, punto di partenza per molti avventurieri che vogliono esplorare questo mare gelido e misterioso.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "lvneel_kingdom": {
+        "name": "Lvneel Kingdom",
+        "sea": "north_blue",
+        "order": 2,
+        "x": 20, "y": 62,
+        "storia": "Antico e prospero regno del North Blue. 400 anni fa, l'esploratore Montblanc Noland partì da qui per scoprire la Città d'Oro di Shandora. Tornato senza prove, fu giustiziato come bugiardo.",
+        "zone": [],
+        "pericolo": 1
+    },
+    "spider_miles": {
+        "name": "Spider Miles",
+        "sea": "north_blue",
+        "order": 3,
+        "x": 30, "y": 55,
+        "storia": "Un'isola portuale senza legge, rifugio di pirati e criminali. Qui il giovane Donquixote Doflamingo assassinò suo padre dopo essere stato cacciato da Mary Geoise.",
+        "zone": [],
+        "pericolo": 6
+    },
+    "flevance": {
+        "name": "Flevance",
+        "sea": "north_blue",
+        "order": 4,
+        "x": 40, "y": 48,
+        "storia": "La 'Città Bianca', splendente per il piombo ambrato che la ricopriva. Ma il minerale era velenoso. Quando la popolazione si ammalò, il Governo insabbiò la verità. L'isola fu sterminata. L'unico sopravvissuto fu Trafalgar Law.",
+        "zone": [],
+        "pericolo": 3
+    },
+    "rubeck_island": {
+        "name": "Rubeck Island",
+        "sea": "north_blue",
+        "order": 5,
+        "x": 50, "y": 42,
+        "storia": "Isola del North Blue dove la ciurma di Donquixote Rosinante cercò una cura per Law. Un'isola con risorse mediche limitate.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "swallow_island": {
+        "name": "Swallow Island",
+        "sea": "north_blue",
+        "order": 6,
+        "x": 58, "y": 38,
+        "storia": "Isola pacifica del North Blue nota per i suoi medici competenti. Qui Corazon portò Law nella speranza di trovare una cura per il Morbo del Piombo Ambrato.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "minion_island": {
+        "name": "Minion Island",
+        "sea": "north_blue",
+        "order": 7,
+        "x": 66, "y": 45,
+        "storia": "Isola innevata dove si svolse una delle tragedie più grandi. Qui Doflamingo attaccò per rubare l'Ope Ope no Mi, ma Corazon lo diede a Law, sacrificando la sua vita.",
+        "zone": [],
+        "pericolo": 5
+    },
+    "rakesh": {
+        "name": "Rakesh",
+        "sea": "north_blue",
+        "order": 8,
+        "x": 74, "y": 52,
+        "storia": "Isola commerciale del North Blue, nota per i suoi mercati e scambi tra viaggiatori di diverse regioni.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "notice": {
+        "name": "Notice",
+        "sea": "north_blue",
+        "order": 9,
+        "x": 82, "y": 40,
+        "storia": "Isola del North Blue nota come punto di ritrovo per mercanti e viaggiatori. Un luogo dove le informazioni viaggiano veloci.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "kuen_village": {
+        "name": "Kuen Village",
+        "sea": "north_blue",
+        "order": 10,
+        "x": 88, "y": 48,
+        "storia": "Piccolo villaggio di pescatori del North Blue, dove la vita scorre tranquilla lontano dai grandi conflitti.",
+        "zone": [],
+        "pericolo": 1
+    },
+    "deul_kingdom": {
+        "name": "Deul Kingdom",
+        "sea": "north_blue",
+        "order": 11,
+        "x": 92, "y": 55,
+        "storia": "Regno del North Blue affiliato al Governo Mondiale. Mantiene relazioni diplomatiche con le altre nazioni della regione.",
+        "zone": [],
+        "pericolo": 2
+    },
+    
+    # ============ SOUTH BLUE ============
+    "baterilla": {
+        "name": "Baterilla",
+        "sea": "south_blue",
+        "order": 1,
+        "x": 10, "y": 70,
+        "storia": "L'isola dove nacque Portgas D. Ace, figlio di Gol D. Roger. Sua madre, Portgas D. Rouge, tenne Ace nel grembo per 20 mesi per proteggerlo dalla Marina, morendo dopo il parto.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "torino_kingdom": {
+        "name": "Torino Kingdom",
+        "sea": "south_blue",
+        "order": 2,
+        "x": 20, "y": 62,
+        "storia": "Isola primitiva abitata da una tribù di umani e giganteschi uccelli. Qui Tony Tony Chopper fu mandato da Kuma e studiò le erbe medicinali avanzate per due anni.",
+        "zone": [],
+        "pericolo": 3
+    },
+    "evil_black_drum": {
+        "name": "Evil Black Drum Kingdom",
+        "sea": "south_blue",
+        "order": 3,
+        "x": 30, "y": 55,
+        "storia": "Regno oscuro del South Blue con una reputazione sinistra. Il suo nome evoca paura tra i viaggiatori della regione.",
+        "zone": [],
+        "pericolo": 5
+    },
+    "sorbet_kingdom": {
+        "name": "Sorbet Kingdom",
+        "sea": "south_blue",
+        "order": 4,
+        "x": 40, "y": 48,
+        "storia": "Piccolo regno povero del South Blue, patria di Bartholomew Kuma e Jewelry Bonney. Kuma era il re amato del popolo prima di diventare uno Shichibukai.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "samba_kingdom": {
+        "name": "Samba Kingdom",
+        "sea": "south_blue",
+        "order": 5,
+        "x": 50, "y": 42,
+        "storia": "Regno vivace del South Blue, noto per la sua cultura festosa e le sue tradizioni musicali.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "tumi": {
+        "name": "Tumi",
+        "sea": "south_blue",
+        "order": 6,
+        "x": 60, "y": 38,
+        "storia": "Isola del South Blue con antiche rovine e misteri ancora da scoprire.",
+        "zone": [],
+        "pericolo": 3
+    },
+    "kutsukku_island": {
+        "name": "Kutsukku Island",
+        "sea": "south_blue",
+        "order": 7,
+        "x": 70, "y": 45,
+        "storia": "Isola del South Blue nota per le sue risorse naturali e i suoi artigiani.",
+        "zone": [],
+        "pericolo": 2
+    },
+    "taya_kingdom": {
+        "name": "Taya Kingdom",
+        "sea": "south_blue",
+        "order": 8,
+        "x": 78, "y": 52,
+        "storia": "Regno pacifico del South Blue, affiliato al Governo Mondiale.",
+        "zone": [],
+        "pericolo": 1
+    },
+    "vespa_kingdom": {
+        "name": "Vespa Kingdom",
+        "sea": "south_blue",
+        "order": 9,
+        "x": 86, "y": 40,
+        "storia": "Regno del South Blue con una forte tradizione militare e guerriera.",
+        "zone": [],
+        "pericolo": 3
+    },
+    "samuwanai_island": {
+        "name": "Samuwanai Island",
+        "sea": "south_blue",
+        "order": 10,
+        "x": 92, "y": 48,
+        "storia": "Isola remota del South Blue, ultima tappa prima delle acque della Calm Belt.",
+        "zone": [],
+        "pericolo": 4
+    }
+}
     "orange_town": {
         "name": "Orange Town",
         "sea": "east_blue",
