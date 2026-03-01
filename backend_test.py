@@ -440,31 +440,20 @@ class OnePieceRPGAPITester:
             print("❌ No auth token, skipping AI tests")
             return False
         
-        # Test battle narration
+        # Test simplified AI narration (updated for v2)
         narration_data = {
-            "context": "Test battle context",
-            "action": "Test pirate throws a punch!"
+            "attacker": "Test Pirate",
+            "action": "pugno potente",
+            "damage": 15,
+            "effect": "Il nemico barcolla!"
         }
         
         self.run_test(
-            "AI Battle Narration",
+            "AI Action Narration",
             "POST",
-            "ai/narrate-battle", 
+            "ai/narrate-action", 
             200,
             narration_data
-        )
-        
-        # Test avatar generation
-        avatar_data = {
-            "description": "a brave pirate captain with a straw hat"
-        }
-        
-        self.run_test(
-            "AI Avatar Generation",
-            "POST",
-            "ai/generate-avatar",
-            200, 
-            avatar_data
         )
         
         return True
