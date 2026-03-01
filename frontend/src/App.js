@@ -1460,6 +1460,24 @@ const BattleArena = ({ token, character }) => {
 // ============ CHARACTER SHEET ============
 const CharacterSheet = ({ token, character }) => {
   const navigate = useNavigate();
+  const authToken = token || localStorage.getItem('token');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteCharacter = async () => {
+    setDeleting(true);
+    try {
+      await axios.delete(`${API}/characters/me`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      // Clear local state and redirect to character creation
+      localStorage.removeItem('token');
+      window.location.href = '/';
+    } catch (err) {
+      console.error(err);
+    }
+    setDeleting(false);
+  };
 
   if (!character) return <LoadingScreen />;
 
