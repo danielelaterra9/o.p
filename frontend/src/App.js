@@ -932,6 +932,7 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
             <p><span className="text-[#D4AF37]">Mestiere:</span> {mestieri[character.mestiere]?.name} ({character.mestiere_livello})</p>
             <p><span className="text-[#D4AF37]">Stile:</span> {character.stile_combattimento}</p>
             <p><span className="text-[#D4AF37]">Taglia:</span> {(character.taglia || 0).toLocaleString()} Berry</p>
+            <p><span className="text-[#D4AF37]">Berry:</span> ฿{(character.berry || 0).toLocaleString()}</p>
           </div>
           {character.sogno && <p className="mt-3"><span className="text-[#D4AF37]">Sogno:</span> {character.sogno}</p>}
         </div>
