@@ -824,7 +824,7 @@ const Dashboard = ({ user, character, token, logout }) => {
 
         {/* Stats */}
         <div className="glass p-4 rounded-xl mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Heart className="w-4 h-4 text-[#D00000]" />
@@ -844,6 +844,10 @@ const Dashboard = ({ user, character, token, logout }) => {
                 <div className="hp-bar-fill bg-[#00A8E8]" style={{ width: `${(character.energia / character.energia_max) * 100}%` }} />
               </div>
               <span className="text-xs text-[#E3D5CA]">{character.energia}/{character.energia_max}</span>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-[#E3D5CA]/70">Berry</p>
+              <p className="font-pirate text-xl text-[#D4AF37]">฿ {(character.berry || 0).toLocaleString()}</p>
             </div>
             <div className="text-center">
               <p className="text-xs text-[#E3D5CA]/70">Taglia</p>
