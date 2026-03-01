@@ -15,7 +15,7 @@ from jose import jwt, JWTError
 from passlib.context import CryptContext
 import random
 import asyncio
-import base64
+import re
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -43,70 +43,231 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ============ GAME CONSTANTS ============
+
+# Race bonuses: {forza, velocita, resistenza, agilita, vita_base, energia_base, aspettativa_vita}
+RACE_STATS = {
+    "umano": {
+        "name": "Umano",
+        "description": "Razza equilibrata, versatile in ogni situazione.",
+        "bonus": {"forza": 10, "velocita": 10, "resistenza": 10, "agilita": 10},
+        "vita_base": 100,
+        "energia_base": 100,
+        "aspettativa_vita": 80,
+        "vantaggi": ["Versatilità in tutti i ruoli", "Apprendimento rapido"],
+        "svantaggi": ["Nessun bonus particolare"]
+    },
+    "uomo_pesce": {
+        "name": "Uomo Pesce",
+        "description": "Creature marine con forza 10 volte superiore agli umani in acqua.",
+        "bonus": {"forza": 20, "velocita": 8, "resistenza": 15, "agilita": 12},
+        "vita_base": 120,
+        "energia_base": 90,
+        "aspettativa_vita": 100,
+        "vantaggi": ["Forza 10x in acqua", "Può respirare sott'acqua", "Bonus nuoto"],
+        "svantaggi": ["Meno agile sulla terraferma"]
+    },
+    "visone": {
+        "name": "Visone",
+        "description": "Creature antropomorfe con abilità elettriche innate (Electro).",
+        "bonus": {"forza": 12, "velocita": 15, "resistenza": 8, "agilita": 18},
+        "vita_base": 90,
+        "energia_base": 110,
+        "aspettativa_vita": 70,
+        "vantaggi": ["Electro innato", "Agilità superiore", "Sensi potenziati"],
+        "svantaggi": ["Resistenza minore", "Vita più bassa"]
+    },
+    "semi_gigante": {
+        "name": "Semi-Gigante",
+        "description": "Ibridi con sangue di gigante, più forti e resistenti della media.",
+        "bonus": {"forza": 18, "velocita": 6, "resistenza": 18, "agilita": 5},
+        "vita_base": 150,
+        "energia_base": 80,
+        "aspettativa_vita": 120,
+        "vantaggi": ["Forza e resistenza elevate", "Vita molto alta"],
+        "svantaggi": ["Lenti", "Poca agilità", "Bersaglio facile"]
+    },
+    "gigante": {
+        "name": "Gigante",
+        "description": "Creature enormi con forza devastante ma lente.",
+        "bonus": {"forza": 25, "velocita": 3, "resistenza": 22, "agilita": 2},
+        "vita_base": 200,
+        "energia_base": 70,
+        "aspettativa_vita": 300,
+        "vantaggi": ["Forza devastante", "Vita altissima", "Lunga vita"],
+        "svantaggi": ["Molto lenti", "Agilità quasi nulla", "Difficoltà in spazi stretti"]
+    },
+    "cyborg": {
+        "name": "Cyborg",
+        "description": "Umani potenziati con parti meccaniche.",
+        "bonus": {"forza": 15, "velocita": 10, "resistenza": 20, "agilita": 8},
+        "vita_base": 130,
+        "energia_base": 120,
+        "aspettativa_vita": 60,
+        "vantaggi": ["Alta resistenza", "Può usare armi integrate", "Bonus con scienziato"],
+        "svantaggi": ["Vulnerabile all'acqua", "Necessita manutenzione", "Vita più breve"]
+    }
+}
+
+# Fighting style bonuses
+FIGHTING_STYLES = {
+    "corpo_misto": {
+        "name": "Corpo a Corpo - Misto",
+        "description": "Combina pugni e calci per un approccio versatile.",
+        "bonus": {"forza": 5, "velocita": 5, "agilita": 5},
+        "vantaggi": ["Versatilità nelle mosse", "Nessuna debolezza evidente"],
+        "svantaggi": ["Non eccelle in nulla di specifico"]
+    },
+    "corpo_pugni": {
+        "name": "Corpo a Corpo - Pugile",
+        "description": "Specializzato in pugni potenti e devastanti.",
+        "bonus": {"forza": 10, "velocita": 3, "resistenza": 5},
+        "vantaggi": ["Pugni molto potenti", "Buona difesa ravvicinata"],
+        "svantaggi": ["Portata limitata", "Calci deboli"]
+    },
+    "corpo_calci": {
+        "name": "Corpo a Corpo - Solo Calci",
+        "description": "Maestro delle tecniche di calcio, maggiore portata.",
+        "bonus": {"velocita": 8, "agilita": 8, "forza": 3},
+        "vantaggi": ["Maggiore portata", "Alta velocità", "Mani libere per altro"],
+        "svantaggi": ["Pugni deboli", "Vulnerabile a distanza ravvicinata"]
+    },
+    "armi_mono": {
+        "name": "Armi Bianche - Mono Arma",
+        "description": "Padronanza di una singola arma (spada, ascia, lancia...).",
+        "bonus": {"forza": 7, "velocita": 5, "agilita": 5},
+        "vantaggi": ["Maestria con un'arma", "Tecniche specializzate", "Bonus precisione"],
+        "svantaggi": ["Dipendente dall'arma", "Senza arma è debole"]
+    },
+    "armi_pluri": {
+        "name": "Armi Bianche - Pluri Arma",
+        "description": "Utilizza più armi contemporaneamente o in sequenza.",
+        "bonus": {"velocita": 6, "agilita": 7, "forza": 4},
+        "vantaggi": ["Imprevedibile", "Molte opzioni d'attacco"],
+        "svantaggi": ["Meno danni per singolo colpo", "Difficile da padroneggiare"]
+    },
+    "tiratore": {
+        "name": "Tiratore",
+        "description": "Specialista in armi a distanza: pistole, fucili, fionde.",
+        "bonus": {"velocita": 3, "agilita": 10, "resistenza": -3},
+        "vantaggi": ["Attacchi a distanza", "Alta precisione", "Evita corpo a corpo"],
+        "svantaggi": ["Debole in mischia", "Dipendente da munizioni"]
+    }
+}
+
+# Gender life expectancy modifiers
+GENDER_LIFE_MODIFIER = {
+    "maschio": 0,
+    "femmina": 5,  # +5 years
+    "non_definito": 0
+}
+
+# Mestieri/Jobs
+MESTIERI = {
+    "capitano": {
+        "name": "Capitano",
+        "description": "Leader della ciurma. +20% Liv. combattimento e energia a tutta la ciurma.",
+        "bonus_ciurma": {"combattimento": 0.2, "energia": 0.2},
+        "abilita": "Può muovere la nave per conto della ciurma"
+    },
+    "guerriero": {
+        "name": "Guerriero",
+        "description": "Combattente esperto. Risolve situazioni di pericolo durante eventi.",
+        "bonus_ciurma": {},
+        "abilita": "Può comandare la nave in assenza del capitano"
+    },
+    "navigatore": {
+        "name": "Navigatore",
+        "description": "Esperto di rotte e mappe. Evita eventi naturali negativi.",
+        "bonus_ciurma": {},
+        "abilita": "Può decidere la rotta in assenza del capitano"
+    },
+    "cecchino": {
+        "name": "Cecchino",
+        "description": "Occhio infallibile. Vede più lontano sulla mappa.",
+        "bonus_ciurma": {},
+        "abilita": "Bonus danni con cannoni nelle battaglie navali"
+    },
+    "cuoco": {
+        "name": "Cuoco",
+        "description": "Maestro della cucina. Funge da ristorante ovunque.",
+        "bonus_ciurma": {"energia_recovery": 1.0},
+        "abilita": "Recupera energia al 100% per tutta la ciurma"
+    },
+    "medico": {
+        "name": "Medico",
+        "description": "Dottore di bordo. Come un ospedale portatile.",
+        "bonus_ciurma": {"vita_recovery": 1.0},
+        "abilita": "Recupera vita al 100% e cura condizioni speciali"
+    },
+    "archeologo": {
+        "name": "Archeologo",
+        "description": "Studioso di storia antica. Traduce Poneglyph.",
+        "bonus_ciurma": {},
+        "abilita": "Trova tesori, oggetti, armi e frutti del diavolo più facilmente"
+    },
+    "carpentiere": {
+        "name": "Carpentiere",
+        "description": "Costruttore e riparatore di navi.",
+        "bonus_ciurma": {},
+        "abilita": "Installa armi sulla nave e la ripara"
+    },
+    "musicista": {
+        "name": "Musicista",
+        "description": "Artista che solleva il morale. +20% EXP per la ciurma.",
+        "bonus_ciurma": {"exp": 0.2},
+        "abilita": "Bonus su alcune carte evento e combattimento"
+    },
+    "timoniere": {
+        "name": "Timoniere",
+        "description": "Esperto nel governare la nave.",
+        "bonus_ciurma": {},
+        "abilita": "Permette di usare navi avanzate e viaggiare più velocemente"
+    },
+    "scienziato": {
+        "name": "Scienziato",
+        "description": "Inventore e studioso. Crea armi speciali.",
+        "bonus_ciurma": {},
+        "abilita": "Ottiene armi speciali più facilmente. +20% Liv. ai Cyborg"
+    },
+    "ipnotista": {
+        "name": "Ipnotista",
+        "description": "Manipolatore mentale. Potenzia la ciurma in battaglia.",
+        "bonus_ciurma": {},
+        "abilita": "Amplifica tutti i valori di combattimento del 30% per 3 turni"
+    }
+}
+
+MESTIERE_LEVELS = ["principiante", "intermedio", "avanzato", "esperto"]
+
 # ============ PYDANTIC MODELS ============
 
 class UserCreate(BaseModel):
+    username: str
     email: str
     password: str
-    name: str
 
 class UserLogin(BaseModel):
     email: str
     password: str
 
-class UserResponse(BaseModel):
-    user_id: str
-    email: str
-    name: str
-    picture: Optional[str] = None
-    created_at: datetime
-
 class CharacterCreate(BaseModel):
-    name: str
-    title: str = "Aspirante Pirata"
-    body_type: str = "normal"
-    hair_color: str = "#3E2723"
-    outfit: str = "pirate"
-    race: str = "human"
-    fighting_style: str = "brawler"
-    devil_fruit: Optional[str] = None
+    nome_personaggio: str
+    ruolo: str = "pirata"
+    genere: str  # maschio, femmina, non_definito
+    eta: int = Field(ge=16)
+    razza: str
+    stile_combattimento: str
+    sogno: str = Field(max_length=100)
+    storia_carattere: str = Field(max_length=1000)
+    mestiere: str
+    # Aspetto fisico (opzionale per avatar)
+    colore_capelli: Optional[str] = None
+    colore_occhi: Optional[str] = None
+    particolarita: Optional[str] = None
 
-class CharacterResponse(BaseModel):
-    character_id: str
-    user_id: str
-    name: str
-    title: str
-    level: int = 1
-    experience: int = 0
-    bounty: int = 10000000
-    stats: Dict[str, int]
-    appearance: Dict[str, str]
-    devil_fruit: Optional[str] = None
-    haki_unlocked: bool = False
-    special_moves: List[str] = []
-    inventory: List[Dict] = []
-    cards: Dict[str, List[str]] = {"storytelling": [], "events": [], "duel": [], "resources": []}
-    current_island: str = "foosha"
-    ship: Optional[str] = None
-    crew_id: Optional[str] = None
-    hp: int = 100
-    max_hp: int = 100
-    energy: int = 100
-    max_energy: int = 100
-    avatar_url: Optional[str] = None
-
-class BattleAction(BaseModel):
-    action_type: str  # movement, basic_attack, haki, special_move, duel_card, item, pass
-    action_name: str
-    target: Optional[str] = None
-
-class NavigationAction(BaseModel):
-    destination: str  # island_id or "open_sea"
-    use_storytelling_card: Optional[str] = None
-
-class ChatMessage(BaseModel):
-    content: str
-    recipient_id: Optional[str] = None
+class CharacterTraitsRequest(BaseModel):
+    storia_carattere: str
 
 # ============ AUTH HELPERS ============
 
@@ -122,11 +283,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+def validate_character_name(name: str) -> tuple[bool, str]:
+    """Check if name contains forbidden 'D.' pattern"""
+    # Check for "D." or "D " patterns
+    if re.search(r'\bD\.', name, re.IGNORECASE) or re.search(r'\bD\s', name, re.IGNORECASE):
+        return False, "La volontà della D. puoi sbloccarla solo durante la storia. Per il momento non può essere inserita nel tuo nome personaggio."
+    return True, ""
+
 async def get_current_user(request: Request) -> dict:
-    # Check cookie first
     session_token = request.cookies.get("session_token")
     
-    # Then check Authorization header
     if not session_token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -135,7 +301,6 @@ async def get_current_user(request: Request) -> dict:
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Check if it's a JWT token
     try:
         payload = jwt.decode(session_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("user_id")
@@ -149,7 +314,6 @@ async def get_current_user(request: Request) -> dict:
     except JWTError:
         pass
     
-    # Check if it's a session token (Google OAuth)
     session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -171,39 +335,59 @@ async def get_current_user(request: Request) -> dict:
 
 @api_router.post("/auth/register")
 async def register(user_data: UserCreate):
-    existing = await db.users.find_one({"email": user_data.email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # Check if email exists
+    existing_email = await db.users.find_one({"email": user_data.email})
+    if existing_email:
+        raise HTTPException(status_code=400, detail="Email già registrata")
+    
+    # Check if username exists
+    existing_username = await db.users.find_one({"username": user_data.username.lower()})
+    if existing_username:
+        raise HTTPException(status_code=400, detail="Username già in uso")
     
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user_doc = {
         "user_id": user_id,
+        "username": user_data.username.lower(),
+        "display_username": user_data.username,
         "email": user_data.email,
         "password_hash": hash_password(user_data.password),
-        "name": user_data.name,
         "picture": None,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
     
     token = create_access_token({"user_id": user_id})
-    return {"token": token, "user": {"user_id": user_id, "email": user_data.email, "name": user_data.name}}
+    return {
+        "token": token, 
+        "user": {
+            "user_id": user_id, 
+            "username": user_data.username,
+            "email": user_data.email
+        }
+    }
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin):
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Credenziali non valide")
     
     if "password_hash" in user and not verify_password(credentials.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Credenziali non valide")
     
     token = create_access_token({"user_id": user["user_id"]})
-    return {"token": token, "user": {"user_id": user["user_id"], "email": user["email"], "name": user["name"]}}
+    return {
+        "token": token, 
+        "user": {
+            "user_id": user["user_id"], 
+            "username": user.get("display_username", user.get("username")),
+            "email": user["email"]
+        }
+    }
 
 @api_router.get("/auth/session")
 async def process_session(session_id: str, response: Response):
-    """Process Google OAuth session_id from Emergent Auth"""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
@@ -214,24 +398,31 @@ async def process_session(session_id: str, response: Response):
         
         data = resp.json()
     
-    # Check if user exists
     user = await db.users.find_one({"email": data["email"]}, {"_id": 0})
     
     if not user:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
+        # Generate username from email
+        base_username = data["email"].split("@")[0].lower()
+        username = base_username
+        counter = 1
+        while await db.users.find_one({"username": username}):
+            username = f"{base_username}{counter}"
+            counter += 1
+        
         user = {
             "user_id": user_id,
+            "username": username,
+            "display_username": data["name"],
             "email": data["email"],
-            "name": data["name"],
             "picture": data.get("picture"),
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(user)
     else:
         user_id = user["user_id"]
-        await db.users.update_one({"user_id": user_id}, {"$set": {"name": data["name"], "picture": data.get("picture")}})
+        await db.users.update_one({"user_id": user_id}, {"$set": {"picture": data.get("picture")}})
     
-    # Store session
     session_token = data["session_token"]
     await db.user_sessions.insert_one({
         "user_id": user_id,
@@ -240,7 +431,6 @@ async def process_session(session_id: str, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat()
     })
     
-    # Set cookie
     response.set_cookie(
         key="session_token",
         value=session_token,
@@ -251,7 +441,12 @@ async def process_session(session_id: str, response: Response):
         path="/"
     )
     
-    return {"user_id": user_id, "email": data["email"], "name": data["name"], "picture": data.get("picture")}
+    return {
+        "user_id": user_id, 
+        "username": user.get("display_username", user.get("username")),
+        "email": data["email"], 
+        "picture": data.get("picture")
+    }
 
 @api_router.get("/auth/me")
 async def get_me(request: Request):
@@ -264,286 +459,288 @@ async def logout(request: Request, response: Response):
     if session_token:
         await db.user_sessions.delete_one({"session_token": session_token})
     response.delete_cookie("session_token", path="/")
-    return {"message": "Logged out"}
+    return {"message": "Logout effettuato"}
+
+# ============ GAME DATA ENDPOINTS ============
+
+@api_router.get("/game/races")
+async def get_races():
+    """Get all available races with their bonuses"""
+    return {"races": RACE_STATS}
+
+@api_router.get("/game/fighting-styles")
+async def get_fighting_styles():
+    """Get all available fighting styles"""
+    return {"styles": FIGHTING_STYLES}
+
+@api_router.get("/game/mestieri")
+async def get_mestieri():
+    """Get all available jobs/mestieri"""
+    return {"mestieri": MESTIERI, "levels": MESTIERE_LEVELS}
 
 # ============ CHARACTER ENDPOINTS ============
 
-@api_router.post("/characters", response_model=CharacterResponse)
+@api_router.post("/characters/validate-name")
+async def validate_name(data: Dict[str, str]):
+    """Validate character name for forbidden patterns"""
+    name = data.get("nome", "")
+    is_valid, message = validate_character_name(name)
+    return {"valid": is_valid, "message": message}
+
+@api_router.post("/characters/extract-traits")
+async def extract_character_traits(data: CharacterTraitsRequest, request: Request):
+    """Use AI to extract character traits from story/character description"""
+    await get_current_user(request)
+    
+    storia = data.storia_carattere
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.getenv("EMERGENT_LLM_KEY")
+        session_id = f"traits_{uuid.uuid4().hex[:8]}"
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message="""Sei un analista di personalità per un gioco RPG di One Piece.
+Analizza la storia/descrizione del personaggio e estrai da 3 a 5 tratti caratteriali distintivi.
+I tratti devono essere:
+- Brevi (2-4 parole)
+- Possono essere positivi o negativi
+- Devono poter influenzare gameplay (es: "pessimo senso dell'orientamento", "testardo", "coraggioso", "bugiardo compulsivo", "generoso", "vendicativo")
+
+Rispondi SOLO con un JSON array di stringhe, nient'altro. Esempio:
+["coraggioso", "pessimo senso dell'orientamento", "leale fino alla morte"]"""
+        )
+        chat.with_model("gemini", "gemini-3-flash-preview")
+        
+        message = UserMessage(text=f"Analizza questa descrizione del personaggio e estrai i tratti caratteriali:\n\n{storia}")
+        
+        response = await chat.send_message(message)
+        
+        # Parse JSON response
+        import json
+        # Clean response - extract JSON array
+        response_clean = response.strip()
+        if response_clean.startswith("```"):
+            response_clean = response_clean.split("```")[1]
+            if response_clean.startswith("json"):
+                response_clean = response_clean[4:]
+        
+        traits = json.loads(response_clean)
+        return {"traits": traits, "source": "ai"}
+        
+    except Exception as e:
+        logger.error(f"Trait extraction error: {e}")
+        # Fallback: suggest random traits
+        default_traits = [
+            "determinato", "impulsivo", "leale", "misterioso", "ottimista",
+            "pessimo senso dell'orientamento", "goloso", "pigro", "coraggioso",
+            "solitario", "chiacchierone", "testardo", "gentile", "vendicativo"
+        ]
+        suggested = random.sample(default_traits, 3)
+        return {"traits": suggested, "source": "suggested"}
+
+@api_router.post("/characters")
 async def create_character(char_data: CharacterCreate, request: Request):
     user = await get_current_user(request)
     
     # Check if user already has a character
     existing = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     if existing:
-        raise HTTPException(status_code=400, detail="Character already exists")
+        raise HTTPException(status_code=400, detail="Personaggio già esistente")
     
-    # Calculate base stats based on choices
-    base_stats = {"attack": 50, "defense": 40, "speed": 45, "luck": 30}
+    # Validate character name
+    is_valid, error_msg = validate_character_name(char_data.nome_personaggio)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
     
-    if char_data.body_type == "slim":
-        base_stats["attack"] += 10
-        base_stats["speed"] += 15
-        base_stats["defense"] -= 5
-    elif char_data.body_type == "muscular":
-        base_stats["attack"] += 5
-        base_stats["defense"] += 10
-    elif char_data.body_type == "giant":
-        base_stats["attack"] += 15
-        base_stats["defense"] += 15
-        base_stats["speed"] -= 10
+    # Validate race
+    if char_data.razza not in RACE_STATS:
+        raise HTTPException(status_code=400, detail="Razza non valida")
     
-    # Devil fruit bonuses
-    bounty = 10000000
-    if char_data.devil_fruit:
-        base_stats["attack"] += 20
-        bounty = 50000000
+    # Validate fighting style
+    if char_data.stile_combattimento not in FIGHTING_STYLES:
+        raise HTTPException(status_code=400, detail="Stile di combattimento non valido")
+    
+    # Validate mestiere
+    if char_data.mestiere not in MESTIERI:
+        raise HTTPException(status_code=400, detail="Mestiere non valido")
+    
+    # Validate gender
+    if char_data.genere not in ["maschio", "femmina", "non_definito"]:
+        raise HTTPException(status_code=400, detail="Genere non valido")
+    
+    # Calculate base stats from race
+    race_data = RACE_STATS[char_data.razza]
+    style_data = FIGHTING_STYLES[char_data.stile_combattimento]
+    
+    # Base stats
+    forza = race_data["bonus"]["forza"] + style_data["bonus"].get("forza", 0)
+    velocita = race_data["bonus"]["velocita"] + style_data["bonus"].get("velocita", 0)
+    resistenza = race_data["bonus"]["resistenza"] + style_data["bonus"].get("resistenza", 0)
+    agilita = race_data["bonus"]["agilita"] + style_data["bonus"].get("agilita", 0)
+    
+    # Calculated stats
+    attacco = forza * velocita
+    difesa = resistenza * agilita
+    
+    # Life expectancy with gender modifier
+    aspettativa_vita = race_data["aspettativa_vita"] + GENDER_LIFE_MODIFIER.get(char_data.genere, 0)
     
     character_id = f"char_{uuid.uuid4().hex[:12]}"
     character = {
         "character_id": character_id,
         "user_id": user["user_id"],
-        "name": char_data.name,
-        "title": char_data.title,
-        "level": 1,
-        "experience": 0,
-        "bounty": bounty,
-        "stats": base_stats,
-        "appearance": {
-            "body_type": char_data.body_type,
-            "hair_color": char_data.hair_color,
-            "outfit": char_data.outfit,
-            "race": char_data.race
+        "owner_username": user.get("display_username", user.get("username")),
+        
+        # Basic info
+        "nome_personaggio": char_data.nome_personaggio,
+        "ruolo": char_data.ruolo,
+        "genere": char_data.genere,
+        "eta": char_data.eta,
+        "razza": char_data.razza,
+        "stile_combattimento": char_data.stile_combattimento,
+        "sogno": char_data.sogno,
+        "storia_carattere": char_data.storia_carattere,
+        "tratti_carattere": [],  # Will be filled by AI extraction
+        
+        # Mestiere
+        "mestiere": char_data.mestiere,
+        "mestiere_livello": "principiante",
+        
+        # PUBLIC STATS (visible to others)
+        "livello": 1,
+        "esperienza": 0,
+        "taglia": 0,  # Bounty in Berry
+        "ciurma_id": None,
+        "ciurma_ruolo": None,  # "fondatore" or "membro"
+        
+        # Combat abilities (PUBLIC)
+        "vita": race_data["vita_base"],
+        "vita_max": race_data["vita_base"],
+        "energia": race_data["energia_base"],
+        "energia_max": race_data["energia_base"],
+        "attacco": attacco,
+        "difesa": difesa,
+        
+        # Base stats (can grow with experience)
+        "forza": forza,
+        "velocita": velocita,
+        "resistenza": resistenza,
+        "agilita": agilita,
+        
+        # Life expectancy
+        "aspettativa_vita": aspettativa_vita,
+        "aspettativa_vita_max": aspettativa_vita,
+        
+        # Altre capacità (PUBLIC - empty at start)
+        "frutto_diavolo": None,
+        "haki": {
+            "osservazione": False,
+            "armatura": False,
+            "conquistatore": False
         },
-        "fighting_style": char_data.fighting_style,
-        "devil_fruit": char_data.devil_fruit,
-        "haki_unlocked": False,
-        "special_moves": get_base_moves(char_data.fighting_style),
-        "inventory": [],
-        "cards": {"storytelling": [], "events": [], "duel": [], "resources": []},
-        "current_island": "foosha",
-        "ship": None,
-        "crew_id": None,
-        "hp": 100,
-        "max_hp": 100,
-        "energy": 100,
-        "max_energy": 100,
-        "avatar_url": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "poteri_speciali": [],
+        
+        # Equipment (PUBLIC)
+        "armi": [],
+        "oggetti": [],
+        "carte": {
+            "storytelling": [],
+            "eventi": [],
+            "duello": [],
+            "risorse": []
+        },
+        
+        # PRIVATE STATS (only owner can see)
+        "abilita_base": {
+            "forza_raw": forza,
+            "velocita_raw": velocita,
+            "resistenza_raw": resistenza,
+            "agilita_raw": agilita,
+            "danno_subibile": race_data["vita_base"]
+        },
+        "armi_speciali": [],
+        "poteri_segreti": [],
+        "missioni_attive": [],
+        "missioni_completate": [],
+        
+        # Appearance for avatar
+        "aspetto": {
+            "colore_capelli": char_data.colore_capelli,
+            "colore_occhi": char_data.colore_occhi,
+            "particolarita": char_data.particolarita
+        },
+        
+        # Location
+        "isola_corrente": "foosha",
+        "nave": None,
+        
+        # Metadata
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_active": datetime.now(timezone.utc).isoformat()
     }
     
     await db.characters.insert_one(character)
     character.pop("_id", None)
     return character
 
-def get_base_moves(fighting_style: str) -> List[str]:
-    moves = {
-        "brawler": ["Pugno Potente", "Calcio Rotante", "Testata"],
-        "swordsman": ["Fendente", "Affondo", "Parata Offensiva"],
-        "shooter": ["Colpo Mirato", "Raffica", "Tiro di Sbarramento"],
-        "martial_artist": ["Colpo di Palmo", "Calcio Volante", "Presa Mortale"]
-    }
-    return moves.get(fighting_style, ["Pugno", "Calcio", "Schivata"])
-
-@api_router.get("/characters/me", response_model=CharacterResponse)
+@api_router.get("/characters/me")
 async def get_my_character(request: Request):
     user = await get_current_user(request)
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     if not character:
-        raise HTTPException(status_code=404, detail="Character not found")
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
     return character
 
-@api_router.put("/characters/me")
-async def update_character(updates: Dict[str, Any], request: Request):
+@api_router.get("/characters/{character_id}/public")
+async def get_character_public(character_id: str, request: Request):
+    """Get public info of any character (what others can see)"""
+    await get_current_user(request)
+    
+    character = await db.characters.find_one({"character_id": character_id}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    # Return only public fields
+    public_fields = [
+        "character_id", "nome_personaggio", "ruolo", "genere", "razza",
+        "stile_combattimento", "sogno", "tratti_carattere",
+        "mestiere", "mestiere_livello",
+        "livello", "esperienza", "taglia", "ciurma_id", "ciurma_ruolo",
+        "vita", "vita_max", "energia", "energia_max", "attacco", "difesa",
+        "forza", "velocita", "resistenza", "agilita",
+        "aspettativa_vita", "frutto_diavolo", "haki", "poteri_speciali",
+        "armi", "oggetti", "carte", "aspetto"
+    ]
+    
+    return {k: character.get(k) for k in public_fields if k in character}
+
+@api_router.put("/characters/me/traits")
+async def update_character_traits(data: Dict[str, List[str]], request: Request):
+    """Update character traits after AI extraction"""
     user = await get_current_user(request)
     
-    # Only allow certain fields to be updated
-    allowed_fields = ["name", "title", "current_island", "hp", "energy", "inventory", "cards"]
-    filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+    traits = data.get("traits", [])
+    if len(traits) < 3:
+        raise HTTPException(status_code=400, detail="Servono almeno 3 tratti caratteriali")
     
-    if filtered_updates:
-        await db.characters.update_one({"user_id": user["user_id"]}, {"$set": filtered_updates})
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"tratti_carattere": traits}}
+    )
     
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    return character
+    return {"message": "Tratti aggiornati", "traits": traits}
 
 @api_router.delete("/characters/me")
 async def delete_character(request: Request):
-    """Delete the current user's character to allow recreation"""
     user = await get_current_user(request)
-    
     result = await db.characters.delete_one({"user_id": user["user_id"]})
-    
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Character not found")
-    
-    return {"message": "Character deleted successfully"}
-
-# ============ NAVIGATION & WORLD MAP ============
-
-ISLANDS = {
-    "foosha": {"name": "Foosha Village", "saga": "East Blue", "x": 10, "y": 70, "events_required": 0},
-    "shells_town": {"name": "Shells Town", "saga": "East Blue", "x": 18, "y": 55, "events_required": 1},
-    "orange_town": {"name": "Orange Town", "saga": "East Blue", "x": 25, "y": 60, "events_required": 2},
-    "baratie": {"name": "Baratie", "saga": "East Blue", "x": 35, "y": 50, "events_required": 3},
-    "arlong_park": {"name": "Arlong Park", "saga": "East Blue", "x": 42, "y": 45, "events_required": 4},
-    "loguetown": {"name": "Loguetown", "saga": "East Blue", "x": 50, "y": 55, "events_required": 5},
-    "alabasta": {"name": "Alabasta", "saga": "Grand Line", "x": 60, "y": 40, "events_required": 8},
-    "skypiea": {"name": "Skypiea", "saga": "Grand Line", "x": 65, "y": 20, "events_required": 12},
-    "water_seven": {"name": "Water 7", "saga": "Grand Line", "x": 72, "y": 45, "events_required": 15},
-    "thriller_bark": {"name": "Thriller Bark", "saga": "Grand Line", "x": 78, "y": 35, "events_required": 18},
-    "sabaody": {"name": "Sabaody", "saga": "Grand Line", "x": 85, "y": 50, "events_required": 22},
-    "wano": {"name": "Wano", "saga": "New World", "x": 92, "y": 30, "events_required": 30}
-}
-
-@api_router.get("/world/islands")
-async def get_islands(request: Request):
-    user = await get_current_user(request)
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    
-    completed_events = len(character.get("cards", {}).get("events", []))
-    
-    islands_list = []
-    for island_id, data in ISLANDS.items():
-        islands_list.append({
-            "id": island_id,
-            **data,
-            "unlocked": completed_events >= data["events_required"],
-            "current": character.get("current_island") == island_id
-        })
-    
-    return {"islands": islands_list, "current_island": character.get("current_island")}
-
-@api_router.post("/world/roll-dice")
-async def roll_dice(navigation: NavigationAction, request: Request):
-    user = await get_current_user(request)
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    
-    if not character.get("ship"):
-        raise HTTPException(status_code=400, detail="You need a ship to navigate!")
-    
-    # Roll dice (1-6)
-    dice_result = random.randint(1, 6)
-    
-    # Apply storytelling card bonus if used
-    bonus = 0
-    if navigation.use_storytelling_card:
-        # Check if player has the card and apply effect
-        bonus = random.randint(1, 3)
-    
-    total_movement = dice_result + bonus
-    
-    # Generate random event based on destination
-    event = None
-    if navigation.destination == "open_sea" or random.random() < 0.7:
-        event = generate_sea_event(total_movement)
-    
-    # Update position
-    await db.characters.update_one(
-        {"user_id": user["user_id"]},
-        {"$set": {"navigation_progress": total_movement}}
-    )
-    
-    return {
-        "dice_result": dice_result,
-        "bonus": bonus,
-        "total_movement": total_movement,
-        "event": event
-    }
-
-def generate_sea_event(movement: int) -> Dict:
-    events = [
-        {"type": "battle", "name": "Pirati Nemici!", "description": "Una nave pirata vi attacca!", "difficulty": "easy"},
-        {"type": "treasure", "name": "Forziere alla Deriva", "description": "Trovate un forziere galleggiante!", "reward": "random_card"},
-        {"type": "storm", "name": "Tempesta!", "description": "Una tempesta colpisce la nave!", "damage": 10},
-        {"type": "merchant", "name": "Mercante Viaggiatore", "description": "Incontrate un mercante in mare.", "shop": True},
-        {"type": "sea_king", "name": "Re del Mare!", "description": "Un gigantesco Re del Mare emerge!", "difficulty": "hard"},
-        {"type": "marine", "name": "Nave della Marina!", "description": "La Marina vi ha avvistato!", "difficulty": "medium"},
-        {"type": "calm", "name": "Mare Calmo", "description": "Navigazione tranquilla.", "bonus_energy": 10},
-        {"type": "island_sighting", "name": "Isola all'Orizzonte", "description": "Avvistate un'isola misteriosa!", "optional_stop": True}
-    ]
-    return random.choice(events)
-
-@api_router.post("/world/arrive-island")
-async def arrive_at_island(data: Dict[str, str], request: Request):
-    user = await get_current_user(request)
-    island_id = data.get("island_id")
-    
-    if island_id not in ISLANDS:
-        raise HTTPException(status_code=400, detail="Island not found")
-    
-    await db.characters.update_one(
-        {"user_id": user["user_id"]},
-        {"$set": {"current_island": island_id, "navigation_progress": 0}}
-    )
-    
-    return {"message": f"Arrived at {ISLANDS[island_id]['name']}", "island": ISLANDS[island_id]}
-
-# ============ ISLAND ZONES & EVENTS ============
-
-ISLAND_ZONES = {
-    "dock": {"name": "Molo", "description": "Il porto della città", "npcs": ["harbor_master", "fisherman"]},
-    "tavern": {"name": "Taverna", "description": "Un luogo per riposare e raccogliere informazioni", "npcs": ["bartender", "drunk_pirate"]},
-    "market": {"name": "Mercato", "description": "Compra e vendi oggetti", "npcs": ["merchant", "blacksmith"]},
-    "plaza": {"name": "Piazza", "description": "Il centro della città", "npcs": ["townsfolk", "marine_patrol"]},
-    "hospital": {"name": "Ospedale", "description": "Cura le tue ferite", "npcs": ["doctor"]},
-    "beach": {"name": "Spiaggia", "description": "Una spiaggia tranquilla", "npcs": ["hermit", "sunbather"]},
-    "forest": {"name": "Foresta", "description": "Una foresta misteriosa", "npcs": ["bandit", "mysterious_figure"]},
-    "mansion": {"name": "Villa", "description": "La residenza del governatore", "npcs": ["noble", "butler"]}
-}
-
-@api_router.get("/island/zones")
-async def get_island_zones(request: Request):
-    user = await get_current_user(request)
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    current_island = character.get("current_island", "foosha")
-    
-    return {
-        "island": ISLANDS.get(current_island, {}),
-        "zones": ISLAND_ZONES
-    }
-
-@api_router.post("/island/interact-npc")
-async def interact_with_npc(data: Dict[str, str], request: Request):
-    user = await get_current_user(request)
-    npc_id = data.get("npc_id")
-    zone = data.get("zone")
-    
-    # NPC interactions with rewards
-    npc_interactions = {
-        "bartender": {
-            "dialogue": "Benvenuto, straniero! Vuoi sapere le ultime notizie?",
-            "action": "get_info",
-            "reward": {"type": "info", "value": "Rumors about treasure"}
-        },
-        "merchant": {
-            "dialogue": "Ho ottimi affari per te oggi!",
-            "action": "shop",
-            "items": ["health_potion", "energy_drink", "basic_weapon"]
-        },
-        "doctor": {
-            "dialogue": "Hai bisogno di cure?",
-            "action": "heal",
-            "cost": 100,
-            "heal_amount": 50
-        },
-        "harbor_master": {
-            "dialogue": "Cerchi una nave? Posso aiutarti.",
-            "action": "ship_shop",
-            "ships": ["small_boat", "caravel", "brigantine"]
-        },
-        "mysterious_figure": {
-            "dialogue": "Vedo grande potenziale in te... Vuoi imparare l'Haki?",
-            "action": "quest",
-            "quest_type": "haki_training"
-        }
-    }
-    
-    interaction = npc_interactions.get(npc_id, {
-        "dialogue": "Non ho nulla da dirti.",
-        "action": "none"
-    })
-    
-    return {"npc_id": npc_id, "interaction": interaction}
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    return {"message": "Personaggio eliminato"}
 
 # ============ BATTLE SYSTEM ============
 
@@ -555,49 +752,53 @@ async def start_battle(data: Dict[str, str], request: Request):
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     
     if not character:
-        raise HTTPException(status_code=404, detail="Character not found")
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
     
-    opponent_type = data.get("opponent_type", "npc")  # npc or player
+    opponent_type = data.get("opponent_type", "npc")
     opponent_id = data.get("opponent_id")
     
     battle_id = f"battle_{uuid.uuid4().hex[:12]}"
     
-    # Generate NPC opponent stats
     if opponent_type == "npc":
         opponent = generate_npc_opponent(opponent_id)
     else:
         opponent = await db.characters.find_one({"character_id": opponent_id}, {"_id": 0})
         if not opponent:
-            raise HTTPException(status_code=404, detail="Opponent not found")
+            raise HTTPException(status_code=404, detail="Avversario non trovato")
     
     battle = {
         "battle_id": battle_id,
         "player1": {
             "character_id": character["character_id"],
             "user_id": user["user_id"],
-            "name": character["name"],
-            "hp": character["hp"],
-            "max_hp": character["max_hp"],
-            "energy": character["energy"],
-            "max_energy": character["max_energy"],
-            "stats": character["stats"],
-            "special_moves": character.get("special_moves", []),
-            "devil_fruit": character.get("devil_fruit"),
-            "haki_unlocked": character.get("haki_unlocked", False)
+            "nome": character["nome_personaggio"],
+            "vita": character["vita"],
+            "vita_max": character["vita_max"],
+            "energia": character["energia"],
+            "energia_max": character["energia_max"],
+            "attacco": character["attacco"],
+            "difesa": character["difesa"],
+            "forza": character["forza"],
+            "velocita": character["velocita"],
+            "resistenza": character["resistenza"],
+            "agilita": character["agilita"],
+            "stile_combattimento": character["stile_combattimento"],
+            "armi": character.get("armi", []),
+            "haki": character.get("haki", {}),
+            "frutto_diavolo": character.get("frutto_diavolo")
         },
         "player2": opponent,
-        "current_turn": "player1",
-        "turn_number": 1,
-        "turn_start_time": datetime.now(timezone.utc).isoformat(),
-        "max_turn_time": 180,  # 3 minutes
-        "max_battle_time": 1200,  # 20 minutes
-        "battle_start": datetime.now(timezone.utc).isoformat(),
-        "battle_log": [],
-        "status": "active"
+        "turno_corrente": "player1",
+        "numero_turno": 1,
+        "inizio_turno": datetime.now(timezone.utc).isoformat(),
+        "tempo_max_turno": 180,
+        "tempo_max_battaglia": 1200,
+        "inizio_battaglia": datetime.now(timezone.utc).isoformat(),
+        "log": [],
+        "stato": "attivo"
     }
     
     active_battles[battle_id] = battle
-    # Store battle without MongoDB _id issues
     battle_doc = battle.copy()
     await db.battles.insert_one(battle_doc)
     
@@ -605,326 +806,206 @@ async def start_battle(data: Dict[str, str], request: Request):
 
 def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
     npcs = {
-        "marine_grunt": {"name": "Marine Soldato", "hp": 80, "max_hp": 80, "energy": 60, "max_energy": 60, 
-                        "stats": {"attack": 35, "defense": 30, "speed": 40}, "special_moves": ["Colpo di Spada"], "bounty": 0},
-        "marine_captain": {"name": "Marine Capitano", "hp": 120, "max_hp": 120, "energy": 80, "max_energy": 80,
-                          "stats": {"attack": 55, "defense": 50, "speed": 45}, "special_moves": ["Giustizia Assoluta", "Raffica"], "bounty": 0},
-        "pirate_rookie": {"name": "Pirata Novizio", "hp": 70, "max_hp": 70, "energy": 50, "max_energy": 50,
-                         "stats": {"attack": 40, "defense": 25, "speed": 45}, "special_moves": ["Taglio Disperato"], "bounty": 5000000},
-        "pirate_captain": {"name": "Capitano Pirata", "hp": 150, "max_hp": 150, "energy": 100, "max_energy": 100,
-                          "stats": {"attack": 65, "defense": 55, "speed": 50}, "special_moves": ["Assalto Pirata", "Grido di Guerra"], "bounty": 30000000},
-        "sea_king": {"name": "Re del Mare", "hp": 200, "max_hp": 200, "energy": 150, "max_energy": 150,
-                    "stats": {"attack": 80, "defense": 70, "speed": 30}, "special_moves": ["Morso Devastante", "Onda d'Urto"], "bounty": 0}
+        "marine_soldato": {
+            "nome": "Marine Soldato", 
+            "vita": 80, "vita_max": 80, 
+            "energia": 60, "energia_max": 60,
+            "attacco": 100, "difesa": 80,
+            "forza": 10, "velocita": 10, "resistenza": 10, "agilita": 8,
+            "stile_combattimento": "corpo_misto",
+            "taglia": 0, "is_npc": True
+        },
+        "pirata_novizio": {
+            "nome": "Pirata Novizio",
+            "vita": 70, "vita_max": 70,
+            "energia": 50, "energia_max": 50,
+            "attacco": 90, "difesa": 60,
+            "forza": 12, "velocita": 8, "resistenza": 8, "agilita": 8,
+            "stile_combattimento": "corpo_pugni",
+            "taglia": 5000000, "is_npc": True
+        },
+        "marine_capitano": {
+            "nome": "Marine Capitano",
+            "vita": 120, "vita_max": 120,
+            "energia": 80, "energia_max": 80,
+            "attacco": 200, "difesa": 150,
+            "forza": 15, "velocita": 12, "resistenza": 15, "agilita": 10,
+            "stile_combattimento": "armi_mono",
+            "taglia": 0, "is_npc": True
+        },
+        "capitano_pirata": {
+            "nome": "Capitano Pirata",
+            "vita": 150, "vita_max": 150,
+            "energia": 100, "energia_max": 100,
+            "attacco": 250, "difesa": 180,
+            "forza": 18, "velocita": 14, "resistenza": 16, "agilita": 12,
+            "stile_combattimento": "armi_pluri",
+            "taglia": 30000000, "is_npc": True
+        }
     }
     
-    npc = npcs.get(opponent_id, npcs["pirate_rookie"])
+    npc = npcs.get(opponent_id, npcs["pirata_novizio"])
     npc["character_id"] = f"npc_{opponent_id}"
-    npc["is_npc"] = True
     return npc
 
 @api_router.post("/battle/{battle_id}/action")
-async def battle_action(battle_id: str, action: BattleAction, request: Request):
+async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
     user = await get_current_user(request)
     
     battle = active_battles.get(battle_id)
     if not battle:
         battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
         if not battle_doc:
-            raise HTTPException(status_code=404, detail="Battle not found")
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
         battle = battle_doc
         active_battles[battle_id] = battle
     
-    # Determine which player is acting
     is_player1 = battle["player1"]["user_id"] == user["user_id"]
     current_player = "player1" if is_player1 else "player2"
     opponent = "player2" if is_player1 else "player1"
     
-    if battle["current_turn"] != current_player:
-        raise HTTPException(status_code=400, detail="Not your turn!")
+    if battle["turno_corrente"] != current_player:
+        raise HTTPException(status_code=400, detail="Non è il tuo turno!")
     
-    # Process action
-    result = process_battle_action(battle, current_player, opponent, action)
+    action_type = data.get("action_type")
+    action_name = data.get("action_name")
     
-    # Update battle state
-    battle["current_turn"] = opponent if not result.get("battle_ended") else None
-    battle["turn_number"] += 1
-    battle["turn_start_time"] = datetime.now(timezone.utc).isoformat()
-    battle["battle_log"].append(result["log_entry"])
+    result = process_battle_action(battle, current_player, opponent, action_type, action_name)
     
-    if result.get("battle_ended"):
-        battle["status"] = "finished"
-        battle["winner"] = result.get("winner")
+    battle["turno_corrente"] = opponent if not result.get("battaglia_finita") else None
+    battle["numero_turno"] += 1
+    battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
+    battle["log"].append(result["log_entry"])
+    
+    if result.get("battaglia_finita"):
+        battle["stato"] = "finita"
+        battle["vincitore"] = result.get("vincitore")
     
     active_battles[battle_id] = battle
     await db.battles.update_one({"battle_id": battle_id}, {"$set": battle})
     
     return {"result": result, "battle": battle}
 
-def process_battle_action(battle: Dict, attacker: str, defender: str, action: BattleAction) -> Dict:
+def process_battle_action(battle: Dict, attacker: str, defender: str, action_type: str, action_name: str) -> Dict:
     attacker_data = battle[attacker]
     defender_data = battle[defender]
     
-    damage = 0
-    energy_cost = 0
-    effect = None
+    danno = 0
+    costo_energia = 0
     log_entry = ""
     
-    if action.action_type == "basic_attack":
-        damage = calculate_damage(attacker_data["stats"]["attack"], defender_data["stats"]["defense"], 1.0)
-        energy_cost = 5
-        log_entry = f"{attacker_data['name']} usa {action.action_name}! Infligge {damage} danni!"
+    if action_type == "attacco_base":
+        # Danno = Attacco - (Difesa * 0.3) + varianza
+        danno = max(1, int(attacker_data["attacco"] * 0.1 - defender_data["difesa"] * 0.03))
+        danno += random.randint(-3, 5)
+        costo_energia = 5
+        log_entry = f"{attacker_data['nome']} usa {action_name}. Danno: {danno}"
         
-    elif action.action_type == "special_move":
-        if action.action_name not in attacker_data.get("special_moves", []):
-            raise HTTPException(status_code=400, detail="Move not available")
-        damage = calculate_damage(attacker_data["stats"]["attack"], defender_data["stats"]["defense"], 1.5)
-        energy_cost = 20
-        log_entry = f"{attacker_data['name']} usa {action.action_name}! Infligge {damage} danni!"
+    elif action_type == "attacco_speciale":
+        danno = max(1, int(attacker_data["attacco"] * 0.2 - defender_data["difesa"] * 0.02))
+        danno += random.randint(0, 10)
+        costo_energia = 20
+        log_entry = f"{attacker_data['nome']} usa {action_name}! Danno: {danno}"
         
-    elif action.action_type == "haki":
-        if not attacker_data.get("haki_unlocked"):
-            raise HTTPException(status_code=400, detail="Haki not unlocked")
-        damage = calculate_damage(attacker_data["stats"]["attack"], defender_data["stats"]["defense"], 2.0)
-        damage = int(damage * 1.3)  # Haki ignores 30% defense
-        energy_cost = 30
-        log_entry = f"{attacker_data['name']} attiva l'Haki! {action.action_name}! {damage} danni devastanti!"
+    elif action_type == "movimento":
+        costo_energia = 3
+        log_entry = f"{attacker_data['nome']} si muove: {action_name}"
         
-    elif action.action_type == "movement":
-        effect = {"type": "movement", "value": action.action_name}
-        energy_cost = 3
-        log_entry = f"{attacker_data['name']} si muove: {action.action_name}"
+    elif action_type == "difesa":
+        # Increase defense temporarily
+        costo_energia = 5
+        log_entry = f"{attacker_data['nome']} si difende. +50% difesa questo turno"
         
-    elif action.action_type == "item":
-        effect = {"type": "item", "value": action.action_name}
-        log_entry = f"{attacker_data['name']} usa oggetto: {action.action_name}"
-        
-    elif action.action_type == "pass":
-        attacker_data["energy"] = min(attacker_data["max_energy"], attacker_data["energy"] + 15)
-        log_entry = f"{attacker_data['name']} recupera energia! (+15)"
+    elif action_type == "passa":
+        # Recover energy
+        recovery = 15
+        attacker_data["energia"] = min(attacker_data["energia_max"], attacker_data["energia"] + recovery)
+        log_entry = f"{attacker_data['nome']} recupera energia. +{recovery}"
     
-    # Apply damage and energy
-    if damage > 0:
-        defender_data["hp"] = max(0, defender_data["hp"] - damage)
+    # Apply damage
+    if danno > 0:
+        defender_data["vita"] = max(0, defender_data["vita"] - danno)
     
-    if energy_cost > 0:
-        attacker_data["energy"] = max(0, attacker_data["energy"] - energy_cost)
+    # Apply energy cost
+    if costo_energia > 0:
+        attacker_data["energia"] = max(0, attacker_data["energia"] - costo_energia)
     
-    # Check for battle end
-    battle_ended = defender_data["hp"] <= 0
-    winner = attacker if battle_ended else None
+    # Check battle end
+    battaglia_finita = defender_data["vita"] <= 0
+    vincitore = attacker if battaglia_finita else None
     
     return {
-        "damage": damage,
-        "energy_cost": energy_cost,
-        "effect": effect,
+        "danno": danno,
+        "costo_energia": costo_energia,
         "log_entry": log_entry,
-        "battle_ended": battle_ended,
-        "winner": winner
+        "battaglia_finita": battaglia_finita,
+        "vincitore": vincitore
     }
 
-def calculate_damage(attack: int, defense: int, multiplier: float) -> int:
-    base_damage = int((attack * multiplier) - (defense * 0.5))
-    variance = random.randint(-5, 5)
-    return max(1, base_damage + variance)
+# ============ AI NARRATION (SIMPLIFIED) ============
 
-@api_router.get("/battle/{battle_id}")
-async def get_battle(battle_id: str, request: Request):
+@api_router.post("/ai/narrate-action")
+async def narrate_action(data: Dict[str, Any], request: Request):
+    """Simple narration: who did what and the effects"""
     await get_current_user(request)
     
-    battle = active_battles.get(battle_id)
-    if not battle:
-        battle = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+    attacker = data.get("attacker", "Giocatore")
+    action = data.get("action", "attacco")
+    damage = data.get("damage", 0)
+    effect = data.get("effect", "")
     
-    if not battle:
-        raise HTTPException(status_code=404, detail="Battle not found")
+    # Simple template narration (no AI needed for basic)
+    if damage > 0:
+        narration = f"{attacker} esegue {action}. Infligge {damage} danni."
+    else:
+        narration = f"{attacker} esegue {action}. {effect}"
     
-    return battle
+    return {"narration": narration}
 
-# ============ AI NARRATION ============
+# ============ WORLD & NAVIGATION ============
 
-@api_router.post("/ai/narrate-battle")
-async def narrate_battle(data: Dict[str, Any], request: Request):
-    """Generate AI narration for battle events using Gemini 3 Flash"""
-    await get_current_user(request)
-    
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        api_key = os.getenv("EMERGENT_LLM_KEY")
-        session_id = f"narration_{uuid.uuid4().hex[:8]}"
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=session_id,
-            system_message="""Sei un narratore epico di combattimenti in stile One Piece. 
-Descrivi le azioni di combattimento in modo drammatico e coinvolgente, in italiano.
-Usa descrizioni vivide, onomatopee giapponesi occasionali (BOOM!, CRASH!), e riferimenti allo stile dell'anime.
-Mantieni le descrizioni brevi ma impattanti (2-3 frasi max)."""
-        )
-        chat.with_model("gemini", "gemini-3-flash-preview")
-        
-        battle_context = data.get("context", "")
-        action = data.get("action", "")
-        
-        message = UserMessage(text=f"Contesto battaglia: {battle_context}\n\nAzione da narrare: {action}")
-        
-        response = await chat.send_message(message)
-        
-        return {"narration": response}
-    except Exception as e:
-        logger.error(f"AI narration error: {e}")
-        return {"narration": data.get("action", "L'azione è stata eseguita!")}
+ISLANDS = {
+    "foosha": {"name": "Foosha Village", "saga": "East Blue", "x": 10, "y": 70, "eventi_richiesti": 0},
+    "shells_town": {"name": "Shells Town", "saga": "East Blue", "x": 18, "y": 55, "eventi_richiesti": 1},
+    "orange_town": {"name": "Orange Town", "saga": "East Blue", "x": 25, "y": 60, "eventi_richiesti": 2},
+    "baratie": {"name": "Baratie", "saga": "East Blue", "x": 35, "y": 50, "eventi_richiesti": 3},
+    "arlong_park": {"name": "Arlong Park", "saga": "East Blue", "x": 42, "y": 45, "eventi_richiesti": 4},
+    "loguetown": {"name": "Loguetown", "saga": "East Blue", "x": 50, "y": 55, "eventi_richiesti": 5},
+    "alabasta": {"name": "Alabasta", "saga": "Grand Line", "x": 60, "y": 40, "eventi_richiesti": 8},
+    "skypiea": {"name": "Skypiea", "saga": "Grand Line", "x": 65, "y": 20, "eventi_richiesti": 12},
+    "water_seven": {"name": "Water 7", "saga": "Grand Line", "x": 72, "y": 45, "eventi_richiesti": 15},
+    "wano": {"name": "Wano", "saga": "New World", "x": 92, "y": 30, "eventi_richiesti": 30}
+}
 
-# ============ IMAGE GENERATION ============
-
-@api_router.post("/ai/generate-avatar")
-async def generate_avatar(data: Dict[str, str], request: Request):
-    """Generate character avatar using Gemini Nano Banana"""
-    await get_current_user(request)
-    
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        api_key = os.getenv("EMERGENT_LLM_KEY")
-        session_id = f"avatar_{uuid.uuid4().hex[:8]}"
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=session_id,
-            system_message="You are an anime character designer specializing in One Piece style art."
-        )
-        chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-        
-        character_desc = data.get("description", "a pirate character")
-        prompt = f"""Create an anime-style portrait of {character_desc} in One Piece art style.
-The character should look like they belong in the One Piece universe.
-High quality, vibrant colors, dynamic pose, detailed anime features.
-Portrait format, character facing slightly to the side, dramatic lighting."""
-        
-        message = UserMessage(text=prompt)
-        text, images = await chat.send_message_multimodal_response(message)
-        
-        if images and len(images) > 0:
-            # Return base64 image data (first 50 chars for logging)
-            image_data = images[0].get("data", "")
-            logger.info(f"Generated avatar image: {image_data[:50]}...")
-            return {"image_data": image_data, "mime_type": images[0].get("mime_type", "image/png")}
-        
-        return {"error": "No image generated"}
-    except Exception as e:
-        logger.error(f"Avatar generation error: {e}")
-        return {"error": str(e)}
-
-# ============ CARDS SYSTEM ============
-
-@api_router.get("/cards/collection")
-async def get_card_collection(request: Request):
+@api_router.get("/world/islands")
+async def get_islands(request: Request):
     user = await get_current_user(request)
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     
     if not character:
-        raise HTTPException(status_code=404, detail="Character not found")
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
     
-    return {"cards": character.get("cards", {})}
+    eventi_completati = len(character.get("carte", {}).get("eventi", []))
+    
+    islands_list = []
+    for island_id, data in ISLANDS.items():
+        islands_list.append({
+            "id": island_id,
+            **data,
+            "sbloccata": eventi_completati >= data["eventi_richiesti"],
+            "corrente": character.get("isola_corrente") == island_id
+        })
+    
+    return {"islands": islands_list, "isola_corrente": character.get("isola_corrente")}
 
-@api_router.post("/cards/use")
-async def use_card(data: Dict[str, str], request: Request):
-    user = await get_current_user(request)
-    card_type = data.get("card_type")
-    card_id = data.get("card_id")
-    
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    
-    if card_id not in character.get("cards", {}).get(card_type, []):
-        raise HTTPException(status_code=400, detail="Card not found in collection")
-    
-    # Apply card effect based on type
-    effect = apply_card_effect(card_type, card_id, character)
-    
-    # Remove card from collection
-    await db.characters.update_one(
-        {"user_id": user["user_id"]},
-        {"$pull": {f"cards.{card_type}": card_id}}
-    )
-    
-    return {"effect": effect, "message": f"Card {card_id} used successfully"}
-
-def apply_card_effect(card_type: str, card_id: str, character: Dict) -> Dict:
-    effects = {
-        "storytelling": {"bonus_dice": 2, "description": "Bonus al tiro del dado"},
-        "events": {"skip_event": True, "description": "Salta un evento negativo"},
-        "duel": {"damage_bonus": 20, "description": "Bonus danni nel prossimo attacco"},
-        "resources": {"heal": 30, "description": "Recupera HP"}
-    }
-    return effects.get(card_type, {"description": "Effetto sconosciuto"})
-
-# ============ CHAT SYSTEM ============
-
-chat_connections: Dict[str, WebSocket] = {}
-
-@api_router.websocket("/ws/chat/{room_id}")
-async def chat_websocket(websocket: WebSocket, room_id: str):
-    await websocket.accept()
-    
-    # Get user from query params or cookie
-    token = websocket.query_params.get("token")
-    if not token:
-        await websocket.close(code=4001)
-        return
-    
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get("user_id")
-    except JWTError:
-        await websocket.close(code=4001)
-        return
-    
-    connection_id = f"{room_id}_{user_id}"
-    chat_connections[connection_id] = websocket
-    
-    try:
-        while True:
-            data = await websocket.receive_json()
-            message = {
-                "user_id": user_id,
-                "room_id": room_id,
-                "content": data.get("content"),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            
-            # Save to DB
-            await db.chat_messages.insert_one(message)
-            
-            # Broadcast to all in room
-            for conn_id, ws in chat_connections.items():
-                if conn_id.startswith(room_id):
-                    try:
-                        await ws.send_json(message)
-                    except:
-                        pass
-    except WebSocketDisconnect:
-        del chat_connections[connection_id]
-
-@api_router.get("/chat/{room_id}/history")
-async def get_chat_history(room_id: str, request: Request):
-    await get_current_user(request)
-    
-    messages = await db.chat_messages.find(
-        {"room_id": room_id},
-        {"_id": 0}
-    ).sort("timestamp", -1).limit(50).to_list(50)
-    
-    return {"messages": list(reversed(messages))}
-
-# ============ SHOP SYSTEM ============
+# ============ SHOP ============
 
 SHOP_ITEMS = {
-    "health_potion": {"name": "Pozione Salute", "price": 100, "effect": {"heal": 30}},
-    "energy_drink": {"name": "Bevanda Energetica", "price": 80, "effect": {"energy": 25}},
-    "basic_sword": {"name": "Spada Base", "price": 500, "effect": {"attack_bonus": 5}},
-    "small_boat": {"name": "Barca Piccola", "price": 5000, "type": "ship", "speed": 1},
-    "caravel": {"name": "Caravella", "price": 20000, "type": "ship", "speed": 2},
-    "brigantine": {"name": "Brigantino", "price": 50000, "type": "ship", "speed": 3}
+    "pozione_vita": {"name": "Pozione Vita", "price": 100, "effect": {"vita": 30}},
+    "bevanda_energia": {"name": "Bevanda Energia", "price": 80, "effect": {"energia": 25}},
+    "spada_base": {"name": "Spada Base", "price": 500, "tipo": "arma", "bonus_attacco": 10},
+    "barca_piccola": {"name": "Barca Piccola", "price": 5000, "tipo": "nave", "velocita": 1},
+    "caravella": {"name": "Caravella", "price": 20000, "tipo": "nave", "velocita": 2},
 }
 
 @api_router.get("/shop/items")
@@ -938,32 +1019,33 @@ async def buy_item(data: Dict[str, str], request: Request):
     item_id = data.get("item_id")
     
     if item_id not in SHOP_ITEMS:
-        raise HTTPException(status_code=400, detail="Item not found")
+        raise HTTPException(status_code=400, detail="Oggetto non trovato")
     
     item = SHOP_ITEMS[item_id]
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     
-    # Check if enough berry (we'd need to add a berry field)
-    # For now, just add the item
-    
-    if item.get("type") == "ship":
+    if item.get("tipo") == "nave":
         await db.characters.update_one(
             {"user_id": user["user_id"]},
-            {"$set": {"ship": item_id}}
+            {"$set": {"nave": item_id}}
+        )
+    elif item.get("tipo") == "arma":
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$push": {"armi": {"id": item_id, **item}}}
         )
     else:
         await db.characters.update_one(
             {"user_id": user["user_id"]},
-            {"$push": {"inventory": {"item_id": item_id, **item}}}
+            {"$push": {"oggetti": {"id": item_id, **item}}}
         )
     
-    return {"message": f"Purchased {item['name']}", "item": item}
+    return {"message": f"Acquistato {item['name']}", "item": item}
 
 # ============ ROOT & HEALTH ============
 
 @api_router.get("/")
 async def root():
-    return {"message": "One Piece RPG - The Grand Line Architect API", "version": "1.0.0"}
+    return {"message": "One Piece RPG - The Grand Line Architect API", "version": "2.0.0"}
 
 @api_router.get("/health")
 async def health():
