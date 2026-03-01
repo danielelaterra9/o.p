@@ -1749,6 +1749,125 @@ async def get_card_effects(request: Request):
     await get_current_user(request)
     return {"effects": CARD_EFFECTS}
 
+# ============ INVENTORY / ITEMS USAGE ============
+
+@api_router.get("/inventory")
+async def get_inventory(request: Request):
+    """Get character's full inventory"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    return {
+        "oggetti": character.get("oggetti", []),
+        "armi": character.get("armi", []),
+        "carte": character.get("carte", {}),
+        "nave": character.get("nave"),
+        "berry": character.get("berry", 0)
+    }
+
+@api_router.post("/inventory/use-item")
+async def use_item(data: Dict[str, str], request: Request):
+    """Use a consumable item from inventory"""
+    user = await get_current_user(request)
+    item_id = data.get("item_id")
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    # Find item in character's inventory
+    oggetti = character.get("oggetti", [])
+    item_found = None
+    item_index = None
+    
+    for i, item in enumerate(oggetti):
+        if item.get("id") == item_id:
+            item_found = item
+            item_index = i
+            break
+    
+    if not item_found:
+        raise HTTPException(status_code=400, detail="Oggetto non trovato nel tuo inventario")
+    
+    effect = item_found.get("effect", {})
+    effects_applied = []
+    
+    # Apply effects
+    if effect.get("vita"):
+        heal_amount = effect["vita"]
+        new_vita = min(character["vita_max"], character["vita"] + heal_amount)
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"vita": new_vita}}
+        )
+        effects_applied.append(f"+{heal_amount} Vita (ora: {new_vita}/{character['vita_max']})")
+    
+    if effect.get("energia"):
+        energy_amount = effect["energia"]
+        new_energia = min(character["energia_max"], character["energia"] + energy_amount)
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"energia": new_energia}}
+        )
+        effects_applied.append(f"+{energy_amount} Energia (ora: {new_energia}/{character['energia_max']})")
+    
+    # Remove used item from inventory
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$pull": {"oggetti": {"id": item_id}}}
+    )
+    
+    # Log to logbook
+    await add_logbook_entry(
+        user["user_id"], 
+        "oggetto", 
+        f"Hai usato '{item_found.get('name', item_id)}'"
+    )
+    
+    return {
+        "message": f"Usato: {item_found.get('name', item_id)}",
+        "effects_applied": effects_applied,
+        "effect": effect
+    }
+
+@api_router.post("/inventory/equip-weapon")
+async def equip_weapon(data: Dict[str, str], request: Request):
+    """Equip a weapon (mark as active)"""
+    user = await get_current_user(request)
+    weapon_id = data.get("weapon_id")
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    # Find weapon
+    armi = character.get("armi", [])
+    weapon_found = None
+    
+    for arma in armi:
+        if arma.get("id") == weapon_id:
+            weapon_found = arma
+            break
+    
+    if not weapon_found:
+        raise HTTPException(status_code=400, detail="Arma non trovata nel tuo inventario")
+    
+    # Set all weapons to not equipped, then equip selected one
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"armi.$[].equipped": False}}
+    )
+    
+    await db.characters.update_one(
+        {"user_id": user["user_id"], "armi.id": weapon_id},
+        {"$set": {"armi.$.equipped": True}}
+    )
+    
+    return {"message": f"Equipaggiato: {weapon_found.get('name', weapon_id)}"}
+
 # ============ ROOT & HEALTH ============
 
 @api_router.get("/")
