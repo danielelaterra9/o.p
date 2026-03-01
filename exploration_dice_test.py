@@ -75,7 +75,7 @@ class ExplorationDiceNavigationTester:
                 "genere": "maschio",
                 "eta": 17,
                 "razza": "umano",
-                "stile_combattimento": "corpo_corpo",
+                "stile_combattimento": "corpo_misto",
                 "sogno": "Diventare il Re dei Pirati",
                 "storia_carattere": "Un giovane pirata con il sogno di trovare il One Piece e diventare il Re dei Pirati. Ha mangiato il frutto del diavolo Gomu Gomu che gli ha dato un corpo di gomma.",
                 "mestiere": "capitano",
