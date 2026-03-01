@@ -1574,6 +1574,39 @@ const CharacterSheet = ({ token, character }) => {
             ))}
           </div>
         </div>
+
+        {/* Delete Character */}
+        <div className="glass p-6 rounded-xl border border-[#D00000]/30">
+          <h3 className="font-pirate text-xl text-[#D00000] mb-4">Zona Pericolosa</h3>
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="bg-[#D00000]/20 text-[#D00000] py-2 px-4 rounded-lg border border-[#D00000] hover:bg-[#D00000]/30"
+              data-testid="delete-char-btn"
+            >
+              Elimina Personaggio
+            </button>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-[#E3D5CA]/80">Sei sicuro? Questa azione è irreversibile!</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDeleteCharacter}
+                  disabled={deleting}
+                  className="bg-[#D00000] text-white py-2 px-4 rounded-lg"
+                >
+                  {deleting ? 'Eliminazione...' : 'Sì, elimina'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="glass py-2 px-4 rounded-lg text-[#E3D5CA]"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
