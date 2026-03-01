@@ -962,15 +962,15 @@ const CharacterCreation = ({ token, setCharacter }) => {
 };
 
 // ============ DASHBOARD ============
-const Dashboard = ({ user, character, token, logout }) => {
+const Dashboard = ({ user, character, token, logout, isDemo }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) navigate('/login');
-    else if (!character) navigate('/create-character');
-  }, [user, character, navigate]);
+    if (!isDemo && !user) navigate('/login');
+    else if (!isDemo && !character) navigate('/create-character');
+  }, [user, character, navigate, isDemo]);
 
-  if (!user || !character) return <LoadingScreen />;
+  if (!isDemo && (!user || !character)) return <LoadingScreen />;
 
   const menuItems = [
     { icon: Map, label: 'Mappa', path: '/world-map', color: '#00A8E8' },
@@ -982,6 +982,16 @@ const Dashboard = ({ user, character, token, logout }) => {
 
   return (
     <div className="min-h-screen bg-[#051923]">
+      {/* Demo Banner */}
+      {isDemo && (
+        <div className="bg-[#2A9D8F] p-2 text-center">
+          <p className="text-white text-sm font-medium">
+            🎮 <strong>Modalità Demo</strong> - Stai visualizzando una preview. Le modifiche non vengono salvate.
+            <button onClick={logout} className="ml-4 underline hover:no-underline">Esci dalla demo</button>
+          </p>
+        </div>
+      )}
+
       <div className="p-4 md:p-8">
         <div className="flex justify-between items-start mb-8">
           <div>
