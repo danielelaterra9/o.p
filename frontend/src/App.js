@@ -109,18 +109,71 @@ const AppRouter = ({ user, character, setCharacter, token, login, logout }) => {
     return <AuthCallback login={login} />;
   }
 
+  // Check for demo mode
+  const isDemo = localStorage.getItem('demoMode') === 'true';
+  const demoCharacter = {
+    character_id: "demo-character",
+    user_id: "demo-user",
+    nome_personaggio: "Demo Pirate",
+    ruolo: "pirata",
+    genere: "maschio",
+    eta: 20,
+    razza: "umano",
+    stile_combattimento: "corpo_misto",
+    mestiere: "capitano",
+    sogno: "Diventare il Re dei Pirati",
+    storia_carattere: "Un pirata determinato in cerca di avventura",
+    tratti_caratteriali: ["Coraggioso", "Determinato", "Leale"],
+    livello: 5,
+    esperienza: 250,
+    vita: 120,
+    vita_max: 120,
+    energia: 100,
+    energia_max: 100,
+    attacco: 25,
+    difesa: 20,
+    velocita: 22,
+    fortuna: 15,
+    taglia: 50000,
+    berry: 5000,
+    mare_corrente: "east_blue",
+    isola_corrente: "dawn_island",
+    nave: "barca_piccola",
+    oggetti: [
+      { id: "pozione_vita", name: "Pozione Vita", effect: { vita: 30 } },
+      { id: "bevanda_energia", name: "Bevanda Energia", effect: { energia: 20 } }
+    ],
+    armi: [
+      { id: "spada_base", name: "Spada Base", bonus_attacco: 5, equipped: true }
+    ],
+    carte: {
+      storytelling: [{ id: "carta_vento", name: "Vento Favorevole", effect: { navigazione: 1 } }]
+    },
+    logbook: []
+  };
+  const demoUser = { user_id: "demo-user", username: "DemoPlayer", email: "demo@test.com" };
+
+  const effectiveUser = isDemo ? demoUser : user;
+  const effectiveCharacter = isDemo ? demoCharacter : character;
+  const effectiveToken = isDemo ? "demo-token" : token;
+
+  const exitDemo = () => {
+    localStorage.removeItem('demoMode');
+    window.location.href = '/';
+  };
+
   return (
     <Routes>
-      <Route path="/" element={user ? <Dashboard user={user} character={character} token={token} logout={logout} /> : <LandingPage />} />
+      <Route path="/" element={effectiveUser ? <Dashboard user={effectiveUser} character={effectiveCharacter} token={effectiveToken} logout={isDemo ? exitDemo : logout} isDemo={isDemo} /> : <LandingPage />} />
       <Route path="/login" element={<LoginPage login={login} />} />
       <Route path="/register" element={<RegisterPage login={login} />} />
-      <Route path="/dashboard" element={<Dashboard user={user} character={character} token={token} logout={logout} />} />
-      <Route path="/create-character" element={<CharacterCreation token={token} setCharacter={setCharacter} />} />
-      <Route path="/world-map" element={<WorldMap token={token} character={character} />} />
-      <Route path="/battle" element={<BattleArena token={token} character={character} />} />
-      <Route path="/character" element={<CharacterSheet token={token} character={character} setCharacter={setCharacter} />} />
-      <Route path="/shop" element={<Shop token={token} character={character} />} />
-      <Route path="/inventory" element={<Inventory token={token} character={character} />} />
+      <Route path="/dashboard" element={<Dashboard user={effectiveUser} character={effectiveCharacter} token={effectiveToken} logout={isDemo ? exitDemo : logout} isDemo={isDemo} />} />
+      <Route path="/create-character" element={<CharacterCreation token={effectiveToken} setCharacter={setCharacter} />} />
+      <Route path="/world-map" element={<WorldMap token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
+      <Route path="/battle" element={<BattleArena token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
+      <Route path="/character" element={<CharacterSheet token={effectiveToken} character={effectiveCharacter} setCharacter={setCharacter} isDemo={isDemo} />} />
+      <Route path="/shop" element={<Shop token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
+      <Route path="/inventory" element={<Inventory token={effectiveToken} character={effectiveCharacter} isDemo={isDemo} />} />
     </Routes>
   );
 };
