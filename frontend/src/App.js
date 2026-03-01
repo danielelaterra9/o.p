@@ -1096,45 +1096,253 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
   );
 };
 
-// ============ WORLD MAP (simplified) ============
+// ============ WORLD MAP (Four Seas Navigation) ============
 const WorldMap = ({ token, character }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [islands, setIslands] = useState([]);
+  const [seaInfo, setSeaInfo] = useState({});
+  const [currentIsland, setCurrentIsland] = useState(null);
+  const [selectedIsland, setSelectedIsland] = useState(null);
+  const [traveling, setTraveling] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const fetchIslands = async () => {
+    try {
+      const res = await axios.get(`${API}/world/islands`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setIslands(res.data.islands);
+      setSeaInfo(res.data.sea_info || {});
+      setCurrentIsland(res.data.isola_corrente);
+    } catch (e) {
+      console.error('Error fetching islands:', e);
+    }
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await axios.get(`${API}/world/islands`, { headers: { Authorization: `Bearer ${authToken}` } });
-        setIslands(res.data.islands);
-      } catch (e) {}
-    };
-    if (authToken) fetch();
+    if (authToken) fetchIslands();
   }, [authToken]);
+
+  const travelTo = async (islandId) => {
+    setTraveling(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const res = await axios.post(`${API}/world/travel`, { island_id: islandId }, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessage({ type: 'success', text: `⚓ ${res.data.message}` });
+      setSelectedIsland(null);
+      fetchIslands();
+    } catch (e) {
+      setMessage({ type: 'error', text: `❌ ${e.response?.data?.detail || 'Errore durante il viaggio'}` });
+    }
+    setTraveling(false);
+  };
+
+  const seaColors = {
+    east_blue: '#3B82F6',
+    west_blue: '#10B981',
+    north_blue: '#8B5CF6',
+    south_blue: '#F59E0B'
+  };
+
+  const seaNames = {
+    east_blue: 'East Blue',
+    west_blue: 'West Blue',
+    north_blue: 'North Blue',
+    south_blue: 'South Blue'
+  };
+
+  const currentSeaColor = seaColors[character?.mare_corrente] || '#3B82F6';
 
   return (
     <div className="min-h-screen bg-[#051923]">
+      {/* Header */}
       <div className="glass p-4 flex justify-between items-center">
-        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA]"><Home className="w-6 h-6" /></button>
-        <h1 className="font-pirate text-2xl text-[#FFC300]">Mappa del Grand Line</h1>
-        <div className="w-6" />
+        <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
+          <Home className="w-6 h-6" />
+        </button>
+        <div className="text-center">
+          <h1 className="font-pirate text-2xl" style={{ color: currentSeaColor }}>
+            {seaNames[character?.mare_corrente] || 'East Blue'}
+          </h1>
+          <p className="text-xs text-[#E3D5CA]/60">{seaInfo.description?.slice(0, 50)}...</p>
+        </div>
+        <Ship className="w-6 h-6" style={{ color: currentSeaColor }} />
       </div>
+
+      {/* Message */}
+      {message.text && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className={`mx-4 mt-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' : 'bg-[#D00000]/20 border border-[#D00000]'}`}
+        >
+          <p className={message.type === 'success' ? 'text-[#2A9D8F]' : 'text-[#D00000]'}>{message.text}</p>
+        </motion.div>
+      )}
+
+      {/* Sea Map */}
       <div className="p-4">
-        <div className="relative w-full h-[60vh] bg-[#003566]/30 rounded-xl border-2 border-[#D4AF37] overflow-hidden">
-          {islands.map((island) => (
-            <div
+        <div className="relative w-full h-[50vh] rounded-xl border-2 overflow-hidden" style={{ borderColor: currentSeaColor, backgroundColor: `${currentSeaColor}10` }}>
+          {/* Wave pattern background */}
+          <div className="absolute inset-0 opacity-10" style={{ 
+            backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 50px, ${currentSeaColor}20 50px, ${currentSeaColor}20 100px)` 
+          }} />
+          
+          {/* Connection lines */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            {islands.slice(0, -1).map((island, i) => {
+              const next = islands[i + 1];
+              if (!next) return null;
+              return (
+                <line
+                  key={`line-${i}`}
+                  x1={`${island.x}%`}
+                  y1={`${island.y}%`}
+                  x2={`${next.x}%`}
+                  y2={`${next.y}%`}
+                  stroke={island.sbloccata && next.sbloccata ? currentSeaColor : '#3E2723'}
+                  strokeWidth="2"
+                  strokeDasharray={next.sbloccata ? "0" : "5,5"}
+                  opacity="0.5"
+                />
+              );
+            })}
+          </svg>
+
+          {/* Islands */}
+          {islands.map((island, idx) => (
+            <motion.div
               key={island.id}
-              className={`absolute map-node ${island.corrente ? 'active' : ''} ${!island.sbloccata ? 'locked' : ''}`}
-              style={{ left: `${island.x}%`, top: `${island.y}%` }}
+              className="absolute cursor-pointer"
+              style={{ left: `${island.x}%`, top: `${island.y}%`, transform: 'translate(-50%, -50%)' }}
+              whileHover={island.sbloccata ? { scale: 1.2 } : {}}
+              onClick={() => island.sbloccata && setSelectedIsland(island)}
             >
-              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
-                <p className={`text-xs font-bold ${island.corrente ? 'text-[#D00000]' : island.sbloccata ? 'text-[#FFC300]' : 'text-[#3E2723]'}`}>{island.name}</p>
+              {/* Island marker */}
+              <div className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                island.corrente 
+                  ? 'ring-4 ring-[#FFC300] animate-pulse' 
+                  : island.sbloccata 
+                    ? 'ring-2 ring-opacity-50' 
+                    : 'opacity-40'
+              }`} style={{ 
+                backgroundColor: island.corrente ? '#FFC300' : island.sbloccata ? currentSeaColor : '#3E2723',
+                ringColor: currentSeaColor
+              }}>
+                {island.corrente ? (
+                  <Anchor className="w-5 h-5 text-[#051923]" />
+                ) : island.sbloccata ? (
+                  <MapPin className="w-5 h-5 text-white" />
+                ) : (
+                  <span className="text-[#E3D5CA]/50">?</span>
+                )}
               </div>
-            </div>
+              
+              {/* Island name */}
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
+                <p className={`text-xs font-bold ${
+                  island.corrente ? 'text-[#FFC300]' : island.sbloccata ? 'text-[#E3D5CA]' : 'text-[#3E2723]'
+                }`}>
+                  {island.name}
+                </p>
+                {island.corrente && <span className="text-[10px] text-[#FFC300]/60">📍 Sei qui</span>}
+              </div>
+            </motion.div>
           ))}
         </div>
-        <p className="text-center text-[#E3D5CA]/60 mt-4">Sistema di navigazione in sviluppo...</p>
+
+        {/* Navigation instructions */}
+        <div className="flex justify-center gap-4 mt-4 text-sm">
+          <span className="flex items-center gap-1 text-[#E3D5CA]/60">
+            <div className="w-3 h-3 rounded-full bg-[#FFC300]" /> Posizione attuale
+          </span>
+          <span className="flex items-center gap-1 text-[#E3D5CA]/60">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: currentSeaColor }} /> Accessibile
+          </span>
+          <span className="flex items-center gap-1 text-[#E3D5CA]/60">
+            <div className="w-3 h-3 rounded-full bg-[#3E2723]" /> Bloccata
+          </span>
+        </div>
       </div>
+
+      {/* Selected Island Modal */}
+      <AnimatePresence>
+        {selectedIsland && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center p-4 z-50"
+            onClick={() => setSelectedIsland(null)}
+          >
+            <motion.div
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              className="glass p-6 rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="font-pirate text-2xl" style={{ color: currentSeaColor }}>{selectedIsland.name}</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    {[...Array(selectedIsland.pericolo || 1)].map((_, i) => (
+                      <Skull key={i} className="w-4 h-4 text-[#D00000]" />
+                    ))}
+                    <span className="text-xs text-[#E3D5CA]/60">Livello pericolo</span>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedIsland(null)} className="text-[#E3D5CA]/60 hover:text-[#E3D5CA]">✕</button>
+              </div>
+
+              <p className="text-[#E3D5CA]/80 text-sm mb-4">{selectedIsland.storia}</p>
+
+              {selectedIsland.luoghi?.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-[#D4AF37] text-sm mb-2">Luoghi di interesse:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedIsland.luoghi.map((l, i) => (
+                      <span key={i} className="px-2 py-1 bg-[#003566]/50 rounded text-xs text-[#E3D5CA]">{l}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation buttons */}
+              {selectedIsland.corrente ? (
+                <div className="p-3 bg-[#FFC300]/10 rounded-lg border border-[#FFC300]/30">
+                  <p className="text-[#FFC300] text-sm text-center">📍 Sei attualmente su quest'isola</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedIsland.can_travel_back && (
+                    <button
+                      onClick={() => travelTo(selectedIsland.id)}
+                      disabled={traveling}
+                      className="w-full py-3 rounded-lg bg-[#00A8E8] text-white font-bold"
+                    >
+                      {traveling ? '⏳ Navigando...' : '⬅️ Torna indietro'}
+                    </button>
+                  )}
+                  {selectedIsland.can_travel_forward && (
+                    <button
+                      onClick={() => travelTo(selectedIsland.id)}
+                      disabled={traveling || !character?.nave}
+                      className={`w-full py-3 rounded-lg font-bold ${character?.nave ? 'btn-gold' : 'bg-[#3E2723] text-[#E3D5CA]/50'}`}
+                    >
+                      {traveling ? '⏳ Navigando...' : character?.nave ? '➡️ Naviga verso quest\'isola' : '🚢 Serve una nave per avanzare'}
+                    </button>
+                  )}
+                  {!selectedIsland.can_travel_back && !selectedIsland.can_travel_forward && (
+                    <div className="p-3 bg-[#D00000]/10 rounded-lg border border-[#D00000]/30">
+                      <p className="text-[#D00000] text-sm text-center">Non puoi viaggiare qui direttamente. Avanza una isola alla volta!</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
