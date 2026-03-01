@@ -2525,7 +2525,7 @@ const Inventory = ({ token, character }) => {
                     </div>
                     {selectedItem?.id === item.id && selectedItem?.type === 'oggetto' && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); useItem(item.id); }}
+                        onClick={(e) => { e.stopPropagation(); consumeItem(item.id); }}
                         disabled={using}
                         className="btn-gold px-4 py-2 rounded-lg text-sm"
                       >
