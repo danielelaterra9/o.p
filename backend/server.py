@@ -1439,6 +1439,36 @@ async def get_seas(request: Request):
     await get_current_user(request)
     return {"seas": SEAS}
 
+@api_router.get("/world/seas/{sea_id}/islands")
+async def get_sea_islands_view(sea_id: str, request: Request):
+    """Get islands of any sea for viewing (not navigation)"""
+    await get_current_user(request)
+    
+    if sea_id not in SEAS:
+        raise HTTPException(status_code=400, detail="Mare non trovato")
+    
+    sea_islands = get_islands_by_sea(sea_id)
+    
+    islands_list = []
+    for island_id, data in sea_islands:
+        islands_list.append({
+            "id": island_id,
+            "name": data["name"],
+            "sea": data["sea"],
+            "order": data["order"],
+            "x": data["x"],
+            "y": data["y"],
+            "storia": data["storia"],
+            "zone": data.get("zone", []),
+            "pericolo": data["pericolo"]
+        })
+    
+    return {
+        "sea_id": sea_id,
+        "sea_info": SEAS[sea_id],
+        "islands": islands_list
+    }
+
 @api_router.get("/world/islands")
 async def get_islands(request: Request):
     user = await get_current_user(request)
@@ -1448,7 +1478,7 @@ async def get_islands(request: Request):
         raise HTTPException(status_code=404, detail="Personaggio non trovato")
     
     current_sea = character.get("mare_corrente", "east_blue")
-    current_island = character.get("isola_corrente", "foosha")
+    current_island = character.get("isola_corrente", "dawn_island")
     
     # Get islands for current sea
     sea_islands = get_islands_by_sea(current_sea)
@@ -1472,7 +1502,7 @@ async def get_islands(request: Request):
             "x": data["x"],
             "y": data["y"],
             "storia": data["storia"],
-            "luoghi": data["luoghi"],
+            "zone": data.get("zone", []),
             "pericolo": data["pericolo"],
             "sbloccata": is_accessible,
             "corrente": island_id == current_island,
