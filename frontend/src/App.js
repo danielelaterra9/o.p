@@ -1229,7 +1229,25 @@ const WorldMap = ({ token, character, isDemo }) => {
     south_blue: '☀️'
   };
 
+  // Demo mock islands for East Blue
+  const demoIslands = [
+    { id: "dawn_island", name: "Dawn Island", sea: "east_blue", order: 1, x: 10, y: 70, storia: "L'isola dove tutto ha avuto inizio. Patria di Monkey D. Luffy.", zone: [{id: "foosha", name: "Foosha Village", descrizione: "Villaggio di pescatori dove Luffy è cresciuto."}], pericolo: 2, sbloccata: true, corrente: true, can_travel_back: false, can_travel_forward: false },
+    { id: "shells_town", name: "Shells Town", sea: "east_blue", order: 2, x: 20, y: 60, storia: "Città portuale con una base della Marina.", zone: [], pericolo: 3, sbloccata: true, corrente: false, can_travel_back: false, can_travel_forward: true },
+    { id: "shimotsuki_village", name: "Shimotsuki Village", sea: "east_blue", order: 3, x: 28, y: 55, storia: "Villaggio fondato da samurai di Wano.", zone: [], pericolo: 2, sbloccata: false, corrente: false, can_travel_back: false, can_travel_forward: false },
+    { id: "organ_islands", name: "Organ Islands", sea: "east_blue", order: 4, x: 36, y: 50, storia: "Arcipelago devastato da Buggy il Clown.", zone: [{id: "orange_town", name: "Orange Town", descrizione: "Città principale dell'arcipelago."}], pericolo: 4, sbloccata: false, corrente: false, can_travel_back: false, can_travel_forward: false },
+    { id: "gecko_islands", name: "Gecko Islands", sea: "east_blue", order: 5, x: 52, y: 48, storia: "Casa di Usopp e Kaya.", zone: [{id: "syrup_village", name: "Syrup Village", descrizione: "Tranquillo villaggio."}], pericolo: 3, sbloccata: false, corrente: false, can_travel_back: false, can_travel_forward: false },
+    { id: "baratie", name: "Baratie", sea: "east_blue", order: 6, x: 60, y: 42, storia: "Il famoso ristorante galleggiante.", zone: [], pericolo: 5, sbloccata: false, corrente: false, can_travel_back: false, can_travel_forward: false },
+    { id: "conomi_islands", name: "Conomi Islands", sea: "east_blue", order: 7, x: 70, y: 38, storia: "Arcipelago liberato da Arlong.", zone: [], pericolo: 6, sbloccata: false, corrente: false, can_travel_back: false, can_travel_forward: false },
+    { id: "loguetown", name: "Loguetown", sea: "east_blue", order: 8, x: 85, y: 50, storia: "La Città dell'Inizio e della Fine.", zone: [], pericolo: 5, sbloccata: false, corrente: false, can_travel_back: false, can_travel_forward: false },
+  ];
+
   const fetchIslands = async () => {
+    if (isDemo) {
+      setIslands(demoIslands);
+      setSeaInfo({ name: "East Blue", description: "Il mare più debole dei quattro, ma patria di grandi pirati." });
+      setCurrentIsland("dawn_island");
+      return;
+    }
     try {
       const res = await axios.get(`${API}/world/islands`, { headers: { Authorization: `Bearer ${authToken}` } });
       setIslands(res.data.islands);
@@ -1241,6 +1259,15 @@ const WorldMap = ({ token, character, isDemo }) => {
   };
 
   const fetchAllSeas = async () => {
+    if (isDemo) {
+      setAllSeas({
+        east_blue: { name: "East Blue", color: "#3B82F6" },
+        west_blue: { name: "West Blue", color: "#10B981" },
+        north_blue: { name: "North Blue", color: "#8B5CF6" },
+        south_blue: { name: "South Blue", color: "#F59E0B" }
+      });
+      return;
+    }
     try {
       const res = await axios.get(`${API}/world/seas`, { headers: { Authorization: `Bearer ${authToken}` } });
       setAllSeas(res.data.seas);
@@ -1250,6 +1277,11 @@ const WorldMap = ({ token, character, isDemo }) => {
   };
 
   const fetchSeaIslands = async (seaId) => {
+    if (isDemo) {
+      // In demo, just show a message that this is demo mode
+      setMessage({ type: 'info', text: '🎮 In modalità demo, solo East Blue è disponibile.' });
+      return;
+    }
     try {
       const res = await axios.get(`${API}/world/seas/${seaId}/islands`, { headers: { Authorization: `Bearer ${authToken}` } });
       setViewingIslands(res.data.islands);
@@ -1260,13 +1292,15 @@ const WorldMap = ({ token, character, isDemo }) => {
   };
 
   useEffect(() => {
-    if (authToken) {
-      fetchIslands();
-      fetchAllSeas();
-    }
-  }, [authToken]);
+    fetchIslands();
+    fetchAllSeas();
+  }, [authToken, isDemo]);
 
   const travelTo = async (islandId) => {
+    if (isDemo) {
+      setMessage({ type: 'info', text: '🎮 In modalità demo, la navigazione è disabilitata.' });
+      return;
+    }
     setTraveling(true);
     setMessage({ type: '', text: '' });
     try {
