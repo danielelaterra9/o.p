@@ -1374,9 +1374,17 @@ const WorldMap = ({ token, character, isDemo }) => {
         <motion.div 
           initial={{ opacity: 0, y: -10 }} 
           animate={{ opacity: 1, y: 0 }}
-          className={`mx-4 mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' : 'bg-[#D00000]/20 border border-[#D00000]'}`}
+          className={`mx-4 mb-4 p-3 rounded-lg ${
+            message.type === 'success' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' : 
+            message.type === 'info' ? 'bg-[#00A8E8]/20 border border-[#00A8E8]' :
+            'bg-[#D00000]/20 border border-[#D00000]'
+          }`}
         >
-          <p className={message.type === 'success' ? 'text-[#2A9D8F]' : 'text-[#D00000]'}>{message.text}</p>
+          <p className={
+            message.type === 'success' ? 'text-[#2A9D8F]' : 
+            message.type === 'info' ? 'text-[#00A8E8]' :
+            'text-[#D00000]'
+          }>{message.text}</p>
         </motion.div>
       )}
 
