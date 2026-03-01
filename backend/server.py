@@ -332,7 +332,7 @@ async def create_character(char_data: CharacterCreate, request: Request):
     }
     
     await db.characters.insert_one(character)
-    del character["_id"] if "_id" in character else None
+    character.pop("_id", None)
     return character
 
 def get_base_moves(fighting_style: str) -> List[str]:
