@@ -212,6 +212,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ Battle system working correctly. POST /battle/start creates battle with NPC opponent 'pirata_novizio', returns battle_id. POST /battle/{battle_id}/action executes combat actions (tested 'attacco_base' with 'Pugno'), calculates damage, updates battle state"
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: NPC AI now working perfectly. After player action, NPC automatically takes turn in same response. Battle log shows both player and NPC actions. Player victory awards EXP (100) and Berry (106). Complete battle flow functional."
 
   - task: "World Map / Islands"
     implemented: true
