@@ -309,6 +309,18 @@ backend:
         agent: "testing"
         comment: "✅ INVENTORY SYSTEM COMPLETE: All endpoints working perfectly. GET /inventory returns oggetti, armi, carte, nave, berry. POST /inventory/use-item removes item and applies effects (+30 HP from pozione_vita). POST /inventory/equip-weapon marks weapons as equipped. POST /cards/use removes cards from inventory. Items properly categorized: consumables in oggetti, weapons in armi, cards in carte.storytelling. 19/19 inventory tests passed (100% success rate)."
 
+  - task: "Four Seas Navigation System"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ FOUR SEAS NAVIGATION FULLY FUNCTIONAL: All review requirements tested and working: 1) GET /api/world/seas returns all 4 seas (east_blue, west_blue, north_blue, south_blue) with complete data structure including names, descriptions, and colors ✅, 2) Character creation with mare_partenza: 'west_blue' correctly places character at mare_corrente: 'west_blue' and isola_corrente: 'ilisia' ✅, 3) GET /api/world/islands returns 6 West Blue islands with proper unlock status, current island marked, next island accessible ✅, 4) Travel validation prevents forward travel without ship: 'Hai bisogno di una nave per viaggiare verso nuove isole!' ✅, 5) Travel validation prevents island skipping: 'Non puoi saltare isole! Devi navigare una alla volta.' ✅, 6) Travel validation prevents cross-sea travel: 'Puoi viaggiare solo tra isole dello stesso mare' ✅. All island stories and sea info returned in API responses. Ship purchase system integrated (requires 5000 Berry). Navigation system enforces proper progression and constraints. 15/15 Four Seas tests passed (100% success rate)."
+
 frontend:
   - task: "Landing Page"
     implemented: true
