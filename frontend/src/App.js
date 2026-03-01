@@ -787,6 +787,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
                   {loading ? 'Creazione...' : 'Crea Personaggio'}
                 </button>
               </div>
+              {error && <p className="text-[#D00000] text-sm mt-4 text-center">{error}</p>}
             </motion.div>
           )}
         </AnimatePresence>
