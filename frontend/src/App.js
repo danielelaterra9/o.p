@@ -329,6 +329,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
     sogno: '',
     storia_carattere: '',
     mestiere: '',
+    mare_partenza: 'east_blue',
     colore_capelli: '',
     colore_occhi: '',
     particolarita: ''
