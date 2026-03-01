@@ -465,10 +465,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Four Seas Navigation System"
+    - "Character Persistence Flow for Returning Users"
   stuck_tasks: []
   test_all: false
-  test_priority: "four_seas_complete"
+  test_priority: "persistence_complete"
 
 agent_communication:
   - agent: "main"
