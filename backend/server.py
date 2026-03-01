@@ -542,6 +542,9 @@ async def start_battle(data: Dict[str, str], request: Request):
     user = await get_current_user(request)
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
     
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+    
     opponent_type = data.get("opponent_type", "npc")  # npc or player
     opponent_id = data.get("opponent_id")
     
@@ -552,6 +555,8 @@ async def start_battle(data: Dict[str, str], request: Request):
         opponent = generate_npc_opponent(opponent_id)
     else:
         opponent = await db.characters.find_one({"character_id": opponent_id}, {"_id": 0})
+        if not opponent:
+            raise HTTPException(status_code=404, detail="Opponent not found")
     
     battle = {
         "battle_id": battle_id,
@@ -564,7 +569,7 @@ async def start_battle(data: Dict[str, str], request: Request):
             "energy": character["energy"],
             "max_energy": character["max_energy"],
             "stats": character["stats"],
-            "special_moves": character["special_moves"],
+            "special_moves": character.get("special_moves", []),
             "devil_fruit": character.get("devil_fruit"),
             "haki_unlocked": character.get("haki_unlocked", False)
         },
@@ -580,7 +585,9 @@ async def start_battle(data: Dict[str, str], request: Request):
     }
     
     active_battles[battle_id] = battle
-    await db.battles.insert_one(battle)
+    # Store battle without MongoDB _id issues
+    battle_doc = battle.copy()
+    await db.battles.insert_one(battle_doc)
     
     return {"battle_id": battle_id, "battle": battle}
 
