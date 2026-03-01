@@ -107,20 +107,20 @@ class OnePieceRPGAPITester:
         self.run_test("Health Check", "GET", "health", 200, skip_auth=True)
 
     def test_authentication(self):
-        """Test authentication flows"""
+        """Test authentication flows for v2 system"""
         print("\n" + "="*50)
-        print("TESTING AUTHENTICATION")
+        print("TESTING AUTHENTICATION V2")
         print("="*50)
         
-        # Test registration
+        # Test registration with username field (separate from character name)
         register_data = {
-            "name": self.test_name,
+            "username": self.test_username,  # New: separate username field
             "email": self.test_email,
             "password": self.test_password
         }
         
         success, response = self.run_test(
-            "User Registration", 
+            "User Registration with Username", 
             "POST", 
             "auth/register", 
             200, 
@@ -131,7 +131,8 @@ class OnePieceRPGAPITester:
         if success and 'token' in response:
             self.token = response['token']
             self.user_id = response.get('user', {}).get('user_id')
-            print(f"✅ Registration successful, token acquired")
+            print(f"✅ Registration successful with username: {response.get('user', {}).get('username')}")
+            print(f"✅ Token acquired: {self.token[:20]}...")
         else:
             print(f"❌ Registration failed, cannot continue with auth tests")
             return False
@@ -151,8 +152,114 @@ class OnePieceRPGAPITester:
             skip_auth=True
         )
         
+        if success and 'token' in response:
+            # Update token from login response
+            self.token = response['token']
+            print(f"✅ Login successful, new token acquired")
+        
         # Test /auth/me endpoint
         self.run_test("Get Current User", "GET", "auth/me", 200)
+        
+        return True
+
+    def test_game_data_endpoints(self):
+        """Test game data endpoints (races, fighting styles, mestieri)"""
+        print("\n" + "="*50)
+        print("TESTING GAME DATA ENDPOINTS")
+        print("="*50)
+        
+        if not self.token:
+            print("❌ No auth token, skipping game data tests")
+            return False
+        
+        # Test get races (should return 6 races)
+        success, response = self.run_test("Get Races", "GET", "game/races", 200)
+        if success and 'races' in response:
+            races_count = len(response['races'])
+            print(f"✅ Found {races_count} races")
+            if races_count == 6:
+                print("✅ Correct number of races (6)")
+            else:
+                print(f"⚠️  Expected 6 races, found {races_count}")
+                
+            # Validate race structure
+            for race_id, race_data in response['races'].items():
+                if 'name' in race_data and 'bonus' in race_data:
+                    print(f"   ✅ Race {race_id}: {race_data['name']} - valid structure")
+                else:
+                    print(f"   ❌ Race {race_id}: missing required fields")
+        
+        # Test get fighting styles
+        success, response = self.run_test("Get Fighting Styles", "GET", "game/fighting-styles", 200)
+        if success and 'styles' in response:
+            styles_count = len(response['styles'])
+            print(f"✅ Found {styles_count} fighting styles")
+            
+            # Validate fighting style structure
+            for style_id, style_data in response['styles'].items():
+                if 'name' in style_data and 'bonus' in style_data:
+                    print(f"   ✅ Style {style_id}: {style_data['name']} - valid structure")
+        
+        # Test get mestieri (should return 12 mestieri)
+        success, response = self.run_test("Get Mestieri", "GET", "game/mestieri", 200)
+        if success and 'mestieri' in response:
+            mestieri_count = len(response['mestieri'])
+            print(f"✅ Found {mestieri_count} mestieri")
+            if mestieri_count == 12:
+                print("✅ Correct number of mestieri (12)")
+            else:
+                print(f"⚠️  Expected 12 mestieri, found {mestieri_count}")
+                
+            # Validate mestiere structure
+            for mestiere_id, mestiere_data in response['mestieri'].items():
+                if 'name' in mestiere_data and 'description' in mestiere_data:
+                    print(f"   ✅ Mestiere {mestiere_id}: {mestiere_data['name']} - valid structure")
+        
+        return True
+
+    def test_character_name_validation(self):
+        """Test character name validation blocking D. pattern"""
+        print("\n" + "="*50)
+        print("TESTING CHARACTER NAME VALIDATION")
+        print("="*50)
+        
+        if not self.token:
+            print("❌ No auth token, skipping name validation tests")
+            return False
+        
+        # Test invalid name with D. pattern (should be rejected)
+        invalid_name_data = {"nome": self.invalid_character_name}
+        success, response = self.run_test(
+            "Validate Invalid Name (with D.)",
+            "POST",
+            "characters/validate-name", 
+            200,
+            invalid_name_data
+        )
+        
+        if success and 'valid' in response:
+            if response['valid'] == False and 'D.' in response.get('message', ''):
+                print(f"✅ Name validation correctly blocked D. pattern")
+                print(f"   Message: {response.get('message', '')}")
+            else:
+                print(f"❌ Name validation failed to block D. pattern")
+                print(f"   Response: {response}")
+        
+        # Test valid name (should be accepted)
+        valid_name_data = {"nome": self.test_character_name}
+        success, response = self.run_test(
+            "Validate Valid Name",
+            "POST", 
+            "characters/validate-name",
+            200,
+            valid_name_data
+        )
+        
+        if success and 'valid' in response:
+            if response['valid'] == True:
+                print(f"✅ Name validation correctly accepted valid name")
+            else:
+                print(f"❌ Name validation incorrectly rejected valid name: {response.get('message', '')}")
         
         return True
 
