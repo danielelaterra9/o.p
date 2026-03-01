@@ -324,6 +324,18 @@ backend:
         agent: "testing"
         comment: "✅ UPDATED FOUR SEAS NAVIGATION WITH NEW ISLANDS STRUCTURE FULLY TESTED: All review request requirements verified and working perfectly: 1) GET /api/world/seas returns all 4 seas with complete metadata ✅, 2) NEW ENDPOINT: GET /api/world/seas/{sea_id}/islands tested for all seas - East Blue (9 islands including Dawn Island, Shells Town, Shimotsuki Village, Organ Islands, Island of Rare Animals, Gecko Islands, Baratie, Conomi Islands, Loguetown), West Blue (7 islands starting with Ohara), North Blue (11 islands starting with Downs), South Blue (10 islands starting with Baterilla) ✅, 3) Dawn Island verified to contain exactly 5 zones (Foosha Village, Mt. Colubo, Gray Terminal, Midway Forest, Goa Kingdom) as required ✅, 4) Character creation with mare_partenza: 'east_blue' correctly sets isola_corrente to 'dawn_island' as expected ✅, 5) All starting islands verified: east_blue→dawn_island, west_blue→ohara, north_blue→downs, south_blue→baterilla ✅, 6) GET /api/world/islands correctly returns zone data for current character's islands ✅, 7) Navigation validation still working (requires ship for forward travel) ✅. 9/9 comprehensive tests passed (100% success rate). New islands structure and zones working perfectly."
 
+  - task: "Character Persistence Flow for Returning Users"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ CHARACTER PERSISTENCE FLOW FULLY FUNCTIONAL: Comprehensive testing of returning user experience completed successfully. All 5 critical steps working: 1) POST /api/auth/register with unique username, email, password creates user and returns JWT token ✅, 2) POST /api/characters with all required fields (nome_personaggio, genere, eta, razza, stile_combattimento, sogno, storia_carattere, mestiere, mare_partenza) creates character with starting resources (1000 Berry, dawn_island location) ✅, 3) Logout simulation and POST /api/auth/login with same credentials returns new valid token ✅, 4) GET /api/characters/me with new token returns SAME character with all data intact (character_id, nome, mare_corrente, isola_corrente, berry, vita, etc.) ✅, 5) Navigation state persistence verified - character location maintained across login sessions ✅. Extended testing: Character earned 1946 Berry through 10 battles, all progress persisted after logout/login cycle. Battle rewards, character progression, and game state fully persistent. 5/5 core persistence tests passed (100% success rate). Returning players can successfully continue exactly where they left off."
+
 frontend:
   - task: "Landing Page"
     implemented: true
