@@ -2379,7 +2379,7 @@ const Inventory = ({ token, character }) => {
     if (authToken) fetchInventory();
   }, [authToken]);
 
-  const useItem = async (itemId) => {
+  const consumeItem = async (itemId) => {
     setUsing(true);
     setMessage({ type: '', text: '' });
     try {
