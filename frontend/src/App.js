@@ -1839,7 +1839,173 @@ const WorldMap = ({ token, character, isDemo }) => {
             </span>
           )}
         </div>
+
+        {/* Dice Navigation Button */}
+        {!isViewingOtherSea && (
+          <div className="mt-4 flex gap-3">
+            <motion.button
+              onClick={() => setShowDiceModal(true)}
+              disabled={!canUseDice}
+              className={`flex-1 py-4 rounded-xl font-pirate text-lg flex items-center justify-center gap-3 ${
+                canUseDice 
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#FFC300] text-[#051923]' 
+                  : 'bg-[#3E2723] text-[#E3D5CA]/50'
+              }`}
+              whileHover={canUseDice ? { scale: 1.02 } : {}}
+              whileTap={canUseDice ? { scale: 0.98 } : {}}
+            >
+              <Dice6 className="w-6 h-6" />
+              🎲 Naviga con il Dado
+            </motion.button>
+            <button
+              onClick={() => navigate('/explore')}
+              className="py-4 px-6 rounded-xl glass text-[#2A9D8F] font-bold"
+            >
+              <Compass className="w-6 h-6" />
+            </button>
+          </div>
+        )}
+        {!isViewingOtherSea && !character?.nave && (
+          <p className="text-center text-[#D00000] text-sm mt-2">🚢 Compra una nave al negozio per navigare!</p>
+        )}
       </div>
+
+      {/* Dice Roll Modal */}
+      <AnimatePresence>
+        {showDiceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"
+            onClick={() => !diceRolling && setShowDiceModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              className="glass p-8 rounded-xl max-w-md w-full text-center"
+              onClick={e => e.stopPropagation()}
+            >
+              <h2 className="font-pirate text-2xl text-[#FFC300] mb-4">🎲 Dado della Navigazione</h2>
+              
+              {/* Dice Display */}
+              <div className="mb-6">
+                <motion.div
+                  className="w-32 h-32 mx-auto bg-[#3E2723] rounded-2xl flex items-center justify-center border-4 border-[#D4AF37] shadow-xl"
+                  animate={diceRolling ? { 
+                    rotateX: [0, 360, 720], 
+                    rotateY: [0, 360, 720],
+                    scale: [1, 1.1, 1]
+                  } : {}}
+                  transition={{ duration: 0.5, repeat: diceRolling ? Infinity : 0 }}
+                >
+                  <span className="font-pirate text-6xl text-[#FFC300]">{diceAnimation}</span>
+                </motion.div>
+              </div>
+
+              {/* Result */}
+              {diceResult && !diceResult.error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4"
+                >
+                  <div className="flex justify-center gap-4 mb-3">
+                    <div className="text-center">
+                      <p className="text-xs text-[#E3D5CA]/60">Dado</p>
+                      <p className="font-bold text-[#FFC300]">{diceResult.dice_result}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-[#E3D5CA]/60">Bonus Nave</p>
+                      <p className="font-bold text-[#2A9D8F]">+{diceResult.bonuses?.nave || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-[#E3D5CA]/60">Bonus Fortuna</p>
+                      <p className="font-bold text-[#7209B7]">+{diceResult.bonuses?.fortuna || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-[#E3D5CA]/60">Totale</p>
+                      <p className="font-bold text-[#D4AF37] text-xl">{diceResult.total}</p>
+                    </div>
+                  </div>
+                  
+                  <div className={`p-4 rounded-lg ${
+                    diceResult.outcome === 'successo_totale' ? 'bg-[#2A9D8F]/20 border border-[#2A9D8F]' :
+                    diceResult.outcome === 'successo' ? 'bg-[#00A8E8]/20 border border-[#00A8E8]' :
+                    diceResult.outcome === 'parziale' ? 'bg-[#F59E0B]/20 border border-[#F59E0B]' :
+                    'bg-[#D00000]/20 border border-[#D00000]'
+                  }`}>
+                    <p className={`font-bold ${
+                      diceResult.outcome === 'successo_totale' ? 'text-[#2A9D8F]' :
+                      diceResult.outcome === 'successo' ? 'text-[#00A8E8]' :
+                      diceResult.outcome === 'parziale' ? 'text-[#F59E0B]' :
+                      'text-[#D00000]'
+                    }`}>
+                      {diceResult.outcome === 'successo_totale' && '⭐ NAVIGAZIONE PERFETTA!'}
+                      {diceResult.outcome === 'successo' && '✓ SUCCESSO'}
+                      {diceResult.outcome === 'parziale' && '⚠️ VIAGGIO TURBOLENTO'}
+                      {diceResult.outcome === 'fallimento' && '✗ FALLIMENTO'}
+                    </p>
+                    <p className="text-[#E3D5CA] text-sm mt-2">{diceResult.message}</p>
+                  </div>
+
+                  {diceResult.events?.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                      {diceResult.events.map((event, i) => (
+                        <span key={i} className={`text-xs px-2 py-1 rounded ${
+                          event.startsWith('+') ? 'bg-[#2A9D8F]/20 text-[#2A9D8F]' : 'bg-[#D00000]/20 text-[#D00000]'
+                        }`}>
+                          {event}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {diceResult?.error && (
+                <div className="mb-4 p-4 bg-[#D00000]/20 rounded-lg border border-[#D00000]">
+                  <p className="text-[#D00000]">{diceResult.error}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="space-y-3">
+                {!diceResult && (
+                  <motion.button
+                    onClick={rollDice}
+                    disabled={diceRolling}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#FFC300] text-[#051923] font-pirate text-xl"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {diceRolling ? '🎲 Tirando...' : '🎲 Tira il Dado!'}
+                  </motion.button>
+                )}
+                
+                {diceResult && (
+                  <button
+                    onClick={() => { setShowDiceModal(false); setDiceResult(null); }}
+                    className="w-full py-3 rounded-xl glass text-[#E3D5CA]"
+                  >
+                    Chiudi
+                  </button>
+                )}
+              </div>
+              
+              {/* Info */}
+              {!diceResult && (
+                <div className="mt-4 text-xs text-[#E3D5CA]/60">
+                  <p>🎲 1-3: Rischio eventi negativi</p>
+                  <p>🎲 4-5: Viaggio sicuro</p>
+                  <p>🎲 6+: Bonus speciali!</p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Selected Island Modal */}
       <AnimatePresence>
