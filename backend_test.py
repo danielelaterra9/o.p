@@ -11,14 +11,13 @@ from datetime import datetime
 # Backend URL
 BACKEND_URL = "https://saved-check.preview.emergentagent.com/api"
 
-class OnePixelRPGBattleSystemTester:
+class OnePixelRPGObjectIdBugTester:
     def __init__(self):
         self.client = httpx.AsyncClient(timeout=30.0)
         self.test_results = []
         self.user_token = None
         self.user_id = None
         self.character_id = None
-        self.battle_id = None
         
     async def log_test(self, test_name, success, details="", error=""):
         """Log test result"""

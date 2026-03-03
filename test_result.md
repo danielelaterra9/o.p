@@ -422,15 +422,21 @@ backend:
 
   - task: "Narrative Generation System"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "❌ NARRATIVE GENERATION HAS MONGODB SERIALIZATION BUG: POST /api/narrative/generate returns 500 Internal Server Error due to ObjectId serialization issue in character lookup. Backend logs show 'ValueError: [TypeError(\"'ObjectId' object is not iterable\"), TypeError('vars() argument must have __dict__ attribute')]'. The endpoint logic appears correct but character document contains non-serializable ObjectId fields that aren't being excluded properly. This is a backend serialization bug, not endpoint logic issue."
+      - working: "NA"
+        agent: "main"
+        comment: "Applied fix: Added serialize_mongo_doc() helper function to properly serialize MongoDB documents. Updated character lookup to use serialization."
+      - working: true
+        agent: "testing"
+        comment: "✅ NARRATIVE GENERATION OBJECTID BUG FIXED: POST /api/narrative/generate now working correctly. Fixed two issues: 1) MongoDB ObjectId serialization using serialize_mongo_doc() helper, 2) Template string formatting bug where duplicate 'location' keyword arguments caused TypeError. All narrative generation tests passing: basic arrival events, complex treasure events with actions, and multiple consecutive requests. Endpoint returns proper narrative text, event types, actions, and timestamps without any 500 errors."
 
   - task: "Narrative Action Execution"
     implemented: true
@@ -458,15 +464,21 @@ backend:
 
   - task: "Chat Message Sending"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "❌ CHAT MESSAGE SENDING HAS MONGODB SERIALIZATION BUG: POST /api/chat/send returns 500 Internal Server Error due to ObjectId serialization issue in message creation. Same underlying MongoDB ObjectId serialization problem as narrative generation. The endpoint logic for message creation, validation (max 500 chars), and broadcasting appears correct but fails at serialization step. This is a backend serialization bug, not endpoint logic issue."
+      - working: "NA"
+        agent: "main"
+        comment: "Applied fix: Using serialize_mongo_doc() for character lookup and copy.deepcopy() for message creation to prevent MongoDB _id injection into response objects."
+      - working: true
+        agent: "testing"
+        comment: "✅ CHAT MESSAGE SENDING OBJECTID BUG FIXED: POST /api/chat/send now working correctly. MongoDB ObjectId serialization fix successful using serialize_mongo_doc() and copy.deepcopy() preventing _id injection. All chat tests passing: basic messages, long messages (497 chars), proper user/room validation. Returns correct message structure with message_id, room_id, user_id, username, content, timestamp without any 500 errors."
 
   - task: "Chat History Retrieval"
     implemented: true
@@ -632,11 +644,10 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "NEW Advanced Battle System"
+  current_focus: []
   stuck_tasks: []
   test_all: false
-  test_priority: "advanced_battle_system_complete"
+  test_priority: "completed"
 
 agent_communication:
   - agent: "main"
@@ -671,3 +682,7 @@ agent_communication:
     message: "✅ NEW BATTLE PHASE SYSTEM TESTING COMPLETE: Comprehensive testing of the NEW Battle Phase System according to review request requirements highly successful. All 6 focus areas tested: 1) GET /api/battle/phases returns all 3 phases (reazione, attivazione, contrattacco) with complete action sets (6+4+8 actions) and energy multipliers (1.0, 1.3, 1.6) ✅, 2) NEW Vita/Energia formulas working correctly in battle system: battle correctly uses Level × 100 for vita and Level × 50 for energia (verified Level 1 = 100 HP, 50 Energy in battles) ✅, 3) POST /api/battle/{id}/phase-action executes contrattacco/pugno perfectly with damage calculation, energy costs, and multipliers ✅, 4) Energy multiplier system working: 1 phase = 1.0x, 2 phases = 1.3x, 3 phases = 1.6x energy cost ✅, 5) POST /api/battle/{id}/end-turn properly advances turns, resets phases, and triggers NPC auto-play ✅, 6) GET /api/battle/{id}/character-stats returns complete player stats (forza, velocita, resistenza, agilita, attacco, difesa), opponent info, and battle status (turno, fase_corrente, fasi_completate) ✅, 7) Reazione phase successfully reacts to NPC attacks with schivata/parata/subire mechanics ✅, 8) Complete battle flow with phases functional through 10-turn extended combat ✅. Note: Character creation still uses race-based vita/energia (visone: 90/110) while battle system correctly uses new formulas (100/50) - this is working as designed since battle system overrides with new formulas. 10/12 tests passed (83.3% success rate). NEW Battle Phase System is fully operational and production-ready."
   - agent: "testing"
     message: "✅ NEW ADVANCED BATTLE SYSTEM TESTING COMPLETE: Perfect 100% success rate (27/27 tests passed) testing all NEW Advanced Battle System features requested in review. CRITICAL FEATURES VERIFIED: 1) GET /api/battle/phases returns complete structure with phases, body_parts (testa, petto, pancia, braccia, gambe), haki_types (osservazione, armatura, conquistatore), devil_fruit_types (paramisha, zoan, rogia), and regole explaining first turn restrictions, reaction mechanics, attack vs attack collisions, and rogia immunity ✅, 2) GET /api/battle/{id}/available-actions NEW endpoint fully functional - correctly returns available phases based on turn number (first turn: only 'attivazione' and 'contrattacco'), complete body parts list, player energy validation ✅, 3) POST /api/battle/{id}/attack NEW endpoint working perfectly - accepts tipo_attacco and parte_corpo parameters, calculates damage with body part multipliers (testa 1.5x, petto 1.2x, pancia 1.0x, braccia 0.8x, gambe 0.9x), stores 'azione_avversario_pendente' for opponent reactions, validates Rogia immunity ✅, 4) POST /api/battle/{id}/react NEW endpoint complete - handles all reaction types: 'subire' (take hit + 10% energy recovery), 'difesa_base' (50% damage reduction), 'contrattacco_diretto' (attack vs attack collision mechanics) ✅, 5) Body Parts System fully operational with correct damage multipliers and hit chances ✅, 6) Complete Battle Flow successful - user creation → character → battle start → first turn phase validation → attack execution → pending action creation → reaction processing → battle continuation ✅. All new advanced battle mechanics exceed review requirements and are production-ready."
+  - agent: "main"
+    message: "BUG FIX: Fixed MongoDB ObjectId serialization bugs in /api/narrative/generate and /api/chat/send endpoints. Added serialize_mongo_doc() helper function and using copy.deepcopy() for message objects before database insertion. Please re-test these two endpoints to verify fixes."
+  - agent: "testing"
+    message: "✅ OBJECTID SERIALIZATION BUG FIXES VERIFIED: Both problematic endpoints now working perfectly. POST /api/narrative/generate fixed by: 1) Using serialize_mongo_doc() for character data serialization, 2) Fixing template string formatting duplicate keyword argument bug where 'location' was passed both explicitly and via **context. POST /api/chat/send fixed by: 1) serialize_mongo_doc() for character lookup, 2) copy.deepcopy() preventing _id injection into response objects. All tests passing: 7/7 (100% success rate) including basic functionality, complex contexts, long messages, and stress testing with multiple consecutive requests. Both endpoints return proper JSON responses without any 500 ObjectId serialization errors."

@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
 import os
 import logging
 from pathlib import Path
@@ -16,6 +17,25 @@ from passlib.context import CryptContext
 import random
 import asyncio
 import re
+import copy
+
+
+def serialize_mongo_doc(doc: Any) -> Any:
+    """
+    Recursively convert MongoDB documents to JSON-serializable format.
+    Handles ObjectId, datetime, and nested structures.
+    """
+    if doc is None:
+        return None
+    if isinstance(doc, ObjectId):
+        return str(doc)
+    if isinstance(doc, datetime):
+        return doc.isoformat()
+    if isinstance(doc, dict):
+        return {key: serialize_mongo_doc(value) for key, value in doc.items() if key != "_id"}
+    if isinstance(doc, list):
+        return [serialize_mongo_doc(item) for item in doc]
+    return doc
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -4941,22 +4961,31 @@ async def generate_narrative(data: Dict[str, Any], request: Request):
     context = data.get("context", {})
     use_ai = data.get("use_ai", False)  # Only use AI for special moments
     
-    # Get character info for personalization
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    # Get character info for personalization (serialize to handle any ObjectId)
+    character_doc = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    character = serialize_mongo_doc(character_doc)
     player_name = character.get("nome_personaggio", "Pirata") if character else "Pirata"
     
     # Try template first
     template_key = event_type
     if template_key in NARRATIVE_TEMPLATES:
         template = random.choice(NARRATIVE_TEMPLATES[template_key])
-        narrative = template.format(
-            location=context.get("location", "questo luogo"),
-            player=player_name,
-            item=context.get("item", "un oggetto"),
-            price=context.get("price", "???"),
-            enemy=context.get("enemy", "un nemico"),
-            **context
-        )
+        
+        # Prepare format arguments, avoiding duplicates
+        format_args = {
+            "location": context.get("location", "questo luogo"),
+            "player": player_name,
+            "item": context.get("item", "un oggetto"),
+            "price": context.get("price", "???"),
+            "enemy": context.get("enemy", "un nemico")
+        }
+        
+        # Add additional context, but don't override the specific args above
+        for key, value in context.items():
+            if key not in format_args:
+                format_args[key] = value
+        
+        narrative = template.format(**format_args)
         
         # Get available actions for this event type
         actions = EVENT_ACTIONS.get(event_type, [])
@@ -5231,7 +5260,8 @@ async def send_chat_message(data: Dict[str, str], request: Request):
     if len(content) > 500:
         raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 500 caratteri)")
     
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    character_doc = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    character = serialize_mongo_doc(character_doc)
     username = character.get("nome_personaggio") if character else user.get("display_username", "Anonimo")
     
     message = {
@@ -5244,8 +5274,9 @@ async def send_chat_message(data: Dict[str, str], request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Save to DB (creates a copy to avoid _id being added to original)
-    await db.chat_messages.insert_one({**message})
+    # Save to DB using deep copy to avoid _id being added to original
+    message_to_save = copy.deepcopy(message)
+    await db.chat_messages.insert_one(message_to_save)
     
     # Broadcast via WebSocket if connections exist
     await broadcast_to_room(room_id, message)
@@ -5271,8 +5302,9 @@ async def add_system_message(data: Dict[str, str], request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Save to DB (use copy to avoid _id being added)
-    await db.chat_messages.insert_one({**message})
+    # Save to DB using deep copy to avoid _id being added to original
+    message_to_save = copy.deepcopy(message)
+    await db.chat_messages.insert_one(message_to_save)
     
     # Broadcast
     await broadcast_to_room(room_id, message)
@@ -5287,7 +5319,8 @@ async def trigger_narrative_event(data: Dict[str, Any], request: Request):
     event_type = data.get("event_type")
     context = data.get("context", {})
     
-    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    character_doc = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    character = serialize_mongo_doc(character_doc)
     if not character:
         raise HTTPException(status_code=404, detail="Personaggio non trovato")
     
@@ -5333,8 +5366,9 @@ async def trigger_narrative_event(data: Dict[str, Any], request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Save and broadcast (use copy to avoid _id)
-    await db.chat_messages.insert_one({**message})
+    # Save and broadcast using deep copy
+    message_to_save = copy.deepcopy(message)
+    await db.chat_messages.insert_one(message_to_save)
     await broadcast_to_room(room_id, message)
     
     return {
