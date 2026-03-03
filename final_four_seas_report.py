@@ -8,7 +8,7 @@ import requests
 import json
 from datetime import datetime
 
-backend_url = "https://e-commerce-315.preview.emergentagent.com/api"
+backend_url = "https://saved-check.preview.emergentagent.com/api"
 
 def run_comprehensive_test():
     print("🎯 FOUR SEAS NAVIGATION SYSTEM - COMPREHENSIVE TEST")

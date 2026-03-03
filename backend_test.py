@@ -9,7 +9,7 @@ import random
 from datetime import datetime
 
 # Backend URL
-BACKEND_URL = "https://e-commerce-315.preview.emergentagent.com/api"
+BACKEND_URL = "https://saved-check.preview.emergentagent.com/api"
 
 class OnePixelRPGBattleSystemTester:
     def __init__(self):

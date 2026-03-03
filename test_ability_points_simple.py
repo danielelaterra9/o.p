@@ -7,7 +7,7 @@ import random
 import string
 
 # Base URL for backend
-BASE_URL = "https://e-commerce-315.preview.emergentagent.com/api"
+BASE_URL = "https://saved-check.preview.emergentagent.com/api"
 
 def random_string(length=8):
     """Generate random string for unique usernames/emails"""

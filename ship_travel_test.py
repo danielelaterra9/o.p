@@ -9,7 +9,7 @@ import json
 import sys
 from datetime import datetime
 
-backend_url = "https://e-commerce-315.preview.emergentagent.com/api"
+backend_url = "https://saved-check.preview.emergentagent.com/api"
 
 def test_ship_and_travel():
     results = []

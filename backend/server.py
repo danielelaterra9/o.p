@@ -2487,52 +2487,7 @@ async def execute_battle_reaction(battle_id: str, data: Dict[str, Any], request:
         "narrazione": full_narration,
         "battle": battle
     }
-        
-        # Collision calculation
-        collision = calculate_attack_collision(incoming_damage, counter_damage)
-        
-        narration_parts.append(f"⚔️ {player_data['nome']} contrattacca direttamente!")
-        narration_parts.append(collision["narrazione"])
-        
-        if collision["chi_subisce"] == "attacker1":  # Opponent takes damage
-            opponent_data["vita"] = max(0, opponent_data["vita"] - collision["danno_risultante"])
-            final_damage = 0
-        elif collision["chi_subisce"] == "attacker2":  # Player takes damage
-            final_damage = collision["danno_risultante"]
-        else:
-            final_damage = 0
-    
-    # Apply damage
-    if final_damage > 0:
-        player_data["vita"] = max(0, player_data["vita"] - final_damage)
-        if tipo_reazione != "contrattacco_diretto":
-            narration_parts.append(f"{player_data['nome']} subisce {final_damage} danni!")
-    
-    # Clear pending attack
-    battle["azione_avversario_pendente"] = None
-    
-    # Check for battle end
-    if player_data["vita"] <= 0:
-        battle["stato"] = "finita"
-        battle["vincitore"] = opponent
-        narration_parts.append(f"💀 {player_data['nome']} è stato sconfitto!")
-    elif opponent_data["vita"] <= 0:
-        battle["stato"] = "finita"
-        battle["vincitore"] = current_player
-        narration_parts.append(f"🏆 {player_data['nome']} ha vinto!")
-    
-    full_narration = " ".join(narration_parts)
-    battle["log"].append(full_narration)
-    
-    active_battles[battle_id] = battle
-    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
-    
-    return {
-        "success": True,
-        "danno_subito": final_damage,
-        "narrazione": full_narration,
-        "battle": battle
-    }
+
 
 @api_router.post("/battle/{battle_id}/phase-action")
 async def battle_phase_action(battle_id: str, data: Dict[str, Any], request: Request):

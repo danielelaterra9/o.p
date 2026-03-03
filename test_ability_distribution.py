@@ -4,7 +4,7 @@ import requests
 import json
 
 # Base URL for backend  
-BASE_URL = "https://e-commerce-315.preview.emergentagent.com/api"
+BASE_URL = "https://saved-check.preview.emergentagent.com/api"
 
 def test_ability_distribution_with_points():
     """Test ability points distribution with earned points"""

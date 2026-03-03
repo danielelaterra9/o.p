@@ -13,7 +13,7 @@ import sys
 from datetime import datetime
 
 # Get backend URL from frontend env (production URL)
-backend_url = "https://e-commerce-315.preview.emergentagent.com/api"
+backend_url = "https://saved-check.preview.emergentagent.com/api"
 
 class FocusedOnePieceTest:
     def __init__(self, base_url):
