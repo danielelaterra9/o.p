@@ -799,52 +799,192 @@ WEAPON_COEFFICIENTS = {
 
 # Coefficienti per carte duello
 CARD_COMBAT_COEFFICIENTS = {
-    "carta_attacco_sorpresa": {"cd": 12, "tipo": "istantaneo"},
-    "carta_colpo_critico": {"cd": 15, "tipo": "istantaneo"},
-    "carta_furia_berserk": {"cd": 10, "tipo": "buff", "durata": 3},
+    "carta_attacco_sorpresa": {"cd": 12, "tipo": "attacco"},
+    "carta_colpo_critico": {"cd": 15, "tipo": "attacco"},
+    "carta_furia_berserk": {"cd": 10, "tipo": "attivazione", "buff": "attacco", "durata": 3},
+    "carta_scudo_temporale": {"tipo": "difesa", "riduzione_danno": 0.7},
+    "carta_evasione": {"tipo": "difesa", "schivata_bonus": 30},
+    "carta_guarigione": {"tipo": "attivazione", "heal": 20},
 }
 
-# ============ BATTLE TURN PHASES SYSTEM ============
-# Ogni turno ha 3 fasi:
-# 1. REAZIONE - reagire alla mossa avversaria (spostarsi, subire, difesa, contrasto)
-# 2. ATTIVAZIONE - usare carte eventi o risorse
-# 3. CONTRATTACCO - attaccare l'avversario
+# ============ ADVANCED BATTLE SYSTEM ============
 
+# Parti del corpo bersaglio
+BODY_PARTS = {
+    "testa": {"nome": "Testa", "moltiplicatore_danno": 1.5, "difficolta": 0.7, "effetto_critico": "stordimento"},
+    "petto": {"nome": "Petto", "moltiplicatore_danno": 1.2, "difficolta": 0.9, "effetto_critico": None},
+    "pancia": {"nome": "Pancia", "moltiplicatore_danno": 1.0, "difficolta": 1.0, "effetto_critico": "nausea"},
+    "braccia": {"nome": "Braccia", "moltiplicatore_danno": 0.8, "difficolta": 0.85, "effetto_critico": "indebolimento"},
+    "gambe": {"nome": "Gambe", "moltiplicatore_danno": 0.9, "difficolta": 0.8, "effetto_critico": "rallentamento"},
+}
+
+# Tipi di Frutti del Diavolo
+DEVIL_FRUIT_TYPES = {
+    "paramisha": {"nome": "Paramisha", "immunita": []},
+    "zoan": {"nome": "Zoan", "immunita": [], "bonus_forza": 1.3, "bonus_resistenza": 1.2},
+    "rogia": {"nome": "Rogia", "immunita": ["fisico_normale"], "descrizione": "Immune ad attacchi fisici normali senza Haki"},
+}
+
+# Tipi di Haki
+HAKI_TYPES = {
+    "osservazione": {
+        "nome": "Haki dell'Osservazione",
+        "effetto_difesa": "preveggenza",  # Bonus schivata
+        "bonus_schivata": 40,
+        "energia_attivazione": 15,
+    },
+    "armatura": {
+        "nome": "Haki dell'Armatura",
+        "effetto_difesa": "protezione",  # Riduce danno
+        "riduzione_danno": 0.5,
+        "effetto_attacco": "penetrazione",  # Bypassa immunità Rogia
+        "bonus_danno": 1.3,
+        "energia_attivazione": 20,
+    },
+    "conquistatore": {
+        "nome": "Haki del Re Conquistatore",
+        "effetto_difesa": "intimidazione",  # Può far svenire nemici deboli
+        "effetto_attacco": "pressione",  # Bonus danno su nemici più deboli
+        "soglia_svenimento": 3,  # Differenza livello per svenimento
+        "energia_attivazione": 30,
+    }
+}
+
+# Sistema Fasi Battaglia (aggiornato)
 BATTLE_PHASES = {
     "reazione": {
         "name": "Reazione",
         "order": 1,
+        "description": "Reagisci all'attacco nemico",
+        "primo_turno": False,  # Non disponibile al primo turno
         "actions": {
-            "subire": {"energia": 0, "description": "Subisci il colpo senza reagire (recuperi energia)"},
-            "schivata": {"energia": 8, "description": "Tenta di schivare l'attacco"},
-            "parata": {"energia": 10, "description": "Para il colpo (riduce danno 50%)"},
-            "haki_difesa": {"energia": 20, "description": "Usa Haki dell'Armatura per difesa", "requires": "haki_armatura"},
-            "contrasto": {"energia": 15, "description": "Tecnica di contrasto (può annullare attacco)"},
-            "spostamento": {"energia": 5, "description": "Spostati per evitare parzialmente"},
+            "subire": {
+                "energia": 0, 
+                "description": "Subisci il colpo (recuperi 10% energia)",
+                "recupero_energia_percent": 10
+            },
+            "spostamento": {
+                "energia": 5, 
+                "description": "Spostati per evitare parzialmente",
+                "riduzione_danno": 0.3
+            },
+            "difesa_base": {
+                "energia": 8, 
+                "description": "Mossa difensiva base (no danno avversario)",
+                "riduzione_danno": 0.5
+            },
+            "mossa_speciale_difesa": {
+                "energia": 15, 
+                "description": "Mossa speciale difensiva (può causare effetti)",
+                "riduzione_danno": 0.6,
+                "puo_causare_danno": True
+            },
+            "carta_difesa": {
+                "energia": 5, 
+                "description": "Usa una carta duello di difesa",
+                "richiede_carta": "difesa"
+            },
+            "haki_osservazione": {
+                "energia": 15,
+                "description": "Usa Haki Osservazione per schivare (preveggenza)",
+                "requires": "haki_osservazione",
+                "bonus_schivata": 40
+            },
+            "haki_armatura_difesa": {
+                "energia": 20,
+                "description": "Usa Haki Armatura per difenderti",
+                "requires": "haki_armatura",
+                "riduzione_danno": 0.5
+            },
+            "haki_conquistatore_difesa": {
+                "energia": 30,
+                "description": "Usa Haki del Re per intimidire/far svenire",
+                "requires": "haki_conquistatore",
+                "puo_stordire": True
+            },
+            "contrattacco_diretto": {
+                "energia": 0,  # Costa l'energia dell'attacco scelto
+                "description": "Salta difesa e contrattacca direttamente",
+                "vai_a_fase": "contrattacco"
+            }
         }
     },
     "attivazione": {
         "name": "Attivazione",
         "order": 2,
+        "description": "Attiva poteri, oggetti o carte",
+        "primo_turno": True,  # Disponibile sempre
         "actions": {
-            "usa_carta": {"energia": 5, "description": "Usa una carta evento"},
-            "usa_oggetto": {"energia": 3, "description": "Usa un oggetto dall'inventario"},
-            "attiva_potere": {"energia": 15, "description": "Attiva un potere speciale"},
-            "salta": {"energia": 0, "description": "Non attivare nulla (risparmia energia)"},
+            "attiva_frutto": {
+                "energia": 20,
+                "description": "Attiva potere del Frutto del Diavolo",
+                "requires": "frutto_diavolo"
+            },
+            "haki_preparazione": {
+                "energia": 15,
+                "description": "Attiva Haki per potenziare il prossimo attacco",
+                "potenzia_attacco": True
+            },
+            "usa_oggetto": {
+                "energia": 3,
+                "description": "Usa un oggetto dall'inventario"
+            },
+            "carta_attivazione": {
+                "energia": 5,
+                "description": "Usa una carta duello di attivazione",
+                "richiede_carta": "attivazione"
+            },
+            "salta": {
+                "energia": 0,
+                "description": "Non attivare nulla"
+            }
         }
     },
     "contrattacco": {
-        "name": "Contrattacco",
+        "name": "Attacco/Contrattacco",
         "order": 3,
+        "description": "Attacca l'avversario",
+        "primo_turno": True,  # Disponibile sempre
         "actions": {
-            "pugno": {"energia": 5, "cd": 3, "description": "Attacco base con i pugni"},
-            "calcio": {"energia": 5, "cd": 3, "description": "Attacco base con calci"},
-            "colpo_rapido": {"energia": 3, "cd": 2, "description": "Attacco veloce ma debole"},
-            "colpo_potente": {"energia": 15, "cd": 6, "description": "Attacco potente"},
-            "tecnica_segreta": {"energia": 25, "cd": 8, "description": "Tecnica devastante"},
-            "combo": {"energia": 20, "cd": 7, "description": "Combinazione di colpi"},
-            "attacco_arma": {"energia": 10, "cd": 5, "description": "Attacco con arma equipaggiata"},
-            "riposo": {"energia": -20, "cd": 0, "description": "Non attaccare, recupera 20 energia"},
+            "spostamento_attacco": {
+                "energia": 5,
+                "description": "Spostati per posizionarti meglio",
+                "bonus_precisione": 10
+            },
+            "attacco_base": {
+                "energia": 5,
+                "cd": 3,
+                "description": "Attacco base - scegli parte del corpo",
+                "richiede_bersaglio": True
+            },
+            "attacco_speciale": {
+                "energia": 15,
+                "cd": 6,
+                "description": "Mossa speciale - può richiedere bersaglio",
+                "richiede_bersaglio": True
+            },
+            "attacco_arma": {
+                "energia": 10,
+                "description": "Attacco con arma equipaggiata",
+                "richiede_bersaglio": True,
+                "requires": "arma_equipaggiata"
+            },
+            "carta_attacco": {
+                "energia": 5,
+                "description": "Usa carta duello di attacco",
+                "richiede_carta": "attacco"
+            },
+            "attacco_haki": {
+                "energia": 0,  # Già pagato in attivazione
+                "description": "Attacco potenziato da Haki (se attivato)",
+                "requires": "haki_attivato",
+                "richiede_bersaglio": True
+            },
+            "passa_turno": {
+                "energia": 0,
+                "description": "Passa il turno senza attaccare",
+                "recupero_energia_percent": 15
+            }
         }
     }
 }
@@ -855,6 +995,153 @@ PHASE_ENERGY_MULTIPLIER = {
     2: 1.3,   # 2 fasi = +30% energia
     3: 1.6,   # Tutte e 3 = +60% energia
 }
+
+# ============ BATTLE HELPER FUNCTIONS ============
+
+def check_attack_validity(attacker: Dict, defender: Dict, attack_type: str, has_haki_armatura: bool = False) -> Dict:
+    """
+    Verifica se un attacco è valido contro il difensore.
+    Esempio: attacchi fisici normali non funzionano contro Rogia senza Haki.
+    """
+    result = {
+        "valido": True,
+        "danno_effettivo": True,
+        "motivo": None,
+        "narrazione": None
+    }
+    
+    # Controlla immunità Rogia
+    defender_fruit = defender.get("frutto_diavolo")
+    if defender_fruit and defender_fruit.get("tipo") == "rogia":
+        # Attacchi fisici normali non funzionano
+        if attack_type in ["attacco_base", "attacco_speciale", "pugno", "calcio"] and not has_haki_armatura:
+            result["valido"] = True  # L'attacco avviene
+            result["danno_effettivo"] = False  # Ma non fa danno
+            result["motivo"] = "immunita_rogia"
+            result["narrazione"] = f"L'attacco passa attraverso il corpo di {defender.get('nome')}! Essendo un utilizzatore di Rogia, gli attacchi fisici normali non hanno effetto!"
+    
+    return result
+
+def calculate_attack_collision(attack1_damage: int, attack2_damage: int) -> Dict:
+    """
+    Calcola il risultato quando due attacchi si scontrano.
+    Il danno risultante è la differenza, applicata a chi ha fatto meno danno.
+    """
+    difference = abs(attack1_damage - attack2_damage)
+    
+    if attack1_damage > attack2_damage:
+        return {
+            "vincitore": "attacker1",
+            "danno_risultante": difference,
+            "chi_subisce": "attacker2",
+            "narrazione": f"Gli attacchi si scontrano! Con una differenza di {difference} danni, il secondo attaccante subisce il contraccolpo!"
+        }
+    elif attack2_damage > attack1_damage:
+        return {
+            "vincitore": "attacker2",
+            "danno_risultante": difference,
+            "chi_subisce": "attacker1",
+            "narrazione": f"Gli attacchi si scontrano! Con una differenza di {difference} danni, il primo attaccante subisce il contraccolpo!"
+        }
+    else:
+        return {
+            "vincitore": None,
+            "danno_risultante": 0,
+            "chi_subisce": None,
+            "narrazione": "Gli attacchi si annullano a vicenda! Nessun danno inflitto!"
+        }
+
+def get_available_phases(is_first_turn: bool, has_pending_attack: bool) -> list:
+    """
+    Restituisce le fasi disponibili per il turno corrente.
+    - Primo turno: solo Attivazione e Contrattacco
+    - Turni successivi: tutte e 3 (Reazione solo se c'è attacco pendente)
+    """
+    if is_first_turn:
+        return ["attivazione", "contrattacco"]
+    else:
+        phases = []
+        if has_pending_attack:
+            phases.append("reazione")
+        phases.extend(["attivazione", "contrattacco"])
+        return phases
+
+def calculate_body_part_damage(base_damage: int, body_part: str, attacker_stats: Dict) -> Dict:
+    """
+    Calcola il danno basato sulla parte del corpo colpita.
+    """
+    part_data = BODY_PARTS.get(body_part, BODY_PARTS["petto"])
+    
+    # Moltiplicatore danno per parte del corpo
+    damage_multiplier = part_data["moltiplicatore_danno"]
+    
+    # Probabilità di colpire basata su difficoltà e velocità attaccante
+    hit_chance = part_data["difficolta"] * 100
+    hit_chance += attacker_stats.get("velocita", 10) * 0.5
+    hit_chance += attacker_stats.get("agilita", 10) * 0.3
+    hit_chance = min(95, hit_chance)  # Max 95%
+    
+    # Verifica se colpisce
+    hit_roll = random.randint(1, 100)
+    hits = hit_roll <= hit_chance
+    
+    final_damage = int(base_damage * damage_multiplier) if hits else 0
+    
+    # Controlla effetto critico
+    critical_effect = None
+    if hits and random.randint(1, 100) <= 15:  # 15% critico
+        critical_effect = part_data.get("effetto_critico")
+        if critical_effect:
+            final_damage = int(final_damage * 1.5)
+    
+    return {
+        "danno_finale": final_damage,
+        "colpito": hits,
+        "parte_colpita": part_data["nome"],
+        "probabilita_colpo": hit_chance,
+        "critico": critical_effect is not None,
+        "effetto_critico": critical_effect,
+        "narrazione": f"Attacco alla {part_data['nome']}! " + (
+            f"Colpo a segno per {final_damage} danni!" + (f" CRITICO! {critical_effect}!" if critical_effect else "")
+            if hits else "Mancato!"
+        )
+    }
+
+def apply_haki_effects(attacker: Dict, defender: Dict, damage: int, haki_type: str, is_attack: bool) -> Dict:
+    """
+    Applica gli effetti dell'Haki all'attacco o difesa.
+    """
+    result = {
+        "danno_modificato": damage,
+        "effetti": [],
+        "narrazione": ""
+    }
+    
+    haki_data = HAKI_TYPES.get(haki_type)
+    if not haki_data:
+        return result
+    
+    if is_attack:
+        if haki_type == "armatura":
+            # Bypassa immunità e aumenta danno
+            result["danno_modificato"] = int(damage * haki_data["bonus_danno"])
+            result["effetti"].append("penetrazione_rogia")
+            result["narrazione"] = f"L'Haki dell'Armatura avvolge l'attacco! Danno aumentato a {result['danno_modificato']}!"
+        elif haki_type == "conquistatore":
+            # Bonus danno contro nemici più deboli
+            level_diff = attacker.get("livello_combattimento", 1) - defender.get("livello_combattimento", 1)
+            if level_diff >= haki_data["soglia_svenimento"]:
+                result["effetti"].append("svenimento_possibile")
+                result["narrazione"] = "L'Haki del Re Conquistatore si scatena! Il nemico potrebbe svenire!"
+    else:
+        if haki_type == "osservazione":
+            result["effetti"].append(f"bonus_schivata_{haki_data['bonus_schivata']}")
+            result["narrazione"] = "L'Haki dell'Osservazione si attiva! Preveggenza attiva!"
+        elif haki_type == "armatura":
+            result["danno_modificato"] = int(damage * (1 - haki_data["riduzione_danno"]))
+            result["narrazione"] = f"L'Haki dell'Armatura assorbe il colpo! Danno ridotto a {result['danno_modificato']}!"
+    
+    return result
 
 # Formule base per stats
 def calculate_max_vita(level: int) -> int:
@@ -1650,12 +1937,401 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
 
 @api_router.get("/battle/phases")
 async def get_battle_phases(request: Request):
-    """Get all available battle phases and their actions"""
+    """Get all available battle phases, actions, body parts, and Haki info"""
     await get_current_user(request)
     return {
         "phases": BATTLE_PHASES,
         "energy_multipliers": PHASE_ENERGY_MULTIPLIER,
-        "description": "Ogni turno ha 3 fasi: Reazione → Attivazione → Contrattacco. Più fasi usi, più energia consumi."
+        "body_parts": BODY_PARTS,
+        "haki_types": HAKI_TYPES,
+        "devil_fruit_types": DEVIL_FRUIT_TYPES,
+        "description": "Primo turno: Attivazione → Contrattacco. Turni successivi: Reazione → Attivazione → Contrattacco.",
+        "regole": {
+            "primo_turno": "Solo fasi Attivazione e Contrattacco",
+            "reazione": "Disponibile solo se c'è un attacco pendente",
+            "attacco_vs_attacco": "Se entrambi attaccano, il danno è la differenza tra i due",
+            "rogia": "Frutti Rogia immuni ad attacchi fisici senza Haki Armatura",
+            "bersaglio": "Attacchi base richiedono scelta parte del corpo"
+        }
+    }
+
+@api_router.get("/battle/{battle_id}/available-actions")
+async def get_available_battle_actions(battle_id: str, request: Request):
+    """Get available actions for current turn based on battle state"""
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    player_data = battle[current_player]
+    
+    # Determine if first turn
+    is_first_turn = battle.get("numero_turno", 1) == 1 and current_player == "player1"
+    has_pending_attack = battle.get("azione_avversario_pendente") is not None
+    
+    # Get available phases
+    available_phases = get_available_phases(is_first_turn, has_pending_attack)
+    completed_phases = battle.get("fasi_completate", [])
+    
+    # Build available actions per phase
+    actions = {}
+    for fase in available_phases:
+        if fase in completed_phases:
+            continue
+        
+        phase_actions = {}
+        for action_name, action_data in BATTLE_PHASES[fase]["actions"].items():
+            # Check requirements
+            can_use = True
+            reason = None
+            
+            # Check energy
+            energia_required = action_data.get("energia", 0)
+            if energia_required > player_data["energia"]:
+                can_use = False
+                reason = f"Energia insufficiente ({energia_required} richiesta)"
+            
+            # Check special requirements
+            requires = action_data.get("requires")
+            if requires:
+                if requires == "haki_osservazione" and not player_data.get("haki", {}).get("osservazione"):
+                    can_use = False
+                    reason = "Richiede Haki dell'Osservazione"
+                elif requires == "haki_armatura" and not player_data.get("haki", {}).get("armatura"):
+                    can_use = False
+                    reason = "Richiede Haki dell'Armatura"
+                elif requires == "haki_conquistatore" and not player_data.get("haki", {}).get("conquistatore"):
+                    can_use = False
+                    reason = "Richiede Haki del Re Conquistatore"
+                elif requires == "frutto_diavolo" and not player_data.get("frutto_diavolo"):
+                    can_use = False
+                    reason = "Richiede un Frutto del Diavolo"
+                elif requires == "arma_equipaggiata" and not any(a.get("equipped") for a in player_data.get("armi", [])):
+                    can_use = False
+                    reason = "Richiede un'arma equipaggiata"
+            
+            phase_actions[action_name] = {
+                "disponibile": can_use,
+                "motivo": reason,
+                "energia": energia_required,
+                "descrizione": action_data.get("description"),
+                "richiede_bersaglio": action_data.get("richiede_bersaglio", False),
+                "cd": action_data.get("cd")
+            }
+        
+        actions[fase] = phase_actions
+    
+    return {
+        "turno": battle.get("numero_turno", 1),
+        "primo_turno": is_first_turn,
+        "fasi_disponibili": [f for f in available_phases if f not in completed_phases],
+        "fasi_completate": completed_phases,
+        "attacco_pendente": battle.get("azione_avversario_pendente"),
+        "azioni_per_fase": actions,
+        "parti_corpo": list(BODY_PARTS.keys()),
+        "energia_giocatore": player_data["energia"],
+        "energia_max": player_data["energia_max"]
+    }
+
+@api_router.post("/battle/{battle_id}/attack")
+async def execute_battle_attack(battle_id: str, data: Dict[str, Any], request: Request):
+    """
+    Esegue un attacco con validazione completa.
+    
+    Body: {
+        "tipo_attacco": "attacco_base" | "attacco_speciale" | "attacco_arma" | "attacco_haki",
+        "parte_corpo": "testa" | "petto" | "pancia" | "braccia" | "gambe",
+        "usa_haki": "armatura" | "osservazione" | null
+    }
+    """
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+        active_battles[battle_id] = battle
+    
+    if battle["stato"] == "finita":
+        raise HTTPException(status_code=400, detail="Battaglia già terminata")
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    opponent = "player2" if is_player1 else "player1"
+    
+    if battle["turno_corrente"] != current_player:
+        raise HTTPException(status_code=400, detail="Non è il tuo turno!")
+    
+    tipo_attacco = data.get("tipo_attacco", "attacco_base")
+    parte_corpo = data.get("parte_corpo", "petto")
+    usa_haki = data.get("usa_haki")
+    
+    player_data = battle[current_player]
+    opponent_data = battle[opponent]
+    attacker_level = player_data.get("livello_combattimento", 1)
+    
+    # Determine CD based on attack type
+    cd_values = {
+        "attacco_base": 3,
+        "attacco_speciale": 6,
+        "attacco_arma": 5,
+        "attacco_haki": 8
+    }
+    energia_costs = {
+        "attacco_base": 5,
+        "attacco_speciale": 15,
+        "attacco_arma": 10,
+        "attacco_haki": 20
+    }
+    
+    cd = cd_values.get(tipo_attacco, 3)
+    energia_cost = energia_costs.get(tipo_attacco, 5)
+    
+    # Check energy
+    if player_data["energia"] < energia_cost:
+        return {
+            "success": False,
+            "error": f"Energia insufficiente. Richiesta: {energia_cost}, Disponibile: {player_data['energia']}"
+        }
+    
+    # Calculate base damage
+    base_damage = calculate_combat_damage(attacker_level, cd)
+    has_haki_armatura = usa_haki == "armatura" or (player_data.get("haki_attivato") == "armatura")
+    
+    # Check attack validity (Rogia immunity, etc.)
+    validity = check_attack_validity(player_data, opponent_data, tipo_attacco, has_haki_armatura)
+    
+    narration_parts = []
+    
+    if not validity["danno_effettivo"]:
+        # Attack doesn't do damage (e.g., Rogia immunity)
+        narration_parts.append(validity["narrazione"])
+        battle["log"].append(validity["narrazione"])
+        
+        # Still spend energy
+        player_data["energia"] -= energia_cost
+        
+        # Store attack info for opponent's reaction (even if no damage)
+        battle["azione_avversario_pendente"] = {
+            "tipo": tipo_attacco,
+            "danno": 0,
+            "danno_potenziale": base_damage,
+            "attaccante": current_player,
+            "parte_corpo": parte_corpo,
+            "invalido": True,
+            "motivo": validity["motivo"]
+        }
+        
+        active_battles[battle_id] = battle
+        await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+        
+        return {
+            "success": True,
+            "attacco_valido": False,
+            "motivo": validity["motivo"],
+            "narrazione": validity["narrazione"],
+            "battle": battle
+        }
+    
+    # Apply Haki effects if used
+    if usa_haki:
+        haki_result = apply_haki_effects(player_data, opponent_data, base_damage, usa_haki, is_attack=True)
+        base_damage = haki_result["danno_modificato"]
+        if haki_result["narrazione"]:
+            narration_parts.append(haki_result["narrazione"])
+    
+    # Calculate damage with body part targeting
+    body_result = calculate_body_part_damage(base_damage, parte_corpo, player_data)
+    
+    narration_parts.append(f"{player_data['nome']} attacca {opponent_data['nome']}!")
+    narration_parts.append(f"[Lv{attacker_level} × CD{cd}] = {base_damage} danno base")
+    narration_parts.append(body_result["narrazione"])
+    
+    # Spend energy
+    player_data["energia"] -= energia_cost
+    
+    # Store attack for opponent's reaction phase
+    battle["azione_avversario_pendente"] = {
+        "tipo": tipo_attacco,
+        "danno": body_result["danno_finale"],
+        "danno_base": base_damage,
+        "attaccante": current_player,
+        "parte_corpo": parte_corpo,
+        "colpito": body_result["colpito"],
+        "critico": body_result["critico"],
+        "effetto_critico": body_result.get("effetto_critico"),
+        "haki_usato": usa_haki
+    }
+    
+    full_narration = " ".join(narration_parts)
+    battle["log"].append(full_narration)
+    
+    # Update battle state
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "attacco_valido": True,
+        "danno_potenziale": body_result["danno_finale"],
+        "parte_corpo": body_result["parte_colpita"],
+        "colpito": body_result["colpito"],
+        "critico": body_result["critico"],
+        "effetto_critico": body_result.get("effetto_critico"),
+        "energia_spesa": energia_cost,
+        "narrazione": full_narration,
+        "battle": battle,
+        "prossima_azione": "Il computer aspetta la reazione dell'avversario..."
+    }
+
+@api_router.post("/battle/{battle_id}/react")
+async def execute_battle_reaction(battle_id: str, data: Dict[str, Any], request: Request):
+    """
+    Esegue una reazione all'attacco avversario.
+    
+    Body: {
+        "tipo_reazione": "subire" | "spostamento" | "difesa_base" | "haki_osservazione" | "haki_armatura_difesa" | "contrattacco_diretto",
+        "contrattacco": {  // Solo se tipo_reazione == "contrattacco_diretto"
+            "tipo_attacco": "attacco_base",
+            "parte_corpo": "petto"
+        }
+    }
+    """
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+        active_battles[battle_id] = battle
+    
+    pending_attack = battle.get("azione_avversario_pendente")
+    if not pending_attack:
+        return {"success": False, "error": "Nessun attacco a cui reagire"}
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    opponent = "player2" if is_player1 else "player1"
+    
+    if battle["turno_corrente"] != current_player:
+        raise HTTPException(status_code=400, detail="Non è il tuo turno!")
+    
+    tipo_reazione = data.get("tipo_reazione", "subire")
+    player_data = battle[current_player]
+    opponent_data = battle[opponent]
+    
+    incoming_damage = pending_attack.get("danno", 0)
+    final_damage = incoming_damage
+    narration_parts = []
+    
+    # Process reaction
+    if tipo_reazione == "subire":
+        # Take full damage but recover energy
+        energy_recovery = int(player_data["energia_max"] * 0.10)  # 10% del totale
+        player_data["energia"] = min(player_data["energia_max"], player_data["energia"] + energy_recovery)
+        narration_parts.append(f"{player_data['nome']} subisce il colpo! -{incoming_damage} HP ma +{energy_recovery} energia")
+        
+    elif tipo_reazione == "spostamento":
+        if player_data["energia"] >= 5:
+            player_data["energia"] -= 5
+            final_damage = int(incoming_damage * 0.7)  # 30% riduzione
+            narration_parts.append(f"{player_data['nome']} si sposta! Danno ridotto a {final_damage}")
+        else:
+            narration_parts.append("Energia insufficiente per spostarsi!")
+            
+    elif tipo_reazione == "difesa_base":
+        if player_data["energia"] >= 8:
+            player_data["energia"] -= 8
+            final_damage = int(incoming_damage * 0.5)  # 50% riduzione
+            narration_parts.append(f"{player_data['nome']} si difende! Danno ridotto a {final_damage}")
+        else:
+            narration_parts.append("Energia insufficiente per difendersi!")
+            
+    elif tipo_reazione == "haki_osservazione":
+        if player_data.get("haki", {}).get("osservazione") and player_data["energia"] >= 15:
+            player_data["energia"] -= 15
+            # Schivata con bonus
+            dodge_chance = 50 + HAKI_TYPES["osservazione"]["bonus_schivata"]
+            if random.randint(1, 100) <= dodge_chance:
+                final_damage = 0
+                narration_parts.append(f"👁️ {player_data['nome']} usa l'Haki dell'Osservazione! Schiva completamente l'attacco!")
+            else:
+                final_damage = int(incoming_damage * 0.5)
+                narration_parts.append(f"👁️ L'Haki dell'Osservazione aiuta a prevedere... ma non completamente. -{final_damage} HP")
+        else:
+            narration_parts.append("Non puoi usare l'Haki dell'Osservazione!")
+            
+    elif tipo_reazione == "haki_armatura_difesa":
+        if player_data.get("haki", {}).get("armatura") and player_data["energia"] >= 20:
+            player_data["energia"] -= 20
+            final_damage = int(incoming_damage * (1 - HAKI_TYPES["armatura"]["riduzione_danno"]))
+            narration_parts.append(f"⚫ {player_data['nome']} attiva l'Haki dell'Armatura! Danno ridotto a {final_damage}")
+        else:
+            narration_parts.append("Non puoi usare l'Haki dell'Armatura!")
+            
+    elif tipo_reazione == "contrattacco_diretto":
+        # Skip defense and counter-attack directly
+        contrattacco_data = data.get("contrattacco", {})
+        
+        # Calculate counter-attack damage
+        attacker_level = player_data.get("livello_combattimento", 1)
+        cd = 3  # Base attack CD
+        counter_damage = calculate_combat_damage(attacker_level, cd)
+        
+        # Collision calculation
+        collision = calculate_attack_collision(incoming_damage, counter_damage)
+        
+        narration_parts.append(f"⚔️ {player_data['nome']} contrattacca direttamente!")
+        narration_parts.append(collision["narrazione"])
+        
+        if collision["chi_subisce"] == "attacker1":  # Opponent takes damage
+            opponent_data["vita"] = max(0, opponent_data["vita"] - collision["danno_risultante"])
+            final_damage = 0
+        elif collision["chi_subisce"] == "attacker2":  # Player takes damage
+            final_damage = collision["danno_risultante"]
+        else:
+            final_damage = 0
+    
+    # Apply damage
+    if final_damage > 0:
+        player_data["vita"] = max(0, player_data["vita"] - final_damage)
+        if tipo_reazione != "contrattacco_diretto":
+            narration_parts.append(f"{player_data['nome']} subisce {final_damage} danni!")
+    
+    # Clear pending attack
+    battle["azione_avversario_pendente"] = None
+    
+    # Check for battle end
+    if player_data["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = opponent
+        narration_parts.append(f"💀 {player_data['nome']} è stato sconfitto!")
+    elif opponent_data["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = current_player
+        narration_parts.append(f"🏆 {player_data['nome']} ha vinto!")
+    
+    full_narration = " ".join(narration_parts)
+    battle["log"].append(full_narration)
+    
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "danno_subito": final_damage,
+        "narrazione": full_narration,
+        "battle": battle
     }
 
 @api_router.post("/battle/{battle_id}/phase-action")
