@@ -788,42 +788,716 @@ async def delete_character(request: Request):
 
 # ============ COMBAT LEVEL & EXP SYSTEM ============
 
-# Coefficienti Danno (CD) per le mosse
+# ============ SISTEMA MOSSE DETTAGLIATO ============
+# Ogni mossa ha: nome, energia, cd, distanza_max, raggio, condizioni, effetti, annullamento
+# Energia effettiva = energia_base × livello_combattimento / 2
+# Danno effettivo = CD × livello_combattimento
+
+# === MOSSE BASE ===
+# Disponibili a tutti i personaggi senza requisiti speciali
+MOSSE_BASE = {
+    "pugno": {
+        "id": "pugno",
+        "nome": "Pugno",
+        "descrizione": "Un pugno diretto verso l'avversario.",
+        "energia": 5,
+        "cd": 3,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": None,
+        "annullamento": None,
+        "tipo": "base"
+    },
+    "calcio": {
+        "id": "calcio",
+        "nome": "Calcio",
+        "descrizione": "Un calcio potente con la gamba.",
+        "energia": 5,
+        "cd": 3,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": None,
+        "annullamento": None,
+        "tipo": "base"
+    },
+    "colpo_rapido": {
+        "id": "colpo_rapido",
+        "nome": "Colpo Rapido",
+        "descrizione": "Un attacco veloce ma meno potente.",
+        "energia": 3,
+        "cd": 2,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": "Attacco prioritario: colpisce prima degli attacchi normali.",
+        "annullamento": None,
+        "tipo": "base"
+    },
+    "testata": {
+        "id": "testata",
+        "nome": "Testata",
+        "descrizione": "Un colpo violento con la testa.",
+        "energia": 8,
+        "cd": 4,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": "10% probabilità di stordire per 1 turno.",
+        "annullamento": "Non funziona contro elmetti o teste corazzate.",
+        "tipo": "base"
+    },
+    "gomitata": {
+        "id": "gomitata",
+        "nome": "Gomitata",
+        "descrizione": "Un colpo secco con il gomito.",
+        "energia": 6,
+        "cd": 4,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": None,
+        "annullamento": None,
+        "tipo": "base"
+    },
+    "ginocchiata": {
+        "id": "ginocchiata",
+        "nome": "Ginocchiata",
+        "descrizione": "Un colpo con il ginocchio.",
+        "energia": 6,
+        "cd": 4,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": None,
+        "annullamento": None,
+        "tipo": "base"
+    },
+    "spinta": {
+        "id": "spinta",
+        "nome": "Spinta",
+        "descrizione": "Spingi l'avversario per allontanarlo.",
+        "energia": 4,
+        "cd": 1,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": "Sposta l'avversario di 1 distanza indietro.",
+        "annullamento": "Non funziona contro avversari molto più pesanti.",
+        "tipo": "base"
+    },
+    "presa": {
+        "id": "presa",
+        "nome": "Presa",
+        "descrizione": "Afferra l'avversario per immobilizzarlo.",
+        "energia": 7,
+        "cd": 1,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": "Se riesce, l'avversario non può spostarsi per 1 turno.",
+        "annullamento": "Annullato da olio, corpo scivoloso o Logia.",
+        "tipo": "base"
+    }
+}
+
+# === MOSSE SPECIALI PER RAZZA ===
+# Mosse sbloccate in base alla razza del personaggio
+MOSSE_RAZZA = {
+    "umano": {
+        # Gli umani non hanno mosse speciali di razza, ma possono apprenderne di più
+    },
+    "uomo_pesce": {
+        "karate_uomo_pesce": {
+            "id": "karate_uomo_pesce",
+            "nome": "Karate dell'Uomo Pesce",
+            "descrizione": "Manipola l'acqua nell'aria per attaccare.",
+            "energia": 15,
+            "cd": 6,
+            "distanza_max": 3,
+            "raggio": "medio",
+            "condizioni": ["razza: uomo_pesce"],
+            "effetti": "Più potente se c'è acqua nelle vicinanze (+50% danno).",
+            "annullamento": "Inefficace in ambienti completamente secchi.",
+            "tipo": "speciale_razza"
+        },
+        "morso_squalo": {
+            "id": "morso_squalo",
+            "nome": "Morso dello Squalo",
+            "descrizione": "Un morso feroce con denti affilati.",
+            "energia": 12,
+            "cd": 7,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["razza: uomo_pesce"],
+            "effetti": "Causa sanguinamento: 1×Lv.Comb danno per 3 turni.",
+            "annullamento": "Non funziona contro armature o Logia.",
+            "tipo": "speciale_razza"
+        }
+    },
+    "gigante": {
+        "pugno_gigante": {
+            "id": "pugno_gigante",
+            "nome": "Pugno del Gigante",
+            "descrizione": "Un pugno devastante di proporzioni enormi.",
+            "energia": 20,
+            "cd": 10,
+            "distanza_max": 2,
+            "raggio": "ampio",
+            "condizioni": ["razza: gigante"],
+            "effetti": "Sposta l'avversario di 2 distanze. Può colpire più bersagli.",
+            "annullamento": None,
+            "tipo": "speciale_razza"
+        },
+        "calpestamento": {
+            "id": "calpestamento",
+            "nome": "Calpestamento",
+            "descrizione": "Schiaccia l'avversario sotto il piede.",
+            "energia": 18,
+            "cd": 8,
+            "distanza_max": 1,
+            "raggio": "ampio",
+            "condizioni": ["razza: gigante"],
+            "effetti": "Se colpisce, l'avversario è bloccato per 1 turno.",
+            "annullamento": "Non funziona contro avversari volanti o Logia.",
+            "tipo": "speciale_razza"
+        }
+    },
+    "nano": {
+        "velocita_nanica": {
+            "id": "velocita_nanica",
+            "nome": "Velocità Nanica",
+            "descrizione": "Muoviti così velocemente da essere invisibile.",
+            "energia": 10,
+            "cd": 5,
+            "distanza_max": 3,
+            "raggio": "corto",
+            "condizioni": ["razza: nano"],
+            "effetti": "Impossibile da schivare con reazioni normali.",
+            "annullamento": "Haki dell'Osservazione può prevederlo.",
+            "tipo": "speciale_razza"
+        },
+        "puntura_precisa": {
+            "id": "puntura_precisa",
+            "nome": "Puntura Precisa",
+            "descrizione": "Colpisci un punto vitale con precisione chirurgica.",
+            "energia": 8,
+            "cd": 6,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["razza: nano"],
+            "effetti": "Ignora il 50% della difesa avversaria.",
+            "annullamento": "Non funziona contro Logia o armatura Haki.",
+            "tipo": "speciale_razza"
+        }
+    },
+    "visone": {
+        "electro": {
+            "id": "electro",
+            "nome": "Electro",
+            "descrizione": "Scarica elettrica naturale dei Visoni.",
+            "energia": 12,
+            "cd": 6,
+            "distanza_max": 2,
+            "raggio": "medio",
+            "condizioni": ["razza: visone"],
+            "effetti": "Se schivato, colpisce comunque con 1×Lv.Comb danno elettrico.",
+            "annullamento": "Non funziona contro Logia di gomma o isolanti.",
+            "tipo": "speciale_razza"
+        },
+        "forma_sulong": {
+            "id": "forma_sulong",
+            "nome": "Forma Sulong",
+            "descrizione": "Trasformazione sotto la luna piena.",
+            "energia": 30,
+            "cd": 0,
+            "distanza_max": 0,
+            "raggio": "se_stesso",
+            "condizioni": ["razza: visone", "luna_piena"],
+            "effetti": "Raddoppia tutti i parametri per 5 turni. Dopo: -50% energia.",
+            "annullamento": "Richiede luna piena visibile.",
+            "tipo": "speciale_razza"
+        }
+    },
+    "cyborg": {
+        "cannone_interno": {
+            "id": "cannone_interno",
+            "nome": "Cannone Interno",
+            "descrizione": "Spara un colpo dal cannone integrato.",
+            "energia": 15,
+            "cd": 8,
+            "distanza_max": 4,
+            "raggio": "lungo",
+            "condizioni": ["razza: cyborg"],
+            "effetti": "Attacco a distanza. Non richiede arma equipaggiata.",
+            "annullamento": None,
+            "tipo": "speciale_razza"
+        },
+        "pugno_razzo": {
+            "id": "pugno_razzo",
+            "nome": "Pugno Razzo",
+            "descrizione": "Lancia il pugno come un proiettile.",
+            "energia": 18,
+            "cd": 9,
+            "distanza_max": 3,
+            "raggio": "medio",
+            "condizioni": ["razza: cyborg"],
+            "effetti": "Dopo l'uso, -20% danno pugni per 2 turni (ricarica).",
+            "annullamento": None,
+            "tipo": "speciale_razza"
+        }
+    }
+}
+
+# === MOSSE SPECIALI PER STILE DI COMBATTIMENTO ===
+MOSSE_STILE = {
+    "arti_marziali": {
+        "combo_marziale": {
+            "id": "combo_marziale",
+            "nome": "Combo Marziale",
+            "descrizione": "Una serie di colpi in rapida successione.",
+            "energia": 15,
+            "cd": 7,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["stile: arti_marziali"],
+            "effetti": "3 colpi consecutivi. Se tutti colpiscono: bonus 2×Lv.Comb.",
+            "annullamento": "Interrotto se uno dei colpi viene parato.",
+            "tipo": "speciale_stile"
+        },
+        "calcio_rotante": {
+            "id": "calcio_rotante",
+            "nome": "Calcio Rotante",
+            "descrizione": "Un calcio circolare che colpisce tutto intorno.",
+            "energia": 12,
+            "cd": 5,
+            "distanza_max": 1,
+            "raggio": "ampio",
+            "condizioni": ["stile: arti_marziali"],
+            "effetti": "Può colpire tutti i nemici in raggio corto.",
+            "annullamento": None,
+            "tipo": "speciale_stile"
+        }
+    },
+    "armi_mono": {
+        "fendente_preciso": {
+            "id": "fendente_preciso",
+            "nome": "Fendente Preciso",
+            "descrizione": "Un taglio mirato a un punto debole.",
+            "energia": 10,
+            "cd": 6,
+            "distanza_max": 2,
+            "raggio": "corto",
+            "condizioni": ["stile: armi_mono", "arma_equipaggiata"],
+            "effetti": "Ignora il 30% della difesa.",
+            "annullamento": "Richiede arma da taglio.",
+            "tipo": "speciale_stile"
+        },
+        "parata_e_contrattacco": {
+            "id": "parata_e_contrattacco",
+            "nome": "Parata e Contrattacco",
+            "descrizione": "Para l'attacco nemico e contrattacca immediatamente.",
+            "energia": 14,
+            "cd": 5,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["stile: armi_mono", "arma_equipaggiata", "fase: reazione"],
+            "effetti": "Se para con successo, contrattacco automatico.",
+            "annullamento": "Non funziona contro attacchi a distanza.",
+            "tipo": "speciale_stile"
+        }
+    },
+    "armi_pluri": {
+        "tempesta_di_lame": {
+            "id": "tempesta_di_lame",
+            "nome": "Tempesta di Lame",
+            "descrizione": "Attacca con tutte le armi in rapidissima successione.",
+            "energia": 20,
+            "cd": 9,
+            "distanza_max": 1,
+            "raggio": "medio",
+            "condizioni": ["stile: armi_pluri", "arma_equipaggiata"],
+            "effetti": "Numero colpi = numero armi equipaggiate.",
+            "annullamento": None,
+            "tipo": "speciale_stile"
+        }
+    },
+    "tiratore": {
+        "colpo_mirato": {
+            "id": "colpo_mirato",
+            "nome": "Colpo Mirato",
+            "descrizione": "Prendi la mira per un colpo devastante.",
+            "energia": 12,
+            "cd": 10,
+            "distanza_max": 5,
+            "raggio": "lungo",
+            "condizioni": ["stile: tiratore", "arma_distanza"],
+            "effetti": "Richiede 1 turno di preparazione. Danno critico garantito.",
+            "annullamento": "Interrotto se subisci danno durante la mira.",
+            "tipo": "speciale_stile"
+        },
+        "raffica": {
+            "id": "raffica",
+            "nome": "Raffica",
+            "descrizione": "Spara una serie di colpi rapidi.",
+            "energia": 18,
+            "cd": 4,
+            "distanza_max": 4,
+            "raggio": "lungo",
+            "condizioni": ["stile: tiratore", "arma_distanza"],
+            "effetti": "5 colpi con CD ridotto. Almeno 2 colpiscono sempre.",
+            "annullamento": None,
+            "tipo": "speciale_stile"
+        }
+    },
+    "ibrido": {
+        "cambio_tattica": {
+            "id": "cambio_tattica",
+            "nome": "Cambio Tattica",
+            "descrizione": "Alterna rapidamente tra corpo a corpo e distanza.",
+            "energia": 8,
+            "cd": 4,
+            "distanza_max": 3,
+            "raggio": "variabile",
+            "condizioni": ["stile: ibrido"],
+            "effetti": "Può attaccare a qualsiasi distanza senza penalità.",
+            "annullamento": None,
+            "tipo": "speciale_stile"
+        }
+    },
+    "wrestler": {
+        "suplex": {
+            "id": "suplex",
+            "nome": "Suplex",
+            "descrizione": "Afferra e sbatte l'avversario a terra.",
+            "energia": 16,
+            "cd": 8,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["stile: wrestler"],
+            "effetti": "L'avversario perde il prossimo turno se colpito.",
+            "annullamento": "Non funziona contro avversari molto più grandi o Logia.",
+            "tipo": "speciale_stile"
+        },
+        "presa_mortale": {
+            "id": "presa_mortale",
+            "nome": "Presa Mortale",
+            "descrizione": "Blocca l'avversario in una presa dolorosa.",
+            "energia": 14,
+            "cd": 3,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["stile: wrestler"],
+            "effetti": "Danno continuo 2×Lv.Comb per turno finché mantieni la presa.",
+            "annullamento": "L'avversario può tentare di liberarsi ogni turno.",
+            "tipo": "speciale_stile"
+        }
+    }
+}
+
+# === MOSSE FRUTTI DEL DIAVOLO ===
+# Struttura per le mosse dei frutti (da popolare quando il personaggio ottiene un frutto)
+MOSSE_FRUTTO = {
+    # Esempio struttura - i frutti verranno aggiunti dinamicamente
+    # "gomu_gomu": {
+    #     "gomu_gomu_pistol": {
+    #         "id": "gomu_gomu_pistol",
+    #         "nome": "Gomu Gomu no Pistol",
+    #         "descrizione": "Allunga il braccio per un pugno a distanza.",
+    #         "energia": 10,
+    #         "cd": 5,
+    #         "distanza_max": 4,
+    #         "raggio": "lungo",
+    #         "condizioni": ["frutto: gomu_gomu"],
+    #         "effetti": "Attacco a distanza. Sposta l'avversario di 2 distanze.",
+    #         "annullamento": None,
+    #         "tipo": "speciale_frutto"
+    #     }
+    # }
+}
+
+# === MOSSE CON ARMI ===
+# Mosse specifiche per ogni tipo di arma
+MOSSE_ARMI = {
+    "spada": {
+        "fendente": {
+            "id": "fendente_spada",
+            "nome": "Fendente",
+            "descrizione": "Un taglio orizzontale con la spada.",
+            "energia": 8,
+            "cd": 5,
+            "distanza_max": 2,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: spada"],
+            "effetti": None,
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        },
+        "stoccata": {
+            "id": "stoccata_spada",
+            "nome": "Stoccata",
+            "descrizione": "Un affondo preciso con la punta.",
+            "energia": 10,
+            "cd": 6,
+            "distanza_max": 2,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: spada"],
+            "effetti": "Ignora il 20% della difesa.",
+            "annullamento": "Meno efficace contro armature pesanti.",
+            "tipo": "speciale_arma"
+        },
+        "taglio_ascendente": {
+            "id": "taglio_ascendente",
+            "nome": "Taglio Ascendente",
+            "descrizione": "Un taglio dal basso verso l'alto.",
+            "energia": 12,
+            "cd": 7,
+            "distanza_max": 2,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: spada"],
+            "effetti": "Può disarmare l'avversario (20% probabilità).",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        }
+    },
+    "ascia": {
+        "colpo_devastante": {
+            "id": "colpo_devastante_ascia",
+            "nome": "Colpo Devastante",
+            "descrizione": "Un colpo potentissimo dall'alto.",
+            "energia": 15,
+            "cd": 9,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: ascia"],
+            "effetti": "Se colpisce scudo, lo distrugge.",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        },
+        "lancio_ascia": {
+            "id": "lancio_ascia",
+            "nome": "Lancio Ascia",
+            "descrizione": "Lancia l'ascia contro il nemico.",
+            "energia": 12,
+            "cd": 8,
+            "distanza_max": 3,
+            "raggio": "medio",
+            "condizioni": ["arma_tipo: ascia"],
+            "effetti": "Dopo il lancio, devi recuperare l'arma (1 turno).",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        }
+    },
+    "lancia": {
+        "carica": {
+            "id": "carica_lancia",
+            "nome": "Carica",
+            "descrizione": "Carica verso il nemico con la lancia puntata.",
+            "energia": 14,
+            "cd": 7,
+            "distanza_max": 3,
+            "raggio": "medio",
+            "condizioni": ["arma_tipo: lancia"],
+            "effetti": "Ti avvicini di 2 distanze mentre attacchi.",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        },
+        "mulinello": {
+            "id": "mulinello_lancia",
+            "nome": "Mulinello",
+            "descrizione": "Fai roteare la lancia colpendo tutto intorno.",
+            "energia": 16,
+            "cd": 5,
+            "distanza_max": 2,
+            "raggio": "ampio",
+            "condizioni": ["arma_tipo: lancia"],
+            "effetti": "Colpisce tutti i nemici in raggio 2.",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        }
+    },
+    "pistola": {
+        "colpo_singolo": {
+            "id": "colpo_singolo_pistola",
+            "nome": "Colpo Singolo",
+            "descrizione": "Un singolo colpo di pistola mirato.",
+            "energia": 8,
+            "cd": 6,
+            "distanza_max": 4,
+            "raggio": "lungo",
+            "condizioni": ["arma_tipo: pistola"],
+            "effetti": None,
+            "annullamento": "Può essere schivato più facilmente a distanza.",
+            "tipo": "speciale_arma"
+        },
+        "colpo_ravvicinato": {
+            "id": "colpo_ravvicinato_pistola",
+            "nome": "Colpo Ravvicinato",
+            "descrizione": "Spara a bruciapelo per massimo danno.",
+            "energia": 10,
+            "cd": 9,
+            "distanza_max": 1,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: pistola", "distanza <= 1"],
+            "effetti": "Danno raddoppiato a distanza 1. Impossibile schivare.",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        }
+    },
+    "fucile": {
+        "colpo_preciso": {
+            "id": "colpo_preciso_fucile",
+            "nome": "Colpo Preciso",
+            "descrizione": "Un colpo mirato con precisione.",
+            "energia": 12,
+            "cd": 10,
+            "distanza_max": 5,
+            "raggio": "lungo",
+            "condizioni": ["arma_tipo: fucile"],
+            "effetti": "Bonus +50% danno se il bersaglio non si è mosso.",
+            "annullamento": None,
+            "tipo": "speciale_arma"
+        }
+    },
+    "bastone": {
+        "colpo_stordente": {
+            "id": "colpo_stordente_bastone",
+            "nome": "Colpo Stordente",
+            "descrizione": "Un colpo alla testa per stordire.",
+            "energia": 10,
+            "cd": 4,
+            "distanza_max": 2,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: bastone"],
+            "effetti": "30% probabilità di stordire per 1 turno.",
+            "annullamento": "Non funziona contro elmetti.",
+            "tipo": "speciale_arma"
+        },
+        "spazzata": {
+            "id": "spazzata_bastone",
+            "nome": "Spazzata",
+            "descrizione": "Colpisci le gambe per far cadere il nemico.",
+            "energia": 8,
+            "cd": 3,
+            "distanza_max": 2,
+            "raggio": "corto",
+            "condizioni": ["arma_tipo: bastone"],
+            "effetti": "Se colpisce, l'avversario cade (svantaggio prossimo turno).",
+            "annullamento": "Non funziona contro avversari volanti.",
+            "tipo": "speciale_arma"
+        }
+    }
+}
+
+# === CARTE COMBATTIMENTO ===
+CARTE_COMBATTIMENTO = {
+    "carta_attacco_sorpresa": {
+        "id": "carta_attacco_sorpresa",
+        "nome": "Carta Attacco Sorpresa",
+        "descrizione": "Una carta che permette un attacco inaspettato.",
+        "energia": 5,
+        "cd": 12,
+        "distanza_max": 3,
+        "raggio": "corto",
+        "condizioni": ["carta_in_mano"],
+        "effetti": "L'avversario non può reagire a questo attacco.",
+        "annullamento": "Annullata da Haki dell'Osservazione avanzato.",
+        "tipo": "carta"
+    },
+    "carta_colpo_critico": {
+        "id": "carta_colpo_critico",
+        "nome": "Carta Colpo Critico",
+        "descrizione": "Garantisce un colpo critico.",
+        "energia": 8,
+        "cd": 15,
+        "distanza_max": 2,
+        "raggio": "corto",
+        "condizioni": ["carta_in_mano"],
+        "effetti": "Il prossimo attacco infligge danno critico (×1.5).",
+        "annullamento": None,
+        "tipo": "carta"
+    },
+    "carta_furia_berserk": {
+        "id": "carta_furia_berserk",
+        "nome": "Carta Furia Berserk",
+        "descrizione": "Entra in uno stato di furia.",
+        "energia": 10,
+        "cd": 0,
+        "distanza_max": 0,
+        "raggio": "se_stesso",
+        "condizioni": ["carta_in_mano"],
+        "effetti": "+30% attacco per 3 turni, ma -20% difesa.",
+        "annullamento": None,
+        "tipo": "carta"
+    },
+    "carta_guarigione": {
+        "id": "carta_guarigione",
+        "nome": "Carta Guarigione",
+        "descrizione": "Cura le ferite.",
+        "energia": 5,
+        "cd": 0,
+        "distanza_max": 0,
+        "raggio": "se_stesso",
+        "condizioni": ["carta_in_mano"],
+        "effetti": "Recupera 20×Lv.Comb punti vita.",
+        "annullamento": None,
+        "tipo": "carta"
+    },
+    "carta_vento_favorevole": {
+        "id": "carta_vento_favorevole",
+        "nome": "Carta Vento Favorevole",
+        "descrizione": "Il vento ti aiuta nei movimenti.",
+        "energia": 3,
+        "cd": 0,
+        "distanza_max": 0,
+        "raggio": "se_stesso",
+        "condizioni": ["carta_in_mano"],
+        "effetti": "+2 alla distanza di movimento per 2 turni.",
+        "annullamento": "Non funziona in spazi chiusi.",
+        "tipo": "carta"
+    }
+}
+
+# === ALTRE MOSSE APPRESE ===
+# Struttura per mosse apprese durante il gioco (tecniche speciali, insegnamenti, ecc.)
+# Queste vengono salvate nel personaggio e caricate dinamicamente
+MOSSE_APPRESE_TEMPLATE = {
+    # Le mosse apprese seguono la stessa struttura delle altre
+    # "nome_mossa": {
+    #     "id": "nome_mossa",
+    #     "nome": "Nome Visualizzato",
+    #     "descrizione": "...",
+    #     "energia": X,
+    #     "cd": X,
+    #     "distanza_max": X,
+    #     "raggio": "corto/medio/lungo/ampio",
+    #     "condizioni": [],
+    #     "effetti": "...",
+    #     "annullamento": "...",
+    #     "tipo": "appresa"
+    # }
+}
+
+# Mantengo compatibilità con il vecchio sistema
 MOVE_COEFFICIENTS = {
-    # Attacchi base
-    "pugno": {"cd": 3, "energia": 5, "tipo": "base"},
-    "calcio": {"cd": 3, "energia": 5, "tipo": "base"},
-    "colpo_rapido": {"cd": 2, "energia": 3, "tipo": "base"},
-    "testata": {"cd": 4, "energia": 8, "tipo": "base"},
-    # Attacchi speciali
-    "colpo_potente": {"cd": 6, "energia": 15, "tipo": "speciale"},
-    "tecnica_segreta": {"cd": 8, "energia": 25, "tipo": "speciale"},
-    "assalto_furioso": {"cd": 7, "energia": 20, "tipo": "speciale"},
-    "combo_devastante": {"cd": 10, "energia": 35, "tipo": "speciale"},
-    # Difesa
-    "difesa": {"cd": 0, "energia": 5, "tipo": "difesa", "bonus_difesa": 0.5},
-    "schivata": {"cd": 0, "energia": 8, "tipo": "difesa", "bonus_agilita": 0.3},
+    **{k: {"cd": v["cd"], "energia": v["energia"], "tipo": v["tipo"]} for k, v in MOSSE_BASE.items()},
 }
 
-# Coefficienti per armi
+# Coefficienti per armi (compatibilità)
 WEAPON_COEFFICIENTS = {
-    "spada_base": {"cd": 4, "bonus_attacco": 5},
-    "spada_affilata": {"cd": 5, "bonus_attacco": 10},
-    "katana": {"cd": 6, "bonus_attacco": 15},
-    "ascia": {"cd": 7, "bonus_attacco": 12},
-    "lancia": {"cd": 5, "bonus_attacco": 8},
-    "pistola": {"cd": 8, "bonus_attacco": 20},  # Arma a distanza
-    "fucile": {"cd": 10, "bonus_attacco": 25},
-    "bastone": {"cd": 3, "bonus_attacco": 3},
+    "spada_base": {"cd": 5, "bonus_attacco": 5, "tipo": "spada"},
+    "spada_affilata": {"cd": 6, "bonus_attacco": 10, "tipo": "spada"},
+    "katana": {"cd": 7, "bonus_attacco": 15, "tipo": "spada"},
+    "ascia": {"cd": 9, "bonus_attacco": 12, "tipo": "ascia"},
+    "lancia": {"cd": 7, "bonus_attacco": 8, "tipo": "lancia"},
+    "pistola": {"cd": 6, "bonus_attacco": 20, "tipo": "pistola"},
+    "fucile": {"cd": 10, "bonus_attacco": 25, "tipo": "fucile"},
+    "bastone": {"cd": 4, "bonus_attacco": 3, "tipo": "bastone"},
 }
 
-# Coefficienti per carte duello
-CARD_COMBAT_COEFFICIENTS = {
-    "carta_attacco_sorpresa": {"cd": 12, "tipo": "attacco", "distanza_min": 1, "distanza_max": 3, "raggio": "corto"},
-    "carta_colpo_critico": {"cd": 15, "tipo": "attacco", "distanza_min": 1, "distanza_max": 2, "raggio": "corto"},
-    "carta_furia_berserk": {"cd": 10, "tipo": "attivazione", "buff": "attacco", "durata": 3},
-    "carta_guarigione": {"tipo": "attivazione", "heal": 20},
-}
+# Coefficienti per carte duello (compatibilità)
+CARD_COMBAT_COEFFICIENTS = {k: {"cd": v["cd"], "tipo": "carta"} for k, v in CARTE_COMBATTIMENTO.items()}
 
 # ============ DISTANCE & MOVEMENT BATTLE SYSTEM ============
 
@@ -1127,6 +1801,85 @@ BATTLE_PHASES = {
                 "recupero_energia_percent": 15
             }
         }
+    }
+}
+
+# Phase energy multipliers
+PHASE_ENERGY_MULTIPLIER = {
+    1: 1.0,  # 1 fase = costo normale
+    2: 1.3,  # 2 fasi = +30% costo energia  
+    3: 1.6   # 3 fasi = +60% costo energia
+}
+
+# Body parts for combat targeting
+BODY_PARTS = {
+    "testa": {
+        "nome": "Testa",
+        "moltiplicatore_danno": 1.5,
+        "difficolta": "alta",
+        "descrizione": "Più danno, più difficile da colpire"
+    },
+    "petto": {
+        "nome": "Petto", 
+        "moltiplicatore_danno": 1.2,
+        "difficolta": "media",
+        "descrizione": "Danno moderato, facile da colpire"
+    },
+    "pancia": {
+        "nome": "Pancia",
+        "moltiplicatore_danno": 1.0,
+        "difficolta": "bassa", 
+        "descrizione": "Danno normale, molto facile da colpire"
+    },
+    "braccia": {
+        "nome": "Braccia",
+        "moltiplicatore_danno": 0.8,
+        "difficolta": "bassa",
+        "descrizione": "Danno ridotto ma può disarmare"
+    },
+    "gambe": {
+        "nome": "Gambe", 
+        "moltiplicatore_danno": 0.9,
+        "difficolta": "media",
+        "descrizione": "Danno moderato, può far cadere"
+    }
+}
+
+# Haki types
+HAKI_TYPES = {
+    "osservazione": {
+        "nome": "Haki dell'Osservazione",
+        "descrizione": "Permette di prevedere gli attacchi nemici",
+        "effetti": ["Schivata migliorata", "Percezione attacchi invisibili"]
+    },
+    "armatura": {
+        "nome": "Haki dell'Armatura", 
+        "descrizione": "Rinforza il corpo e le armi",
+        "effetti": ["Maggiore attacco e difesa", "Può colpire Logia"]
+    },
+    "conquistatore": {
+        "nome": "Haki del Re Conquistatore",
+        "descrizione": "Intimorisce nemici deboli di spirito", 
+        "effetti": ["Può stordire nemici", "Molto raro"]
+    }
+}
+
+# Devil Fruit types  
+DEVIL_FRUIT_TYPES = {
+    "paramisha": {
+        "nome": "Paramisha",
+        "descrizione": "Conferiscono abilità sovrumane varie",
+        "caratteristiche": ["Abilità fisiche potenziate", "Effetti sulla materia"]
+    },
+    "zoan": {
+        "nome": "Zoan",
+        "descrizione": "Permettono trasformazioni animali", 
+        "caratteristiche": ["Forma ibrida", "Forma completa", "Statistiche potenziate"]
+    },
+    "rogia": {
+        "nome": "Rogia", 
+        "descrizione": "Conferiscono controllo su elementi naturali",
+        "caratteristiche": ["Corpo elementale", "Immuni ad attacchi fisici", "Controllo elementale"]
     }
 }
 
@@ -1834,15 +2587,245 @@ async def get_level_info(request: Request):
 
 @api_router.get("/combat/moves")
 async def get_combat_moves(request: Request):
-    """Get all available combat moves with their CD values"""
-    await get_current_user(request)
+    """
+    Get all available combat moves for the current character with calculated values.
+    Returns moves organized by category with full details.
+    
+    Response structure:
+    {
+        "livello_combattimento": int,
+        "mosse_base": [...],
+        "mosse_speciali": {
+            "per_razza": [...],
+            "per_stile": [...],
+            "per_frutto": [...],
+            "per_arma": [...],
+            "apprese": [...]
+        },
+        "carte_combattimento": [...]
+    }
+    """
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    livello = character.get("livello_combattimento", 1)
+    razza = character.get("razza", "umano")
+    stile = character.get("stile_combattimento", "arti_marziali")
+    frutto = character.get("frutto_diavolo", None)
+    armi = character.get("armi", [])
+    carte = character.get("carte", {}).get("combattimento", [])
+    mosse_apprese = character.get("mosse_apprese", [])
+    
+    def calculate_move_details(mossa: dict, livello: int) -> dict:
+        """Calculate actual energy cost and damage for a move"""
+        energia_base = mossa.get("energia", 0)
+        cd = mossa.get("cd", 0)
+        
+        # Energia effettiva = energia_base × livello / 2
+        energia_effettiva = max(1, int(energia_base * livello / 2))
+        
+        # Danno effettivo = CD × livello
+        danno_effettivo = cd * livello
+        
+        return {
+            **mossa,
+            "energia_effettiva": energia_effettiva,
+            "danno_effettivo": danno_effettivo,
+            "formula_energia": f"{energia_base} × Lv.{livello} / 2 = {energia_effettiva}",
+            "formula_danno": f"CD {cd} × Lv.{livello} = {danno_effettivo}"
+        }
+    
+    # === MOSSE BASE ===
+    mosse_base_list = [
+        calculate_move_details(mossa, livello) 
+        for mossa in MOSSE_BASE.values()
+    ]
+    
+    # === MOSSE SPECIALI PER RAZZA ===
+    mosse_razza_list = []
+    if razza in MOSSE_RAZZA and MOSSE_RAZZA[razza]:
+        mosse_razza_list = [
+            calculate_move_details(mossa, livello) 
+            for mossa in MOSSE_RAZZA[razza].values()
+        ]
+    
+    # === MOSSE SPECIALI PER STILE ===
+    mosse_stile_list = []
+    if stile in MOSSE_STILE and MOSSE_STILE[stile]:
+        mosse_stile_list = [
+            calculate_move_details(mossa, livello) 
+            for mossa in MOSSE_STILE[stile].values()
+        ]
+    
+    # === MOSSE FRUTTO DEL DIAVOLO ===
+    mosse_frutto_list = []
+    if frutto and frutto.get("id") in MOSSE_FRUTTO:
+        mosse_frutto_list = [
+            calculate_move_details(mossa, livello) 
+            for mossa in MOSSE_FRUTTO[frutto["id"]].values()
+        ]
+    
+    # === MOSSE PER ARMA ===
+    mosse_arma_list = []
+    for arma in armi:
+        arma_tipo = WEAPON_COEFFICIENTS.get(arma.get("id", ""), {}).get("tipo", "")
+        if arma_tipo and arma_tipo in MOSSE_ARMI:
+            for mossa in MOSSE_ARMI[arma_tipo].values():
+                mossa_con_arma = {
+                    **mossa,
+                    "arma_richiesta": arma.get("id"),
+                    "arma_nome": arma.get("nome", arma.get("id"))
+                }
+                mosse_arma_list.append(calculate_move_details(mossa_con_arma, livello))
+    
+    # === CARTE COMBATTIMENTO ===
+    carte_disponibili = []
+    for carta in carte:
+        carta_id = carta if isinstance(carta, str) else carta.get("id")
+        if carta_id in CARTE_COMBATTIMENTO:
+            carte_disponibili.append(
+                calculate_move_details(CARTE_COMBATTIMENTO[carta_id], livello)
+            )
+    
+    # === MOSSE APPRESE ===
+    mosse_apprese_list = []
+    for mossa_id in mosse_apprese:
+        if isinstance(mossa_id, str) and mossa_id in MOSSE_APPRESE_TEMPLATE:
+            mosse_apprese_list.append(
+                calculate_move_details(MOSSE_APPRESE_TEMPLATE[mossa_id], livello)
+            )
+        elif isinstance(mossa_id, dict):
+            mosse_apprese_list.append(calculate_move_details(mossa_id, livello))
     
     return {
-        "mosse_base": {k: v for k, v in MOVE_COEFFICIENTS.items() if v.get("tipo") == "base"},
-        "mosse_speciali": {k: v for k, v in MOVE_COEFFICIENTS.items() if v.get("tipo") == "speciale"},
-        "mosse_difesa": {k: v for k, v in MOVE_COEFFICIENTS.items() if v.get("tipo") == "difesa"},
-        "armi": WEAPON_COEFFICIENTS,
-        "carte_combattimento": CARD_COMBAT_COEFFICIENTS
+        "livello_combattimento": livello,
+        "personaggio": {
+            "nome": character.get("nome_personaggio"),
+            "razza": razza,
+            "stile_combattimento": stile,
+            "ha_frutto": frutto is not None,
+            "armi_possedute": len(armi),
+            "carte_possedute": len(carte)
+        },
+        "mosse_base": mosse_base_list,
+        "mosse_speciali": {
+            "per_razza": {
+                "categoria": f"Mosse {razza.replace('_', ' ').title()}",
+                "disponibili": len(mosse_razza_list) > 0,
+                "mosse": mosse_razza_list
+            },
+            "per_stile": {
+                "categoria": f"Mosse {stile.replace('_', ' ').title()}",
+                "disponibili": len(mosse_stile_list) > 0,
+                "mosse": mosse_stile_list
+            },
+            "per_frutto": {
+                "categoria": f"Mosse {frutto['nome'] if frutto else 'Frutto del Diavolo'}",
+                "disponibili": len(mosse_frutto_list) > 0,
+                "mosse": mosse_frutto_list
+            },
+            "per_arma": {
+                "categoria": "Mosse con Arma",
+                "disponibili": len(mosse_arma_list) > 0,
+                "mosse": mosse_arma_list
+            },
+            "apprese": {
+                "categoria": "Altre Mosse Apprese",
+                "disponibili": len(mosse_apprese_list) > 0,
+                "mosse": mosse_apprese_list
+            }
+        },
+        "carte_combattimento": {
+            "categoria": "Carte Combattimento",
+            "disponibili": len(carte_disponibili) > 0,
+            "mosse": carte_disponibili
+        },
+        "legenda_campi": {
+            "energia": "Costo energia (scalato con livello: base × Lv / 2)",
+            "cd": "Coefficiente Danno",
+            "danno_effettivo": "Danno potenziale (CD × Livello)",
+            "distanza_max": "Distanza massima per usare la mossa",
+            "raggio": "Raggio d'azione (corto/medio/lungo/ampio)",
+            "condizioni": "Requisiti per usare la mossa",
+            "effetti": "Effetti speciali della mossa",
+            "annullamento": "Situazioni in cui la mossa non funziona"
+        }
+    }
+
+
+@api_router.get("/combat/move/{move_id}")
+async def get_single_move_details(move_id: str, request: Request):
+    """
+    Get detailed information about a specific move.
+    Calculates energy cost and damage based on character's combat level.
+    """
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    livello = character.get("livello_combattimento", 1)
+    
+    # Search in all move categories
+    mossa = None
+    categoria = None
+    
+    if move_id in MOSSE_BASE:
+        mossa = MOSSE_BASE[move_id]
+        categoria = "base"
+    else:
+        # Search in race moves
+        for razza, mosse in MOSSE_RAZZA.items():
+            if move_id in mosse:
+                mossa = mosse[move_id]
+                categoria = f"razza_{razza}"
+                break
+        
+        # Search in style moves
+        if not mossa:
+            for stile, mosse in MOSSE_STILE.items():
+                if move_id in mosse:
+                    mossa = mosse[move_id]
+                    categoria = f"stile_{stile}"
+                    break
+        
+        # Search in weapon moves
+        if not mossa:
+            for arma_tipo, mosse in MOSSE_ARMI.items():
+                if move_id in mosse:
+                    mossa = mosse[move_id]
+                    categoria = f"arma_{arma_tipo}"
+                    break
+        
+        # Search in cards
+        if not mossa and move_id in CARTE_COMBATTIMENTO:
+            mossa = CARTE_COMBATTIMENTO[move_id]
+            categoria = "carta"
+    
+    if not mossa:
+        raise HTTPException(status_code=404, detail=f"Mossa '{move_id}' non trovata")
+    
+    energia_base = mossa.get("energia", 0)
+    cd = mossa.get("cd", 0)
+    energia_effettiva = max(1, int(energia_base * livello / 2))
+    danno_effettivo = cd * livello
+    
+    return {
+        **mossa,
+        "categoria": categoria,
+        "livello_personaggio": livello,
+        "energia_effettiva": energia_effettiva,
+        "danno_effettivo": danno_effettivo,
+        "formula_energia": f"{energia_base} × Lv.{livello} / 2 = {energia_effettiva}",
+        "formula_danno": f"CD {cd} × Lv.{livello} = {danno_effettivo}",
+        "varianza_danno": {
+            "minimo": max(1, danno_effettivo - danno_effettivo // 10),
+            "massimo": danno_effettivo + danno_effettivo // 10
+        }
     }
 
 @api_router.post("/combat/simulate-damage")
@@ -2011,6 +2994,49 @@ async def get_battle_phases(request: Request):
             "attacco_vs_attacco": "Se entrambi attaccano, il danno è la differenza tra i due",
             "rogia": "Frutti Rogia immuni ad attacchi fisici senza Haki Armatura",
             "bersaglio": "Attacchi base richiedono scelta parte del corpo"
+        },
+        "struttura_menu_mosse": {
+            "descrizione": "Struttura del menu per selezionare le mosse durante il combattimento",
+            "categorie": [
+                {
+                    "id": "spostamento",
+                    "nome": "Spostamento",
+                    "descrizione": "Movimenti sul campo di battaglia (non costano energia)"
+                },
+                {
+                    "id": "mosse_base",
+                    "nome": "Mosse Base",
+                    "descrizione": "Attacchi fondamentali disponibili a tutti"
+                },
+                {
+                    "id": "mosse_speciali",
+                    "nome": "Mosse Speciali",
+                    "descrizione": "Tecniche avanzate basate su caratteristiche del personaggio",
+                    "sottocategorie": [
+                        {"id": "per_razza", "nome": "Mosse per Razza", "condizione": "Basate sulla razza del personaggio"},
+                        {"id": "per_stile", "nome": "Mosse per Stile", "condizione": "Basate sullo stile di combattimento"},
+                        {"id": "per_frutto", "nome": "Mosse Frutto del Diavolo", "condizione": "Solo se possiede un frutto"},
+                        {"id": "per_arma", "nome": "Utilizzo Arma", "condizione": "Solo se possiede armi"},
+                        {"id": "apprese", "nome": "Altre Mosse Apprese", "condizione": "Mosse imparate durante il gioco"}
+                    ]
+                },
+                {
+                    "id": "carte_combattimento",
+                    "nome": "Carte Combattimento",
+                    "descrizione": "Carte speciali usabili in battaglia"
+                }
+            ],
+            "campi_mossa": {
+                "nome": "Nome della mossa",
+                "energia": "Costo energia (base × Lv.Comb / 2)",
+                "cd": "Coefficiente Danno",
+                "danno_effettivo": "CD × Livello Combattimento",
+                "distanza_max": "Distanza massima d'azione",
+                "raggio": "Raggio d'azione (corto/medio/lungo/ampio)",
+                "condizioni": "Requisiti per usare la mossa",
+                "effetti": "Effetti speciali (immediati o su reazione)",
+                "annullamento": "Situazioni in cui non funziona"
+            }
         }
     }
 
