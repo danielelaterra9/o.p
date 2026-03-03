@@ -9,7 +9,7 @@ import random
 import string
 
 # Configuration
-BASE_URL = "https://project-builder-127.preview.emergentagent.com/api"
+BASE_URL = "https://e-commerce-315.preview.emergentagent.com/api"
 
 def test_navigation_flow():
     """Test the complete navigation flow"""

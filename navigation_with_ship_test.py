@@ -11,7 +11,7 @@ import string
 import time
 
 # Configuration
-BASE_URL = "https://project-builder-127.preview.emergentagent.com/api"
+BASE_URL = "https://e-commerce-315.preview.emergentagent.com/api"
 
 class NavigationWithShipTester:
     def __init__(self):

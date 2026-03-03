@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 
 # Get backend URL from environment
-backend_url = "https://project-builder-127.preview.emergentagent.com/api"
+backend_url = "https://e-commerce-315.preview.emergentagent.com/api"
 
 class FourSeasTester:
     def __init__(self, base_url):
