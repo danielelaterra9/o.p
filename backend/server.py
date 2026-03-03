@@ -985,31 +985,57 @@ MOSSE_RAZZA = {
             "tipo": "speciale_razza"
         }
     },
-    "nano": {
-        "velocita_nanica": {
-            "id": "velocita_nanica",
-            "nome": "Velocità Nanica",
-            "descrizione": "Muoviti così velocemente da essere invisibile.",
-            "energia": 10,
-            "cd": 5,
-            "distanza_max": 3,
-            "raggio": "corto",
-            "condizioni": ["razza: nano"],
-            "effetti": "Impossibile da schivare con reazioni normali.",
-            "annullamento": "Haki dell'Osservazione può prevederlo.",
+    "semi_gigante": {
+        "pugno_devastante": {
+            "id": "pugno_devastante",
+            "nome": "Pugno Devastante",
+            "descrizione": "Un pugno caricato con tutta la forza del semi-gigante.",
+            "energia": 15,
+            "cd": 8,
+            "distanza_max": 2,
+            "raggio": "medio",
+            "condizioni": ["razza: semi_gigante"],
+            "effetti": "Sposta l'avversario di 1 distanza. 20% probabilità di stordire.",
+            "annullamento": None,
             "tipo": "speciale_razza"
         },
-        "puntura_precisa": {
-            "id": "puntura_precisa",
-            "nome": "Puntura Precisa",
-            "descrizione": "Colpisci un punto vitale con precisione chirurgica.",
-            "energia": 8,
+        "carica_brutale": {
+            "id": "carica_brutale",
+            "nome": "Carica Brutale",
+            "descrizione": "Carica verso il nemico travolgendo tutto sul percorso.",
+            "energia": 18,
+            "cd": 7,
+            "distanza_max": 3,
+            "raggio": "medio",
+            "condizioni": ["razza: semi_gigante"],
+            "effetti": "Ti avvicini di 2 distanze e colpisci. Ignora ostacoli.",
+            "annullamento": "Può essere schivato lateralmente.",
+            "tipo": "speciale_razza"
+        },
+        "corpo_corazzato": {
+            "id": "corpo_corazzato",
+            "nome": "Corpo Corazzato",
+            "descrizione": "Il tuo corpo massiccio assorbe i danni.",
+            "energia": 12,
+            "cd": 0,
+            "distanza_max": 0,
+            "raggio": "se_stesso",
+            "condizioni": ["razza: semi_gigante"],
+            "effetti": "Riduce il danno subito del 30% per 3 turni.",
+            "annullamento": "Non funziona contro attacchi perforanti o Haki avanzato.",
+            "tipo": "speciale_razza"
+        },
+        "impatto_sismico": {
+            "id": "impatto_sismico",
+            "nome": "Impatto Sismico",
+            "descrizione": "Colpisci il terreno creando un'onda d'urto.",
+            "energia": 20,
             "cd": 6,
-            "distanza_max": 1,
-            "raggio": "corto",
-            "condizioni": ["razza: nano"],
-            "effetti": "Ignora il 50% della difesa avversaria.",
-            "annullamento": "Non funziona contro Logia o armatura Haki.",
+            "distanza_max": 3,
+            "raggio": "ampio",
+            "condizioni": ["razza: semi_gigante"],
+            "effetti": "Colpisce tutti i nemici a terra nel raggio. Può far cadere.",
+            "annullamento": "Non funziona contro avversari volanti o in acqua.",
             "tipo": "speciale_razza"
         }
     },
