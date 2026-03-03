@@ -153,6 +153,18 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: Character creation now includes berry (1000 starting) and logbook (empty array). Bug fix confirmed working correctly."
 
+  - task: "Combat Level System"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMBAT LEVEL SYSTEM FULLY FUNCTIONAL: Comprehensive testing of all requested features completed successfully. 1) Character Creation includes new combat level fields: livello_combattimento: 1, esperienza_livello: 0, esperienza_totale: 0, esperienza_prossimo_livello: 100 ✅, 2) GET /api/combat/level-info returns level progression info with current level, EXP, multiplier, and next 5 levels preview ✅, 3) GET /api/combat/moves returns all combat moves with CD values for mosse_base, mosse_speciali, mosse_difesa, armi, carte_combattimento ✅, 4) POST /api/combat/simulate-damage correctly calculates damage formula (Level × CD × bonus) with min/max range ✅, 5) Battle System uses new damage calculation showing '[LvX × CDY] Danno: Z' format in combat log ✅, 6) Level Up System awards EXP after battles with proper reward structure including exp_gained, exp_multiplier, leveled_up, current_exp, exp_for_next_level, total_exp ✅. Battle victories grant 100 EXP base (+ multiplier), defeats grant 20 EXP consolation. Successfully achieved 2 level ups from 3 battles (300 total EXP). 13/13 Combat Level System tests passed (100% success rate). All review requirements met and fully operational."
+
   - task: "Character Name Validation (D. blocked)"
     implemented: true
     working: true
@@ -585,13 +597,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Narrative Generation System"
-    - "Chat Message Sending"
-  stuck_tasks:
-    - "Narrative Generation System"
-    - "Chat Message Sending"
+    - "Combat Level System"
+    - "EXP and Level Up System"
+  stuck_tasks: []
   test_all: false
-  test_priority: "narrative_and_chat_serialization_bugs"
+  test_priority: "combat_level_system"
 
 agent_communication:
   - agent: "main"
@@ -618,3 +628,5 @@ agent_communication:
     message: "✅ NARRATIVE AND CHAT SYSTEM TESTING: 4/6 endpoints fully functional. GET /api/narrative/templates returns 14 template types and 4 action categories ✅. POST /api/narrative/action works correctly with Berry rewards ✅. GET /api/chat/rooms returns location-based rooms ✅. GET /api/chat/{room_id}/history retrieves messages correctly ✅. POST /api/chat/send now working after ObjectId fix ✅."
   - agent: "testing"
     message: "✅ NARRATIVE AND CHAT SYSTEM TESTING COMPLETE: Comprehensive testing of all 6 requested endpoints completed. WORKING ENDPOINTS (4/6): 1) GET /api/narrative/templates ✅ - Returns 14 template types and 4 action categories with proper structure, 2) POST /api/narrative/action ✅ - Collect and examine actions work perfectly with Berry rewards and effect tracking, 3) GET /api/chat/rooms ✅ - Returns location-based rooms (sea/island/zone levels), 4) GET /api/chat/{room_id}/history ✅ - Retrieves messages with proper structure and chronological order. FAILING ENDPOINTS (2/6): 5) POST /api/narrative/generate ❌ - MongoDB ObjectId serialization error (backend bug), 6) POST /api/chat/send ❌ - Same ObjectId serialization issue. Both failures are backend serialization bugs, not endpoint logic issues. Core narrative and chat functionality is fully operational, only needs ObjectId serialization fixes. 8/11 tests passed (72.7% success rate)."
+  - agent: "testing"
+    message: "✅ COMBAT LEVEL SYSTEM TESTING COMPLETE: Comprehensive testing of the new Combat Level System according to review request requirements fully successful. All 6 focus areas verified and working: 1) Character Creation with new combat level fields (livello_combattimento: 1, esperienza_livello: 0, esperienza_totale: 0, esperienza_prossimo_livello: 100) ✅, 2) GET /api/combat/level-info returns level progression info with current level, EXP, multiplier, and next 5 levels preview ✅, 3) GET /api/combat/moves returns all moves with CD values across all categories (mosse_base: 4, mosse_speciali: 4, mosse_difesa: 2, armi: 8, carte_combattimento: 3) ✅, 4) POST /api/combat/simulate-damage correctly calculates damage formula (Level × CD × bonus) with variance range ✅, 5) Battle System shows new damage format '[LvX × CDY] Danno: Z' in combat logs and uses updated damage calculation ✅, 6) Level Up System awards EXP after battles with complete reward structure, achieved 2 level ups from 300 total EXP gained across 3 victories ✅. Even defeats award consolation EXP (defeat_exp: true). 13/13 Combat Level System tests passed (100% success rate). New combat mechanics fully operational and production-ready."

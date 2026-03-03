@@ -614,6 +614,13 @@ async def create_character(char_data: CharacterCreate, request: Request):
         # PUBLIC STATS (visible to others)
         "livello": 1,
         "esperienza": 0,
+        
+        # COMBAT LEVEL SYSTEM (nuovo)
+        "livello_combattimento": 1,
+        "esperienza_livello": 0,  # EXP per livello corrente (si azzera al level up)
+        "esperienza_totale": 0,   # EXP totale (mai azzerata)
+        "esperienza_prossimo_livello": BASE_EXP_FOR_LEVEL,  # 100 per primo livello
+        
         "taglia": 0,  # Bounty in Berry
         "ciurma_id": None,
         "ciurma_ruolo": None,  # "fondatore" or "membro"
@@ -753,6 +760,145 @@ async def delete_character(request: Request):
 
 # ============ BATTLE SYSTEM ============
 
+# ============ COMBAT LEVEL & EXP SYSTEM ============
+
+# Coefficienti Danno (CD) per le mosse
+MOVE_COEFFICIENTS = {
+    # Attacchi base
+    "pugno": {"cd": 3, "energia": 5, "tipo": "base"},
+    "calcio": {"cd": 3, "energia": 5, "tipo": "base"},
+    "colpo_rapido": {"cd": 2, "energia": 3, "tipo": "base"},
+    "testata": {"cd": 4, "energia": 8, "tipo": "base"},
+    # Attacchi speciali
+    "colpo_potente": {"cd": 6, "energia": 15, "tipo": "speciale"},
+    "tecnica_segreta": {"cd": 8, "energia": 25, "tipo": "speciale"},
+    "assalto_furioso": {"cd": 7, "energia": 20, "tipo": "speciale"},
+    "combo_devastante": {"cd": 10, "energia": 35, "tipo": "speciale"},
+    # Difesa
+    "difesa": {"cd": 0, "energia": 5, "tipo": "difesa", "bonus_difesa": 0.5},
+    "schivata": {"cd": 0, "energia": 8, "tipo": "difesa", "bonus_agilita": 0.3},
+}
+
+# Coefficienti per armi
+WEAPON_COEFFICIENTS = {
+    "spada_base": {"cd": 4, "bonus_attacco": 5},
+    "spada_affilata": {"cd": 5, "bonus_attacco": 10},
+    "katana": {"cd": 6, "bonus_attacco": 15},
+    "ascia": {"cd": 7, "bonus_attacco": 12},
+    "lancia": {"cd": 5, "bonus_attacco": 8},
+    "pistola": {"cd": 8, "bonus_attacco": 20},  # Arma a distanza
+    "fucile": {"cd": 10, "bonus_attacco": 25},
+    "bastone": {"cd": 3, "bonus_attacco": 3},
+}
+
+# Coefficienti per carte duello
+CARD_COMBAT_COEFFICIENTS = {
+    "carta_attacco_sorpresa": {"cd": 12, "tipo": "istantaneo"},
+    "carta_colpo_critico": {"cd": 15, "tipo": "istantaneo"},
+    "carta_furia_berserk": {"cd": 10, "tipo": "buff", "durata": 3},
+}
+
+# EXP base per livello (livello 1 -> 2)
+BASE_EXP_FOR_LEVEL = 100
+
+def calculate_exp_for_next_level(current_level: int) -> int:
+    """
+    Calcola l'EXP necessaria per passare al livello successivo.
+    - Raddoppia ogni livello
+    - Ogni 4 livelli il moltiplicatore aumenta di 1 (riduce EXP necessaria)
+    """
+    # Calcola EXP base raddoppiando
+    base_exp = BASE_EXP_FOR_LEVEL * (2 ** (current_level - 1))
+    
+    # Calcola il bonus moltiplicatore ogni 4 livelli
+    # Livello 1-3: divisore 1, Livello 4-7: divisore 2, Livello 8-11: divisore 3, etc.
+    bonus_divisor = max(1, (current_level // 4) + 1)
+    
+    # Applica il bonus
+    final_exp = base_exp // bonus_divisor
+    
+    return max(50, final_exp)  # Minimo 50 EXP
+
+def calculate_exp_multiplier(level: int) -> int:
+    """Restituisce il moltiplicatore EXP guadagnata basato sul livello"""
+    # Ogni 4 livelli il moltiplicatore aumenta
+    return max(1, (level // 4) + 1)
+
+def calculate_combat_damage(attacker_level: int, cd: float, base_attack: int = 0, bonus_percent: float = 0) -> int:
+    """
+    Calcola il danno in combattimento.
+    Danno = livello_combattimento × CD × (1 + bonus%) + varianza
+    """
+    base_damage = attacker_level * cd
+    bonus_damage = base_damage * bonus_percent
+    total = int(base_damage + bonus_damage)
+    
+    # Aggiungi varianza casuale (-10% to +10%)
+    variance = random.randint(-max(1, total // 10), max(1, total // 10))
+    final_damage = max(1, total + variance)
+    
+    return final_damage
+
+async def award_exp_and_check_levelup(user_id: str, exp_gained: int, db_instance) -> Dict:
+    """
+    Assegna EXP e controlla se il personaggio sale di livello.
+    Restituisce info sul level up se avvenuto.
+    """
+    character = await db_instance.characters.find_one({"user_id": user_id}, {"_id": 0})
+    if not character:
+        return {"leveled_up": False}
+    
+    current_level = character.get("livello_combattimento", 1)
+    current_exp = character.get("esperienza_livello", 0)
+    total_exp = character.get("esperienza_totale", 0)
+    exp_for_next = character.get("esperienza_prossimo_livello", calculate_exp_for_next_level(current_level))
+    
+    # Applica moltiplicatore EXP
+    multiplier = calculate_exp_multiplier(current_level)
+    actual_exp_gained = exp_gained * multiplier
+    
+    new_exp = current_exp + actual_exp_gained
+    new_total = total_exp + actual_exp_gained
+    
+    levels_gained = 0
+    old_level = current_level
+    
+    # Check for level up (può salire più livelli)
+    while new_exp >= exp_for_next:
+        new_exp -= exp_for_next
+        current_level += 1
+        levels_gained += 1
+        exp_for_next = calculate_exp_for_next_level(current_level)
+    
+    # Aggiorna database
+    update_data = {
+        "livello_combattimento": current_level,
+        "esperienza_livello": new_exp,
+        "esperienza_totale": new_total,
+        "esperienza_prossimo_livello": exp_for_next,
+        # Aggiorna anche il campo livello legacy
+        "livello": current_level
+    }
+    
+    await db_instance.characters.update_one(
+        {"user_id": user_id},
+        {"$set": update_data}
+    )
+    
+    return {
+        "leveled_up": levels_gained > 0,
+        "levels_gained": levels_gained,
+        "old_level": old_level,
+        "new_level": current_level,
+        "exp_gained": actual_exp_gained,
+        "exp_multiplier": multiplier,
+        "current_exp": new_exp,
+        "exp_for_next_level": exp_for_next,
+        "total_exp": new_total
+    }
+
+# ============ END COMBAT LEVEL SYSTEM ============
+
 active_battles: Dict[str, Dict] = {}
 
 @api_router.post("/battle/start")
@@ -781,6 +927,7 @@ async def start_battle(data: Dict[str, str], request: Request):
             "character_id": character["character_id"],
             "user_id": user["user_id"],
             "nome": character["nome_personaggio"],
+            "livello_combattimento": character.get("livello_combattimento", 1),
             "vita": character["vita"],
             "vita_max": character["vita_max"],
             "energia": character["energia"],
@@ -817,6 +964,7 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
     npcs = {
         "marine_soldato": {
             "nome": "Marine Soldato", 
+            "livello_combattimento": 2,
             "vita": 80, "vita_max": 80, 
             "energia": 60, "energia_max": 60,
             "attacco": 100, "difesa": 80,
@@ -826,6 +974,7 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
         },
         "pirata_novizio": {
             "nome": "Pirata Novizio",
+            "livello_combattimento": 1,
             "vita": 70, "vita_max": 70,
             "energia": 50, "energia_max": 50,
             "attacco": 90, "difesa": 60,
@@ -835,6 +984,7 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
         },
         "marine_capitano": {
             "nome": "Marine Capitano",
+            "livello_combattimento": 5,
             "vita": 120, "vita_max": 120,
             "energia": 80, "energia_max": 80,
             "attacco": 200, "difesa": 150,
@@ -844,6 +994,7 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
         },
         "capitano_pirata": {
             "nome": "Capitano Pirata",
+            "livello_combattimento": 8,
             "vita": 150, "vita_max": 150,
             "energia": 100, "energia_max": 100,
             "attacco": 250, "difesa": 180,
@@ -892,15 +1043,49 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
         battle["vincitore"] = result.get("vincitore")
         battle["turno_corrente"] = None
         
-        # Award experience and berry if player won
+        # Award experience and berry
         if result.get("vincitore") == "player1":
-            exp_gain = 50 + battle["player2"].get("taglia", 0) // 100000
+            # Vittoria: EXP base + bonus per taglia nemico
+            base_exp = 50 + battle["player2"].get("taglia", 0) // 100000
             berry_gain = 100 + random.randint(0, 200)
+            
+            # Usa il nuovo sistema di level up
+            level_result = await award_exp_and_check_levelup(user["user_id"], base_exp, db)
+            
+            # Aggiungi berry
             await db.characters.update_one(
                 {"user_id": user["user_id"]},
-                {"$inc": {"esperienza": exp_gain, "berry": berry_gain}}
+                {"$inc": {"berry": berry_gain}}
             )
-            battle["rewards"] = {"exp": exp_gain, "berry": berry_gain}
+            
+            battle["rewards"] = {
+                "exp_base": base_exp,
+                "exp_gained": level_result["exp_gained"],
+                "exp_multiplier": level_result["exp_multiplier"],
+                "berry": berry_gain,
+                "leveled_up": level_result["leveled_up"],
+                "new_level": level_result.get("new_level"),
+                "old_level": level_result.get("old_level"),
+                "current_exp": level_result["current_exp"],
+                "exp_for_next_level": level_result["exp_for_next_level"],
+                "total_exp": level_result["total_exp"]
+            }
+            
+            if level_result["leveled_up"]:
+                battle["log"].append(f"🎉 LEVEL UP! {battle['player1']['nome']} è salito al livello {level_result['new_level']}!")
+        else:
+            # Sconfitta: EXP consolazione (20 base)
+            base_exp = 20
+            level_result = await award_exp_and_check_levelup(user["user_id"], base_exp, db)
+            
+            battle["rewards"] = {
+                "exp_base": base_exp,
+                "exp_gained": level_result["exp_gained"],
+                "exp_multiplier": level_result["exp_multiplier"],
+                "berry": 0,
+                "leveled_up": level_result["leveled_up"],
+                "defeat_exp": True  # Flag per sconfitta
+            }
     else:
         # NPC Turn (automatic)
         if battle["player2"].get("is_npc"):
@@ -908,11 +1093,26 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
             battle["log"].append(npc_result["log_entry"])
             battle["numero_turno"] += 1
             
-            # Check if NPC won
+            # Check if NPC won (player lost)
             if npc_result.get("battaglia_finita"):
                 battle["stato"] = "finita"
                 battle["vincitore"] = "player2"
                 battle["turno_corrente"] = None
+                
+                # EXP consolazione per la sconfitta
+                base_exp = 20
+                level_result = await award_exp_and_check_levelup(user["user_id"], base_exp, db)
+                
+                battle["rewards"] = {
+                    "exp_base": base_exp,
+                    "exp_gained": level_result["exp_gained"],
+                    "exp_multiplier": level_result["exp_multiplier"],
+                    "berry": 0,
+                    "leveled_up": level_result["leveled_up"],
+                    "defeat_exp": True
+                }
+                
+                battle["log"].append(f"Sconfitta... ma hai guadagnato {level_result['exp_gained']} EXP!")
             else:
                 battle["turno_corrente"] = "player1"
                 battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
@@ -961,22 +1161,69 @@ def process_battle_action(battle: Dict, attacker: str, defender: str, action_typ
     attacker_data = battle[attacker]
     defender_data = battle[defender]
     
+    # Get combat level (default 1 for backward compatibility)
+    attacker_level = attacker_data.get("livello_combattimento", 1)
+    defender_level = defender_data.get("livello_combattimento", 1)
+    
     danno = 0
     costo_energia = 0
     log_entry = ""
+    cd_used = 0
+    
+    # Normalize action name for lookup
+    action_key = action_name.lower().replace(" ", "_")
     
     if action_type == "attacco_base":
-        # Danno = Attacco - (Difesa * 0.3) + varianza
-        danno = max(1, int(attacker_data["attacco"] * 0.1 - defender_data["difesa"] * 0.03))
-        danno += random.randint(-3, 5)
-        costo_energia = 5
-        log_entry = f"{attacker_data['nome']} usa {action_name}. Danno: {danno}"
+        # Cerca il CD della mossa, fallback a valori di default
+        move_data = MOVE_COEFFICIENTS.get(action_key, {"cd": 3, "energia": 5})
+        cd_used = move_data["cd"]
+        costo_energia = move_data.get("energia", 5)
+        
+        # NUOVO CALCOLO: Danno = Livello × CD × (1 + bonus)
+        # Bonus da difesa avversaria (riduce danno)
+        defense_reduction = defender_data["difesa"] * 0.005  # 0.5% per punto difesa
+        bonus = -min(0.5, defense_reduction)  # Max 50% riduzione
+        
+        danno = calculate_combat_damage(attacker_level, cd_used, bonus_percent=bonus)
+        
+        log_entry = f"{attacker_data['nome']} usa {action_name}! [Lv{attacker_level} × CD{cd_used}] Danno: {danno}"
         
     elif action_type == "attacco_speciale":
-        danno = max(1, int(attacker_data["attacco"] * 0.2 - defender_data["difesa"] * 0.02))
-        danno += random.randint(0, 10)
-        costo_energia = 20
-        log_entry = f"{attacker_data['nome']} usa {action_name}! Danno: {danno}"
+        # Cerca CD speciale o usa default
+        move_data = MOVE_COEFFICIENTS.get(action_key, {"cd": 7, "energia": 20})
+        cd_used = move_data["cd"]
+        costo_energia = move_data.get("energia", 20)
+        
+        # Attacchi speciali hanno bonus dal livello
+        level_bonus = attacker_level * 0.02  # +2% per livello
+        defense_reduction = defender_data["difesa"] * 0.003
+        bonus = level_bonus - min(0.3, defense_reduction)
+        
+        danno = calculate_combat_damage(attacker_level, cd_used, bonus_percent=bonus)
+        
+        log_entry = f"💥 {attacker_data['nome']} usa {action_name}! [Lv{attacker_level} × CD{cd_used}] Danno: {danno}"
+        
+    elif action_type == "attacco_arma":
+        # Usa arma equipaggiata
+        armi = attacker_data.get("armi", [])
+        arma_equipaggiata = next((a for a in armi if a.get("equipped")), None)
+        
+        if arma_equipaggiata:
+            weapon_id = arma_equipaggiata.get("id", "spada_base")
+            weapon_data = WEAPON_COEFFICIENTS.get(weapon_id, {"cd": 4, "bonus_attacco": 5})
+            cd_used = weapon_data["cd"]
+            weapon_bonus = weapon_data.get("bonus_attacco", 0) * 0.01  # Converti in %
+            
+            danno = calculate_combat_damage(attacker_level, cd_used, bonus_percent=weapon_bonus)
+            costo_energia = 8
+            
+            log_entry = f"⚔️ {attacker_data['nome']} attacca con {arma_equipaggiata.get('name', 'arma')}! [Lv{attacker_level} × CD{cd_used}] Danno: {danno}"
+        else:
+            # Fallback a pugno se non ha armi
+            cd_used = 3
+            danno = calculate_combat_damage(attacker_level, cd_used)
+            costo_energia = 5
+            log_entry = f"{attacker_data['nome']} colpisce! [Lv{attacker_level} × CD{cd_used}] Danno: {danno}"
         
     elif action_type == "movimento":
         costo_energia = 3
@@ -985,13 +1232,14 @@ def process_battle_action(battle: Dict, attacker: str, defender: str, action_typ
     elif action_type == "difesa":
         # Increase defense temporarily
         costo_energia = 5
-        log_entry = f"{attacker_data['nome']} si difende. +50% difesa questo turno"
+        # Bonus temporaneo (non implementato persistente per ora)
+        log_entry = f"🛡️ {attacker_data['nome']} si difende. +50% difesa questo turno"
         
     elif action_type == "passa":
         # Recover energy
-        recovery = 15
+        recovery = 15 + attacker_level  # Bonus recupero con il livello
         attacker_data["energia"] = min(attacker_data["energia_max"], attacker_data["energia"] + recovery)
-        log_entry = f"{attacker_data['nome']} recupera energia. +{recovery}"
+        log_entry = f"💤 {attacker_data['nome']} recupera energia. +{recovery}"
     
     # Apply damage
     if danno > 0:
@@ -999,6 +1247,10 @@ def process_battle_action(battle: Dict, attacker: str, defender: str, action_typ
     
     # Apply energy cost
     if costo_energia > 0:
+        if attacker_data["energia"] < costo_energia:
+            # Non abbastanza energia - attacco più debole
+            danno = max(1, danno // 2)
+            log_entry += " (Energia insufficiente - danno dimezzato!)"
         attacker_data["energia"] = max(0, attacker_data["energia"] - costo_energia)
     
     # Check battle end
@@ -1007,10 +1259,81 @@ def process_battle_action(battle: Dict, attacker: str, defender: str, action_typ
     
     return {
         "danno": danno,
+        "cd": cd_used,
+        "livello_attaccante": attacker_level,
         "costo_energia": costo_energia,
         "log_entry": log_entry,
         "battaglia_finita": battaglia_finita,
         "vincitore": vincitore
+    }
+
+# ============ LEVEL SYSTEM ENDPOINTS ============
+
+@api_router.get("/combat/level-info")
+async def get_level_info(request: Request):
+    """Get character's combat level information and progression"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    current_level = character.get("livello_combattimento", 1)
+    exp_for_next = character.get("esperienza_prossimo_livello", calculate_exp_for_next_level(current_level))
+    
+    return {
+        "livello_combattimento": current_level,
+        "esperienza_livello": character.get("esperienza_livello", 0),
+        "esperienza_prossimo_livello": exp_for_next,
+        "esperienza_totale": character.get("esperienza_totale", 0),
+        "moltiplicatore_exp": calculate_exp_multiplier(current_level),
+        "prossimi_livelli": [
+            {
+                "livello": current_level + i,
+                "exp_necessaria": calculate_exp_for_next_level(current_level + i - 1),
+                "moltiplicatore": calculate_exp_multiplier(current_level + i)
+            }
+            for i in range(1, 6)  # Mostra i prossimi 5 livelli
+        ]
+    }
+
+@api_router.get("/combat/moves")
+async def get_combat_moves(request: Request):
+    """Get all available combat moves with their CD values"""
+    await get_current_user(request)
+    
+    return {
+        "mosse_base": {k: v for k, v in MOVE_COEFFICIENTS.items() if v.get("tipo") == "base"},
+        "mosse_speciali": {k: v for k, v in MOVE_COEFFICIENTS.items() if v.get("tipo") == "speciale"},
+        "mosse_difesa": {k: v for k, v in MOVE_COEFFICIENTS.items() if v.get("tipo") == "difesa"},
+        "armi": WEAPON_COEFFICIENTS,
+        "carte_combattimento": CARD_COMBAT_COEFFICIENTS
+    }
+
+@api_router.post("/combat/simulate-damage")
+async def simulate_damage(data: Dict[str, Any], request: Request):
+    """Simulate damage for a given attack (useful for UI preview)"""
+    await get_current_user(request)
+    
+    level = data.get("level", 1)
+    cd = data.get("cd", 3)
+    bonus_percent = data.get("bonus_percent", 0)
+    
+    # Calculate damage range
+    base = level * cd
+    bonus = base * bonus_percent
+    total = int(base + bonus)
+    
+    variance = max(1, total // 10)
+    min_damage = max(1, total - variance)
+    max_damage = total + variance
+    
+    return {
+        "formula": f"Livello ({level}) × CD ({cd}) × (1 + {bonus_percent*100:.0f}%)",
+        "danno_base": total,
+        "danno_minimo": min_damage,
+        "danno_massimo": max_damage,
+        "varianza": f"±{variance}"
     }
 
 # ============ AI NARRATION (SIMPLIFIED) ============
