@@ -131,6 +131,13 @@ RACE_STATS = {
 
 # Fighting style bonuses
 FIGHTING_STYLES = {
+    "arti_marziali": {
+        "name": "Arti Marziali",
+        "description": "Maestro di tecniche marziali raffinate e discipline di combattimento.",
+        "bonus": {"forza": 5, "velocita": 7, "agilita": 8},
+        "vantaggi": ["Tecniche combo devastanti", "Alto controllo del corpo", "Disciplina mentale"],
+        "svantaggi": ["Richiede allenamento costante", "Meno efficace con armi"]
+    },
     "corpo_misto": {
         "name": "Corpo a Corpo - Misto",
         "description": "Combina pugni e calci per un approccio versatile.",
@@ -172,6 +179,20 @@ FIGHTING_STYLES = {
         "bonus": {"velocita": 3, "agilita": 10, "resistenza": -3},
         "vantaggi": ["Attacchi a distanza", "Alta precisione", "Evita corpo a corpo"],
         "svantaggi": ["Debole in mischia", "Dipendente da munizioni"]
+    },
+    "ibrido": {
+        "name": "Combattente Ibrido",
+        "description": "Alterna fluidamente tra corpo a corpo e combattimento a distanza.",
+        "bonus": {"velocita": 6, "agilita": 6, "forza": 4},
+        "vantaggi": ["Adattabile a qualsiasi distanza", "Nessun punto debole evidente"],
+        "svantaggi": ["Maestria inferiore rispetto agli specialisti", "Richiede più equipaggiamento"]
+    },
+    "wrestler": {
+        "name": "Wrestler / Lottatore",
+        "description": "Specialista in prese, proiezioni e sottomissioni.",
+        "bonus": {"forza": 8, "resistenza": 8, "velocita": -2},
+        "vantaggi": ["Prese devastanti", "Controllo dell'avversario", "Alta resistenza"],
+        "svantaggi": ["Lento", "Inefficace a distanza", "Vulnerabile a gruppi"]
     }
 }
 
