@@ -799,144 +799,281 @@ WEAPON_COEFFICIENTS = {
 
 # Coefficienti per carte duello
 CARD_COMBAT_COEFFICIENTS = {
-    "carta_attacco_sorpresa": {"cd": 12, "tipo": "attacco"},
-    "carta_colpo_critico": {"cd": 15, "tipo": "attacco"},
+    "carta_attacco_sorpresa": {"cd": 12, "tipo": "attacco", "distanza_min": 1, "distanza_max": 3, "raggio": "corto"},
+    "carta_colpo_critico": {"cd": 15, "tipo": "attacco", "distanza_min": 1, "distanza_max": 2, "raggio": "corto"},
     "carta_furia_berserk": {"cd": 10, "tipo": "attivazione", "buff": "attacco", "durata": 3},
-    "carta_scudo_temporale": {"tipo": "difesa", "riduzione_danno": 0.7},
-    "carta_evasione": {"tipo": "difesa", "schivata_bonus": 30},
     "carta_guarigione": {"tipo": "attivazione", "heal": 20},
 }
 
-# ============ ADVANCED BATTLE SYSTEM ============
+# ============ DISTANCE & MOVEMENT BATTLE SYSTEM ============
 
-# Parti del corpo bersaglio
-BODY_PARTS = {
-    "testa": {"nome": "Testa", "moltiplicatore_danno": 1.5, "difficolta": 0.7, "effetto_critico": "stordimento"},
-    "petto": {"nome": "Petto", "moltiplicatore_danno": 1.2, "difficolta": 0.9, "effetto_critico": None},
-    "pancia": {"nome": "Pancia", "moltiplicatore_danno": 1.0, "difficolta": 1.0, "effetto_critico": "nausea"},
-    "braccia": {"nome": "Braccia", "moltiplicatore_danno": 0.8, "difficolta": 0.85, "effetto_critico": "indebolimento"},
-    "gambe": {"nome": "Gambe", "moltiplicatore_danno": 0.9, "difficolta": 0.8, "effetto_critico": "rallentamento"},
-}
-
-# Tipi di Frutti del Diavolo
-DEVIL_FRUIT_TYPES = {
-    "paramisha": {"nome": "Paramisha", "immunita": []},
-    "zoan": {"nome": "Zoan", "immunita": [], "bonus_forza": 1.3, "bonus_resistenza": 1.2},
-    "rogia": {"nome": "Rogia", "immunita": ["fisico_normale"], "descrizione": "Immune ad attacchi fisici normali senza Haki"},
-}
-
-# Tipi di Haki
-HAKI_TYPES = {
-    "osservazione": {
-        "nome": "Haki dell'Osservazione",
-        "effetto_difesa": "preveggenza",  # Bonus schivata
-        "bonus_schivata": 40,
-        "energia_attivazione": 15,
+# Sistema Distanze (5 livelli, da 1=ravvicinato a 5=molto lontano)
+DISTANCE_LEVELS = {
+    5: {
+        "nome": "Molto Lontano",
+        "descrizione": "~20-30 metri. Solo cecchini e armi a lungo raggio colpiscono.",
+        "metri": "20-30m"
     },
-    "armatura": {
-        "nome": "Haki dell'Armatura",
-        "effetto_difesa": "protezione",  # Riduce danno
-        "riduzione_danno": 0.5,
-        "effetto_attacco": "penetrazione",  # Bypassa immunità Rogia
-        "bonus_danno": 1.3,
-        "energia_attivazione": 20,
+    4: {
+        "nome": "Lontano",
+        "descrizione": "~10 metri. Distanza iniziale del combattimento.",
+        "metri": "10m",
+        "distanza_iniziale": True
     },
-    "conquistatore": {
-        "nome": "Haki del Re Conquistatore",
-        "effetto_difesa": "intimidazione",  # Può far svenire nemici deboli
-        "effetto_attacco": "pressione",  # Bonus danno su nemici più deboli
-        "soglia_svenimento": 3,  # Differenza livello per svenimento
-        "energia_attivazione": 30,
+    3: {
+        "nome": "Prossimo",
+        "descrizione": "~5 metri. Molte armi e tecniche possono colpire.",
+        "metri": "5m"
+    },
+    2: {
+        "nome": "Vicino",
+        "descrizione": "1-3 metri. La maggior parte di armi e calci va a segno.",
+        "metri": "1-3m"
+    },
+    1: {
+        "nome": "Ravvicinato",
+        "descrizione": "Meno di 1 metro. Pugni e corpo a corpo efficaci.",
+        "metri": "<1m"
     }
 }
 
-# Sistema Fasi Battaglia (aggiornato)
+# Raggi d'azione degli attacchi
+ATTACK_RANGES = {
+    "corto": {
+        "nome": "Corto",
+        "descrizione": "Può essere schivato teoricamente",
+        "schivata_possibile": True,
+        "bonus_schivata": 20
+    },
+    "medio": {
+        "nome": "Medio",
+        "descrizione": "Una schivata semplice potrebbe non bastare",
+        "schivata_possibile": True,
+        "bonus_schivata": 0
+    },
+    "ampio": {
+        "nome": "Ampio",
+        "descrizione": "Saltare o spostarsi di 2 unità spesso non serve",
+        "schivata_possibile": False,
+        "richiede_spostamento": 3  # Servono 3 unità per evitare
+    },
+    "intorno": {
+        "nome": "Intorno",
+        "descrizione": "Colpisce tutti entro 2 unità da chi lo usa",
+        "colpisce_area": True,
+        "raggio_area": 2
+    }
+}
+
+# Tipi di spostamento (COSTO ENERGIA: 0 per tutti)
+MOVEMENT_TYPES = {
+    "corsa_avanti": {
+        "nome": "Corsa e avanza",
+        "descrizione": "Avanza verso il nemico di max 2 unità",
+        "energia": 0,
+        "direzione": "avanti",
+        "unita_max": 2,
+        "fase": ["reazione", "contrattacco"]
+    },
+    "indietreggia": {
+        "nome": "Indietreggia e corri",
+        "descrizione": "Allontanati di max 2 unità",
+        "energia": 0,
+        "direzione": "indietro",
+        "unita_max": 2,
+        "fase": ["reazione", "contrattacco"]
+    },
+    "sposta_lato": {
+        "nome": "Sposta di lato",
+        "descrizione": "Schiva lateralmente (richiede distanza >= 2 OPPURE Agilità >= 2x Velocità avversaria)",
+        "energia": 0,
+        "direzione": "lato",
+        "unita_max": 0,  # Non cambia distanza
+        "fase": ["reazione"],
+        "requisito_distanza": 2,
+        "requisito_alternativo": "agilita_doppia_velocita"
+    },
+    "salto_schivata": {
+        "nome": "Salto per schivare",
+        "descrizione": "Come sposta lato ma permette attacco aereo",
+        "energia": 0,
+        "direzione": "alto",
+        "unita_max": 0,
+        "fase": ["reazione"],
+        "requisito_distanza": 2,
+        "requisito_alternativo": "agilita_doppia_velocita",
+        "stato_risultante": "in_volo"
+    },
+    "salto_alto": {
+        "nome": "Salto molto alto",
+        "descrizione": "Salta in alto per attacco aereo a distanza (min 2 unità). Vulnerabile a contrattacchi.",
+        "energia": 0,
+        "direzione": "alto",
+        "unita_max": 0,
+        "fase": ["contrattacco"],
+        "requisito_distanza": 2,
+        "stato_risultante": "in_volo_alto",
+        "vulnerabile": True
+    },
+    "attacco_aereo": {
+        "nome": "Attacco aereo",
+        "descrizione": "Avanza di max 2 unità saltando, attacca in volo",
+        "energia": 0,
+        "direzione": "avanti_alto",
+        "unita_max": 2,
+        "fase": ["contrattacco"],
+        "stato_risultante": "in_volo"
+    }
+}
+
+# Mosse base con distanza e raggio d'azione
+BASIC_MOVES = {
+    "pugno": {
+        "nome": "Pugno",
+        "cd": 3,
+        "energia": 5,
+        "distanza_min": 1,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "descrizione": "Colpo base ravvicinato"
+    },
+    "calcio": {
+        "nome": "Calcio",
+        "cd": 3,
+        "energia": 5,
+        "distanza_min": 1,
+        "distanza_max": 2,
+        "raggio": "corto",
+        "descrizione": "Calcio, leggermente più raggio del pugno"
+    },
+    "colpo_rapido": {
+        "nome": "Colpo Rapido",
+        "cd": 2,
+        "energia": 3,
+        "distanza_min": 1,
+        "distanza_max": 1,
+        "raggio": "corto",
+        "descrizione": "Attacco veloce ma debole"
+    },
+    "colpo_potente": {
+        "nome": "Colpo Potente",
+        "cd": 6,
+        "energia": 15,
+        "distanza_min": 1,
+        "distanza_max": 2,
+        "raggio": "medio",
+        "descrizione": "Attacco potente"
+    },
+    "tecnica_segreta": {
+        "nome": "Tecnica Segreta",
+        "cd": 8,
+        "energia": 25,
+        "distanza_min": 1,
+        "distanza_max": 3,
+        "raggio": "medio",
+        "descrizione": "Tecnica devastante con buon raggio"
+    },
+    "onda_durto": {
+        "nome": "Onda d'Urto",
+        "cd": 5,
+        "energia": 20,
+        "distanza_min": 2,
+        "distanza_max": 4,
+        "raggio": "ampio",
+        "descrizione": "Attacco a distanza ad area"
+    },
+    "esplosione_intorno": {
+        "nome": "Esplosione Intorno",
+        "cd": 7,
+        "energia": 30,
+        "distanza_min": 1,
+        "distanza_max": 2,
+        "raggio": "intorno",
+        "descrizione": "Colpisce tutti intorno a te"
+    }
+}
+
+# Armi con distanza e raggio
+WEAPON_MOVES = {
+    "spada_base": {
+        "nome": "Spada Base",
+        "cd": 4,
+        "energia": 8,
+        "distanza_min": 1,
+        "distanza_max": 2,
+        "raggio": "corto"
+    },
+    "katana": {
+        "nome": "Katana",
+        "cd": 6,
+        "energia": 10,
+        "distanza_min": 1,
+        "distanza_max": 2,
+        "raggio": "medio"
+    },
+    "lancia": {
+        "nome": "Lancia",
+        "cd": 5,
+        "energia": 10,
+        "distanza_min": 2,
+        "distanza_max": 3,
+        "raggio": "medio"
+    },
+    "pistola": {
+        "nome": "Pistola",
+        "cd": 6,
+        "energia": 5,
+        "distanza_min": 2,
+        "distanza_max": 4,
+        "raggio": "corto"
+    },
+    "fucile": {
+        "nome": "Fucile da Cecchino",
+        "cd": 10,
+        "energia": 8,
+        "distanza_min": 4,
+        "distanza_max": 5,
+        "raggio": "corto",
+        "descrizione": "L'unica arma che colpisce a distanza 5"
+    }
+}
+
+# Sistema Fasi Battaglia (semplificato con distanze)
 BATTLE_PHASES = {
     "reazione": {
         "name": "Reazione",
         "order": 1,
         "description": "Reagisci all'attacco nemico",
-        "primo_turno": False,  # Non disponibile al primo turno
-        "actions": {
+        "primo_turno": False,
+        "azioni": {
             "subire": {
-                "energia": 0, 
-                "description": "Subisci il colpo (recuperi 10% energia)",
+                "energia": 0,
+                "descrizione": "Subisci il colpo (recuperi 10% energia max)",
                 "recupero_energia_percent": 10
             },
-            "spostamento": {
-                "energia": 5, 
-                "description": "Spostati per evitare parzialmente",
-                "riduzione_danno": 0.3
-            },
-            "difesa_base": {
-                "energia": 8, 
-                "description": "Mossa difensiva base (no danno avversario)",
-                "riduzione_danno": 0.5
-            },
-            "mossa_speciale_difesa": {
-                "energia": 15, 
-                "description": "Mossa speciale difensiva (può causare effetti)",
-                "riduzione_danno": 0.6,
-                "puo_causare_danno": True
-            },
-            "carta_difesa": {
-                "energia": 5, 
-                "description": "Usa una carta duello di difesa",
-                "richiede_carta": "difesa"
-            },
-            "haki_osservazione": {
-                "energia": 15,
-                "description": "Usa Haki Osservazione per schivare (preveggenza)",
-                "requires": "haki_osservazione",
-                "bonus_schivata": 40
-            },
-            "haki_armatura_difesa": {
-                "energia": 20,
-                "description": "Usa Haki Armatura per difenderti",
-                "requires": "haki_armatura",
-                "riduzione_danno": 0.5
-            },
-            "haki_conquistatore_difesa": {
-                "energia": 30,
-                "description": "Usa Haki del Re per intimidire/far svenire",
-                "requires": "haki_conquistatore",
-                "puo_stordire": True
-            },
-            "contrattacco_diretto": {
-                "energia": 0,  # Costa l'energia dell'attacco scelto
-                "description": "Salta difesa e contrattacca direttamente",
-                "vai_a_fase": "contrattacco"
-            }
+            "corsa_avanti": "movimento",
+            "indietreggia": "movimento",
+            "sposta_lato": "movimento",
+            "salto_schivata": "movimento"
         }
     },
     "attivazione": {
         "name": "Attivazione",
         "order": 2,
         "description": "Attiva poteri, oggetti o carte",
-        "primo_turno": True,  # Disponibile sempre
-        "actions": {
-            "attiva_frutto": {
-                "energia": 20,
-                "description": "Attiva potere del Frutto del Diavolo",
-                "requires": "frutto_diavolo"
-            },
-            "haki_preparazione": {
-                "energia": 15,
-                "description": "Attiva Haki per potenziare il prossimo attacco",
-                "potenzia_attacco": True
-            },
+        "primo_turno": True,
+        "azioni": {
             "usa_oggetto": {
                 "energia": 3,
-                "description": "Usa un oggetto dall'inventario"
+                "descrizione": "Usa un oggetto dall'inventario"
             },
             "carta_attivazione": {
                 "energia": 5,
-                "description": "Usa una carta duello di attivazione",
-                "richiede_carta": "attivazione"
+                "descrizione": "Usa una carta duello di attivazione"
             },
             "salta": {
                 "energia": 0,
-                "description": "Non attivare nulla"
+                "descrizione": "Non attivare nulla"
             }
         }
     },
@@ -944,204 +1081,105 @@ BATTLE_PHASES = {
         "name": "Attacco/Contrattacco",
         "order": 3,
         "description": "Attacca l'avversario",
-        "primo_turno": True,  # Disponibile sempre
-        "actions": {
-            "spostamento_attacco": {
-                "energia": 5,
-                "description": "Spostati per posizionarti meglio",
-                "bonus_precisione": 10
-            },
+        "primo_turno": True,
+        "azioni": {
+            "corsa_avanti": "movimento",
+            "indietreggia": "movimento",
+            "salto_alto": "movimento",
+            "attacco_aereo": "movimento",
             "attacco_base": {
-                "energia": 5,
-                "cd": 3,
-                "description": "Attacco base - scegli parte del corpo",
-                "richiede_bersaglio": True
-            },
-            "attacco_speciale": {
-                "energia": 15,
-                "cd": 6,
-                "description": "Mossa speciale - può richiedere bersaglio",
-                "richiede_bersaglio": True
+                "energia": 0,  # Costo dipende dalla mossa scelta
+                "descrizione": "Esegui una mossa base",
+                "richiede_mossa": True
             },
             "attacco_arma": {
-                "energia": 10,
-                "description": "Attacco con arma equipaggiata",
-                "richiede_bersaglio": True,
+                "energia": 0,
+                "descrizione": "Attacco con arma equipaggiata",
                 "requires": "arma_equipaggiata"
             },
             "carta_attacco": {
                 "energia": 5,
-                "description": "Usa carta duello di attacco",
-                "richiede_carta": "attacco"
-            },
-            "attacco_haki": {
-                "energia": 0,  # Già pagato in attivazione
-                "description": "Attacco potenziato da Haki (se attivato)",
-                "requires": "haki_attivato",
-                "richiede_bersaglio": True
+                "descrizione": "Usa carta duello di attacco"
             },
             "passa_turno": {
                 "energia": 0,
-                "description": "Passa il turno senza attaccare",
+                "descrizione": "Passa senza attaccare (recuperi 15% energia)",
                 "recupero_energia_percent": 15
             }
         }
     }
 }
 
-# Costo energia per numero di fasi usate
-PHASE_ENERGY_MULTIPLIER = {
-    1: 1.0,   # Solo 1 fase = costo normale
-    2: 1.3,   # 2 fasi = +30% energia
-    3: 1.6,   # Tutte e 3 = +60% energia
-}
+# ============ DISTANCE HELPER FUNCTIONS ============
 
-# ============ BATTLE HELPER FUNCTIONS ============
+def get_starting_distance() -> int:
+    """Restituisce la distanza iniziale del combattimento (4 = Lontano)"""
+    return 4
 
-def check_attack_validity(attacker: Dict, defender: Dict, attack_type: str, has_haki_armatura: bool = False) -> Dict:
-    """
-    Verifica se un attacco è valido contro il difensore.
-    Esempio: attacchi fisici normali non funzionano contro Rogia senza Haki.
-    """
-    result = {
-        "valido": True,
-        "danno_effettivo": True,
-        "motivo": None,
-        "narrazione": None
-    }
-    
-    # Controlla immunità Rogia
-    defender_fruit = defender.get("frutto_diavolo")
-    if defender_fruit and defender_fruit.get("tipo") == "rogia":
-        # Attacchi fisici normali non funzionano
-        if attack_type in ["attacco_base", "attacco_speciale", "pugno", "calcio"] and not has_haki_armatura:
-            result["valido"] = True  # L'attacco avviene
-            result["danno_effettivo"] = False  # Ma non fa danno
-            result["motivo"] = "immunita_rogia"
-            result["narrazione"] = f"L'attacco passa attraverso il corpo di {defender.get('nome')}! Essendo un utilizzatore di Rogia, gli attacchi fisici normali non hanno effetto!"
-    
-    return result
+def can_move_extra(attacker_velocita: int, defender_velocita: int) -> bool:
+    """Verifica se l'attaccante può muoversi del doppio (velocità 2x avversario)"""
+    return attacker_velocita >= defender_velocita * 2
 
-def calculate_attack_collision(attack1_damage: int, attack2_damage: int) -> Dict:
-    """
-    Calcola il risultato quando due attacchi si scontrano.
-    Il danno risultante è la differenza, applicata a chi ha fatto meno danno.
-    """
-    difference = abs(attack1_damage - attack2_damage)
+def get_max_movement(attacker_velocita: int, defender_velocita: int) -> int:
+    """Calcola il movimento massimo (2 o 4 se velocità doppia)"""
+    if can_move_extra(attacker_velocita, defender_velocita):
+        return 4
+    return 2
+
+def can_use_movement(movement_type: str, current_distance: int, player_agilita: int, opponent_velocita: int) -> Dict:
+    """Verifica se un tipo di spostamento è disponibile"""
+    movement = MOVEMENT_TYPES.get(movement_type)
+    if not movement:
+        return {"can_use": False, "reason": "Movimento non valido"}
     
-    if attack1_damage > attack2_damage:
+    # Controlla requisito distanza
+    req_distance = movement.get("requisito_distanza")
+    if req_distance and current_distance < req_distance:
+        # Controlla requisito alternativo (agilità doppia)
+        if movement.get("requisito_alternativo") == "agilita_doppia_velocita":
+            if player_agilita < opponent_velocita * 2:
+                return {
+                    "can_use": False, 
+                    "reason": f"Richiede distanza >= {req_distance} OPPURE Agilità >= {opponent_velocita * 2}"
+                }
+    
+    return {"can_use": True}
+
+def can_attack_at_distance(move_data: Dict, current_distance: int) -> Dict:
+    """Verifica se una mossa può colpire alla distanza corrente"""
+    min_dist = move_data.get("distanza_min", 1)
+    max_dist = move_data.get("distanza_max", 2)
+    
+    if current_distance < min_dist:
         return {
-            "vincitore": "attacker1",
-            "danno_risultante": difference,
-            "chi_subisce": "attacker2",
-            "narrazione": f"Gli attacchi si scontrano! Con una differenza di {difference} danni, il secondo attaccante subisce il contraccolpo!"
+            "can_attack": False,
+            "reason": f"Troppo vicino! Distanza minima: {min_dist} ({DISTANCE_LEVELS[min_dist]['nome']})"
         }
-    elif attack2_damage > attack1_damage:
+    if current_distance > max_dist:
         return {
-            "vincitore": "attacker2",
-            "danno_risultante": difference,
-            "chi_subisce": "attacker1",
-            "narrazione": f"Gli attacchi si scontrano! Con una differenza di {difference} danni, il primo attaccante subisce il contraccolpo!"
+            "can_attack": False,
+            "reason": f"Troppo lontano! Distanza massima: {max_dist} ({DISTANCE_LEVELS[max_dist]['nome']})"
         }
-    else:
-        return {
-            "vincitore": None,
-            "danno_risultante": 0,
-            "chi_subisce": None,
-            "narrazione": "Gli attacchi si annullano a vicenda! Nessun danno inflitto!"
-        }
+    
+    return {"can_attack": True}
 
-def get_available_phases(is_first_turn: bool, has_pending_attack: bool) -> list:
-    """
-    Restituisce le fasi disponibili per il turno corrente.
-    - Primo turno: solo Attivazione e Contrattacco
-    - Turni successivi: tutte e 3 (Reazione solo se c'è attacco pendente)
-    """
-    if is_first_turn:
-        return ["attivazione", "contrattacco"]
-    else:
-        phases = []
-        if has_pending_attack:
-            phases.append("reazione")
-        phases.extend(["attivazione", "contrattacco"])
-        return phases
-
-def calculate_body_part_damage(base_damage: int, body_part: str, attacker_stats: Dict) -> Dict:
-    """
-    Calcola il danno basato sulla parte del corpo colpita.
-    """
-    part_data = BODY_PARTS.get(body_part, BODY_PARTS["petto"])
+def calculate_dodge_chance(attack_range: str, current_distance: int, defender_agilita: int) -> int:
+    """Calcola la probabilità di schivata basata su raggio e distanza"""
+    range_data = ATTACK_RANGES.get(attack_range, ATTACK_RANGES["medio"])
     
-    # Moltiplicatore danno per parte del corpo
-    damage_multiplier = part_data["moltiplicatore_danno"]
+    if not range_data.get("schivata_possibile", True):
+        return 0  # Non schivabile (raggio ampio)
     
-    # Probabilità di colpire basata su difficoltà e velocità attaccante
-    hit_chance = part_data["difficolta"] * 100
-    hit_chance += attacker_stats.get("velocita", 10) * 0.5
-    hit_chance += attacker_stats.get("agilita", 10) * 0.3
-    hit_chance = min(95, hit_chance)  # Max 95%
+    base_chance = 20
+    # Bonus per distanza (più lontano = più facile schivare)
+    distance_bonus = (current_distance - 1) * 10
+    # Bonus per raggio corto
+    range_bonus = range_data.get("bonus_schivata", 0)
+    # Bonus agilità
+    agility_bonus = defender_agilita * 0.5
     
-    # Verifica se colpisce
-    hit_roll = random.randint(1, 100)
-    hits = hit_roll <= hit_chance
-    
-    final_damage = int(base_damage * damage_multiplier) if hits else 0
-    
-    # Controlla effetto critico
-    critical_effect = None
-    if hits and random.randint(1, 100) <= 15:  # 15% critico
-        critical_effect = part_data.get("effetto_critico")
-        if critical_effect:
-            final_damage = int(final_damage * 1.5)
-    
-    return {
-        "danno_finale": final_damage,
-        "colpito": hits,
-        "parte_colpita": part_data["nome"],
-        "probabilita_colpo": hit_chance,
-        "critico": critical_effect is not None,
-        "effetto_critico": critical_effect,
-        "narrazione": f"Attacco alla {part_data['nome']}! " + (
-            f"Colpo a segno per {final_damage} danni!" + (f" CRITICO! {critical_effect}!" if critical_effect else "")
-            if hits else "Mancato!"
-        )
-    }
-
-def apply_haki_effects(attacker: Dict, defender: Dict, damage: int, haki_type: str, is_attack: bool) -> Dict:
-    """
-    Applica gli effetti dell'Haki all'attacco o difesa.
-    """
-    result = {
-        "danno_modificato": damage,
-        "effetti": [],
-        "narrazione": ""
-    }
-    
-    haki_data = HAKI_TYPES.get(haki_type)
-    if not haki_data:
-        return result
-    
-    if is_attack:
-        if haki_type == "armatura":
-            # Bypassa immunità e aumenta danno
-            result["danno_modificato"] = int(damage * haki_data["bonus_danno"])
-            result["effetti"].append("penetrazione_rogia")
-            result["narrazione"] = f"L'Haki dell'Armatura avvolge l'attacco! Danno aumentato a {result['danno_modificato']}!"
-        elif haki_type == "conquistatore":
-            # Bonus danno contro nemici più deboli
-            level_diff = attacker.get("livello_combattimento", 1) - defender.get("livello_combattimento", 1)
-            if level_diff >= haki_data["soglia_svenimento"]:
-                result["effetti"].append("svenimento_possibile")
-                result["narrazione"] = "L'Haki del Re Conquistatore si scatena! Il nemico potrebbe svenire!"
-    else:
-        if haki_type == "osservazione":
-            result["effetti"].append(f"bonus_schivata_{haki_data['bonus_schivata']}")
-            result["narrazione"] = "L'Haki dell'Osservazione si attiva! Preveggenza attiva!"
-        elif haki_type == "armatura":
-            result["danno_modificato"] = int(damage * (1 - haki_data["riduzione_danno"]))
-            result["narrazione"] = f"L'Haki dell'Armatura assorbe il colpo! Danno ridotto a {result['danno_modificato']}!"
-    
-    return result
+    total = min(80, int(base_chance + distance_bonus + range_bonus + agility_bonus))
+    return total
 
 # Formule base per stats
 def calculate_max_vita(level: int) -> int:
@@ -1355,9 +1393,9 @@ async def start_battle(data: Dict[str, str], request: Request):
             "user_id": user["user_id"],
             "nome": character["nome_personaggio"],
             "livello_combattimento": player_level,
-            "vita": player_vita_max,  # Vita piena all'inizio
+            "vita": player_vita_max,
             "vita_max": player_vita_max,
-            "energia": player_energia_max,  # Energia piena all'inizio
+            "energia": player_energia_max,
             "energia_max": player_energia_max,
             "attacco": character["attacco"],
             "difesa": character["difesa"],
@@ -1367,23 +1405,24 @@ async def start_battle(data: Dict[str, str], request: Request):
             "agilita": character["agilita"],
             "stile_combattimento": character["stile_combattimento"],
             "armi": character.get("armi", []),
-            "haki": character.get("haki", {}),
-            "frutto_diavolo": character.get("frutto_diavolo"),
             "carte": character.get("carte", {}),
-            "oggetti": character.get("oggetti", [])
+            "oggetti": character.get("oggetti", []),
+            "stato_posizione": "terra"  # terra, in_volo, in_volo_alto
         },
         "player2": opponent,
         "turno_corrente": "player1",
         "numero_turno": 1,
-        # Sistema 3 fasi
-        "fase_corrente": "reazione",  # reazione -> attivazione -> contrattacco
-        "fasi_completate": [],  # Tiene traccia delle fasi usate nel turno
-        "azione_avversario_pendente": None,  # L'attacco a cui reagire
+        # SISTEMA DISTANZE
+        "distanza": get_starting_distance(),  # 4 = Lontano (distanza iniziale)
+        # Sistema fasi
+        "fase_corrente": "attivazione",  # Primo turno: attivazione -> contrattacco
+        "fasi_completate": [],
+        "azione_avversario_pendente": None,
         "inizio_turno": datetime.now(timezone.utc).isoformat(),
         "tempo_max_turno": 180,
         "tempo_max_battaglia": 1200,
         "inizio_battaglia": datetime.now(timezone.utc).isoformat(),
-        "log": [],
+        "log": [f"⚔️ Combattimento iniziato! Distanza: {DISTANCE_LEVELS[4]['nome']} ({DISTANCE_LEVELS[4]['metri']})"],
         "stato": "attivo"
     }
     
@@ -2034,20 +2073,172 @@ async def get_available_battle_actions(battle_id: str, request: Request):
         "fasi_completate": completed_phases,
         "attacco_pendente": battle.get("azione_avversario_pendente"),
         "azioni_per_fase": actions,
-        "parti_corpo": list(BODY_PARTS.keys()),
+        "distanza": battle.get("distanza", 4),
+        "distanza_info": DISTANCE_LEVELS.get(battle.get("distanza", 4)),
         "energia_giocatore": player_data["energia"],
-        "energia_max": player_data["energia_max"]
+        "energia_max": player_data["energia_max"],
+        "stato_posizione": player_data.get("stato_posizione", "terra")
+    }
+
+@api_router.post("/battle/{battle_id}/move")
+async def execute_battle_movement(battle_id: str, data: Dict[str, Any], request: Request):
+    """
+    Esegue uno spostamento in battaglia.
+    Gli spostamenti NON costano energia.
+    
+    Body: {
+        "tipo_movimento": "corsa_avanti" | "indietreggia" | "sposta_lato" | "salto_schivata" | "salto_alto" | "attacco_aereo",
+        "unita": 1-4 (opzionale, default max disponibile)
+    }
+    """
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+        active_battles[battle_id] = battle
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    opponent = "player2" if is_player1 else "player1"
+    
+    if battle["turno_corrente"] != current_player:
+        raise HTTPException(status_code=400, detail="Non è il tuo turno!")
+    
+    tipo_movimento = data.get("tipo_movimento")
+    unita_richieste = data.get("unita")
+    
+    movement = MOVEMENT_TYPES.get(tipo_movimento)
+    if not movement:
+        return {"success": False, "error": "Tipo di movimento non valido"}
+    
+    player_data = battle[current_player]
+    opponent_data = battle[opponent]
+    current_distance = battle.get("distanza", 4)
+    
+    # Verifica se può usare questo movimento
+    can_use = can_use_movement(
+        tipo_movimento, 
+        current_distance, 
+        player_data.get("agilita", 10),
+        opponent_data.get("velocita", 10)
+    )
+    
+    if not can_use["can_use"]:
+        return {"success": False, "error": can_use["reason"]}
+    
+    # Calcola movimento massimo
+    max_move = get_max_movement(player_data.get("velocita", 10), opponent_data.get("velocita", 10))
+    actual_move = min(unita_richieste or movement["unita_max"], max_move, movement["unita_max"])
+    
+    # Applica movimento
+    old_distance = current_distance
+    narration = ""
+    
+    if movement["direzione"] == "avanti":
+        new_distance = max(1, current_distance - actual_move)
+        narration = f"↗️ {player_data['nome']} avanza di {old_distance - new_distance} unità!"
+    elif movement["direzione"] == "indietro":
+        new_distance = min(5, current_distance + actual_move)
+        narration = f"↙️ {player_data['nome']} indietreggia di {new_distance - old_distance} unità!"
+    elif movement["direzione"] in ["lato", "alto"]:
+        new_distance = current_distance  # Non cambia distanza
+        narration = f"↔️ {player_data['nome']} si sposta lateralmente!"
+    elif movement["direzione"] == "avanti_alto":
+        new_distance = max(1, current_distance - actual_move)
+        narration = f"🦅 {player_data['nome']} salta in avanti di {old_distance - new_distance} unità!"
+    else:
+        new_distance = current_distance
+    
+    battle["distanza"] = new_distance
+    
+    # Aggiorna stato posizione
+    if movement.get("stato_risultante"):
+        player_data["stato_posizione"] = movement["stato_risultante"]
+        if movement["stato_risultante"] == "in_volo":
+            narration += " È in volo!"
+        elif movement["stato_risultante"] == "in_volo_alto":
+            narration += " È in volo alto! (vulnerabile)"
+    
+    # Aggiungi info distanza
+    narration += f" Distanza: {DISTANCE_LEVELS[new_distance]['nome']}"
+    battle["log"].append(narration)
+    
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "movimento": movement["nome"],
+        "distanza_precedente": old_distance,
+        "distanza_nuova": new_distance,
+        "distanza_info": DISTANCE_LEVELS[new_distance],
+        "stato_posizione": player_data.get("stato_posizione", "terra"),
+        "narrazione": narration,
+        "battle": battle
+    }
+
+@api_router.get("/battle/{battle_id}/available-moves")
+async def get_available_moves(battle_id: str, request: Request):
+    """
+    Restituisce le mosse disponibili basate sulla distanza corrente.
+    """
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    player_data = battle[current_player]
+    current_distance = battle.get("distanza", 4)
+    
+    available_moves = {}
+    
+    # Mosse base
+    for move_id, move_data in BASIC_MOVES.items():
+        can_attack = can_attack_at_distance(move_data, current_distance)
+        available_moves[move_id] = {
+            **move_data,
+            "disponibile": can_attack["can_attack"],
+            "motivo": can_attack.get("reason"),
+            "tipo": "base"
+        }
+    
+    # Armi
+    equipped_weapon = next((a for a in player_data.get("armi", []) if a.get("equipped")), None)
+    for weapon_id, weapon_data in WEAPON_MOVES.items():
+        can_attack = can_attack_at_distance(weapon_data, current_distance)
+        is_equipped = equipped_weapon and equipped_weapon.get("id") == weapon_id
+        available_moves[weapon_id] = {
+            **weapon_data,
+            "disponibile": can_attack["can_attack"] and is_equipped,
+            "motivo": can_attack.get("reason") or ("Non equipaggiata" if not is_equipped else None),
+            "tipo": "arma",
+            "equipaggiata": is_equipped
+        }
+    
+    return {
+        "distanza": current_distance,
+        "distanza_info": DISTANCE_LEVELS[current_distance],
+        "mosse_disponibili": available_moves,
+        "raggi_azione": ATTACK_RANGES
     }
 
 @api_router.post("/battle/{battle_id}/attack")
 async def execute_battle_attack(battle_id: str, data: Dict[str, Any], request: Request):
     """
-    Esegue un attacco con validazione completa.
+    Esegue un attacco con sistema di distanze.
     
     Body: {
-        "tipo_attacco": "attacco_base" | "attacco_speciale" | "attacco_arma" | "attacco_haki",
-        "parte_corpo": "testa" | "petto" | "pancia" | "braccia" | "gambe",
-        "usa_haki": "armatura" | "osservazione" | null
+        "mossa": "pugno" | "calcio" | "colpo_potente" | "tecnica_segreta" | ... (da BASIC_MOVES o WEAPON_MOVES)
     }
     """
     user = await get_current_user(request)
@@ -2070,30 +2261,31 @@ async def execute_battle_attack(battle_id: str, data: Dict[str, Any], request: R
     if battle["turno_corrente"] != current_player:
         raise HTTPException(status_code=400, detail="Non è il tuo turno!")
     
-    tipo_attacco = data.get("tipo_attacco", "attacco_base")
-    parte_corpo = data.get("parte_corpo", "petto")
-    usa_haki = data.get("usa_haki")
+    mossa_id = data.get("mossa", "pugno")
     
     player_data = battle[current_player]
     opponent_data = battle[opponent]
     attacker_level = player_data.get("livello_combattimento", 1)
+    current_distance = battle.get("distanza", 4)
     
-    # Determine CD based on attack type
-    cd_values = {
-        "attacco_base": 3,
-        "attacco_speciale": 6,
-        "attacco_arma": 5,
-        "attacco_haki": 8
-    }
-    energia_costs = {
-        "attacco_base": 5,
-        "attacco_speciale": 15,
-        "attacco_arma": 10,
-        "attacco_haki": 20
-    }
+    # Cerca la mossa in BASIC_MOVES o WEAPON_MOVES
+    move_data = BASIC_MOVES.get(mossa_id) or WEAPON_MOVES.get(mossa_id)
+    if not move_data:
+        return {"success": False, "error": f"Mossa '{mossa_id}' non trovata"}
     
-    cd = cd_values.get(tipo_attacco, 3)
-    energia_cost = energia_costs.get(tipo_attacco, 5)
+    # Verifica distanza
+    distance_check = can_attack_at_distance(move_data, current_distance)
+    if not distance_check["can_attack"]:
+        return {
+            "success": False,
+            "error": distance_check["reason"],
+            "distanza_attuale": current_distance,
+            "distanza_richiesta": f"{move_data['distanza_min']}-{move_data['distanza_max']}"
+        }
+    
+    cd = move_data.get("cd", 3)
+    energia_cost = move_data.get("energia", 5)
+    raggio = move_data.get("raggio", "medio")
     
     # Check energy
     if player_data["energia"] < energia_cost:
@@ -2102,107 +2294,60 @@ async def execute_battle_attack(battle_id: str, data: Dict[str, Any], request: R
             "error": f"Energia insufficiente. Richiesta: {energia_cost}, Disponibile: {player_data['energia']}"
         }
     
-    # Calculate base damage
+    # Calculate damage
     base_damage = calculate_combat_damage(attacker_level, cd)
-    has_haki_armatura = usa_haki == "armatura" or (player_data.get("haki_attivato") == "armatura")
-    
-    # Check attack validity (Rogia immunity, etc.)
-    validity = check_attack_validity(player_data, opponent_data, tipo_attacco, has_haki_armatura)
     
     narration_parts = []
-    
-    if not validity["danno_effettivo"]:
-        # Attack doesn't do damage (e.g., Rogia immunity)
-        narration_parts.append(validity["narrazione"])
-        battle["log"].append(validity["narrazione"])
-        
-        # Still spend energy
-        player_data["energia"] -= energia_cost
-        
-        # Store attack info for opponent's reaction (even if no damage)
-        battle["azione_avversario_pendente"] = {
-            "tipo": tipo_attacco,
-            "danno": 0,
-            "danno_potenziale": base_damage,
-            "attaccante": current_player,
-            "parte_corpo": parte_corpo,
-            "invalido": True,
-            "motivo": validity["motivo"]
-        }
-        
-        active_battles[battle_id] = battle
-        await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
-        
-        return {
-            "success": True,
-            "attacco_valido": False,
-            "motivo": validity["motivo"],
-            "narrazione": validity["narrazione"],
-            "battle": battle
-        }
-    
-    # Apply Haki effects if used
-    if usa_haki:
-        haki_result = apply_haki_effects(player_data, opponent_data, base_damage, usa_haki, is_attack=True)
-        base_damage = haki_result["danno_modificato"]
-        if haki_result["narrazione"]:
-            narration_parts.append(haki_result["narrazione"])
-    
-    # Calculate damage with body part targeting
-    body_result = calculate_body_part_damage(base_damage, parte_corpo, player_data)
-    
-    narration_parts.append(f"{player_data['nome']} attacca {opponent_data['nome']}!")
-    narration_parts.append(f"[Lv{attacker_level} × CD{cd}] = {base_damage} danno base")
-    narration_parts.append(body_result["narrazione"])
+    narration_parts.append(f"⚔️ {player_data['nome']} usa {move_data['nome']}!")
+    narration_parts.append(f"[Lv{attacker_level} × CD{cd}] = {base_damage} danni potenziali")
+    narration_parts.append(f"Raggio: {ATTACK_RANGES[raggio]['nome']} | Distanza: {DISTANCE_LEVELS[current_distance]['nome']}")
     
     # Spend energy
     player_data["energia"] -= energia_cost
     
-    # Store attack for opponent's reaction phase
+    # Reset posizione se era in volo
+    if player_data.get("stato_posizione") in ["in_volo", "in_volo_alto"]:
+        player_data["stato_posizione"] = "terra"
+        narration_parts.append("(Atterra dopo l'attacco)")
+    
+    # Store attack for opponent's reaction
     battle["azione_avversario_pendente"] = {
-        "tipo": tipo_attacco,
-        "danno": body_result["danno_finale"],
-        "danno_base": base_damage,
+        "mossa": mossa_id,
+        "nome_mossa": move_data["nome"],
+        "danno": base_damage,
+        "raggio": raggio,
         "attaccante": current_player,
-        "parte_corpo": parte_corpo,
-        "colpito": body_result["colpito"],
-        "critico": body_result["critico"],
-        "effetto_critico": body_result.get("effetto_critico"),
-        "haki_usato": usa_haki
+        "distanza": current_distance
     }
     
     full_narration = " ".join(narration_parts)
     battle["log"].append(full_narration)
     
-    # Update battle state
     active_battles[battle_id] = battle
     await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
     
     return {
         "success": True,
-        "attacco_valido": True,
-        "danno_potenziale": body_result["danno_finale"],
-        "parte_corpo": body_result["parte_colpita"],
-        "colpito": body_result["colpito"],
-        "critico": body_result["critico"],
-        "effetto_critico": body_result.get("effetto_critico"),
+        "mossa": move_data["nome"],
+        "danno_potenziale": base_damage,
+        "raggio": raggio,
+        "raggio_info": ATTACK_RANGES[raggio],
         "energia_spesa": energia_cost,
+        "distanza": current_distance,
         "narrazione": full_narration,
         "battle": battle,
-        "prossima_azione": "Il computer aspetta la reazione dell'avversario..."
+        "prossimo": "Attendi la reazione dell'avversario..."
     }
 
 @api_router.post("/battle/{battle_id}/react")
 async def execute_battle_reaction(battle_id: str, data: Dict[str, Any], request: Request):
     """
-    Esegue una reazione all'attacco avversario.
+    Esegue una reazione all'attacco avversario (semplificato - sistema distanze).
     
     Body: {
-        "tipo_reazione": "subire" | "spostamento" | "difesa_base" | "haki_osservazione" | "haki_armatura_difesa" | "contrattacco_diretto",
-        "contrattacco": {  // Solo se tipo_reazione == "contrattacco_diretto"
-            "tipo_attacco": "attacco_base",
-            "parte_corpo": "petto"
-        }
+        "tipo_reazione": "subire" | "movimento",
+        "movimento": "corsa_avanti" | "indietreggia" | "sposta_lato" | "salto_schivata" (se tipo_reazione == "movimento")
+        "contrattacco": { "mossa": "pugno" } (se vuole contrattaccare direttamente)
     }
     """
     user = await get_current_user(request)
@@ -2229,64 +2374,119 @@ async def execute_battle_reaction(battle_id: str, data: Dict[str, Any], request:
     tipo_reazione = data.get("tipo_reazione", "subire")
     player_data = battle[current_player]
     opponent_data = battle[opponent]
+    current_distance = battle.get("distanza", 4)
     
     incoming_damage = pending_attack.get("danno", 0)
+    attack_range = pending_attack.get("raggio", "medio")
     final_damage = incoming_damage
     narration_parts = []
     
-    # Process reaction
     if tipo_reazione == "subire":
-        # Take full damage but recover energy
-        energy_recovery = int(player_data["energia_max"] * 0.10)  # 10% del totale
+        # Subisce il colpo ma recupera 10% energia
+        energy_recovery = int(player_data["energia_max"] * 0.10)
         player_data["energia"] = min(player_data["energia_max"], player_data["energia"] + energy_recovery)
-        narration_parts.append(f"{player_data['nome']} subisce il colpo! -{incoming_damage} HP ma +{energy_recovery} energia")
+        narration_parts.append(f"😤 {player_data['nome']} subisce il colpo! -{incoming_damage} HP ma +{energy_recovery} EN")
         
-    elif tipo_reazione == "spostamento":
-        if player_data["energia"] >= 5:
-            player_data["energia"] -= 5
-            final_damage = int(incoming_damage * 0.7)  # 30% riduzione
-            narration_parts.append(f"{player_data['nome']} si sposta! Danno ridotto a {final_damage}")
+    elif tipo_reazione == "movimento":
+        movimento_tipo = data.get("movimento", "sposta_lato")
+        
+        # Verifica se può usare il movimento
+        can_move = can_use_movement(
+            movimento_tipo,
+            current_distance,
+            player_data.get("agilita", 10),
+            opponent_data.get("velocita", 10)
+        )
+        
+        if not can_move["can_use"]:
+            narration_parts.append(f"❌ Non puoi usare {movimento_tipo}: {can_move['reason']}")
         else:
-            narration_parts.append("Energia insufficiente per spostarsi!")
+            # Calcola chance di schivata basata su raggio e distanza
+            dodge_chance = calculate_dodge_chance(attack_range, current_distance, player_data.get("agilita", 10))
             
-    elif tipo_reazione == "difesa_base":
-        if player_data["energia"] >= 8:
-            player_data["energia"] -= 8
-            final_damage = int(incoming_damage * 0.5)  # 50% riduzione
-            narration_parts.append(f"{player_data['nome']} si difende! Danno ridotto a {final_damage}")
-        else:
-            narration_parts.append("Energia insufficiente per difendersi!")
-            
-    elif tipo_reazione == "haki_osservazione":
-        if player_data.get("haki", {}).get("osservazione") and player_data["energia"] >= 15:
-            player_data["energia"] -= 15
-            # Schivata con bonus
-            dodge_chance = 50 + HAKI_TYPES["osservazione"]["bonus_schivata"]
             if random.randint(1, 100) <= dodge_chance:
                 final_damage = 0
-                narration_parts.append(f"👁️ {player_data['nome']} usa l'Haki dell'Osservazione! Schiva completamente l'attacco!")
+                narration_parts.append(f"🏃 {player_data['nome']} schiva l'attacco! (Chance: {dodge_chance}%)")
             else:
-                final_damage = int(incoming_damage * 0.5)
-                narration_parts.append(f"👁️ L'Haki dell'Osservazione aiuta a prevedere... ma non completamente. -{final_damage} HP")
-        else:
-            narration_parts.append("Non puoi usare l'Haki dell'Osservazione!")
+                # Parziale schivata - riduce danno
+                final_damage = int(incoming_damage * 0.6)
+                narration_parts.append(f"↔️ {player_data['nome']} evita parzialmente! Danno ridotto: {final_damage}")
             
-    elif tipo_reazione == "haki_armatura_difesa":
-        if player_data.get("haki", {}).get("armatura") and player_data["energia"] >= 20:
-            player_data["energia"] -= 20
-            final_damage = int(incoming_damage * (1 - HAKI_TYPES["armatura"]["riduzione_danno"]))
-            narration_parts.append(f"⚫ {player_data['nome']} attiva l'Haki dell'Armatura! Danno ridotto a {final_damage}")
-        else:
-            narration_parts.append("Non puoi usare l'Haki dell'Armatura!")
-            
-    elif tipo_reazione == "contrattacco_diretto":
-        # Skip defense and counter-attack directly
+            # Aggiorna distanza se movimento cambia posizione
+            movement_data = MOVEMENT_TYPES.get(movimento_tipo, {})
+            if movement_data.get("direzione") == "indietro":
+                battle["distanza"] = min(5, current_distance + 1)
+                narration_parts.append(f"(Distanza: {DISTANCE_LEVELS[battle['distanza']]['nome']})")
+            elif movement_data.get("stato_risultante"):
+                player_data["stato_posizione"] = movement_data["stato_risultante"]
+                
+    elif tipo_reazione == "contrattacco":
+        # Attacco vs Attacco
         contrattacco_data = data.get("contrattacco", {})
+        mossa_id = contrattacco_data.get("mossa", "pugno")
         
-        # Calculate counter-attack damage
+        move_data = BASIC_MOVES.get(mossa_id, BASIC_MOVES["pugno"])
         attacker_level = player_data.get("livello_combattimento", 1)
-        cd = 3  # Base attack CD
+        cd = move_data.get("cd", 3)
         counter_damage = calculate_combat_damage(attacker_level, cd)
+        
+        # Verifica distanza per contrattacco
+        distance_check = can_attack_at_distance(move_data, current_distance)
+        
+        if not distance_check["can_attack"]:
+            narration_parts.append(f"❌ Non puoi contrattaccare con {move_data['nome']}: {distance_check['reason']}")
+        else:
+            # Collisione attacco vs attacco
+            narration_parts.append(f"⚔️ {player_data['nome']} contrattacca con {move_data['nome']}! ({counter_damage} danni)")
+            
+            difference = abs(incoming_damage - counter_damage)
+            if counter_damage > incoming_damage:
+                # Player wins clash
+                final_damage = 0
+                opponent_data["vita"] = max(0, opponent_data["vita"] - difference)
+                narration_parts.append(f"💥 Contrattacco vincente! {opponent_data['nome']} subisce {difference} danni!")
+            elif incoming_damage > counter_damage:
+                # Opponent wins clash
+                final_damage = difference
+                narration_parts.append(f"💢 Attacco avversario più forte! Subisci {difference} danni.")
+            else:
+                final_damage = 0
+                narration_parts.append("⚡ Gli attacchi si annullano!")
+            
+            # Spendi energia per contrattacco
+            player_data["energia"] = max(0, player_data["energia"] - move_data.get("energia", 5))
+    
+    # Applica danno
+    if final_damage > 0:
+        player_data["vita"] = max(0, player_data["vita"] - final_damage)
+    
+    # Clear pending attack
+    battle["azione_avversario_pendente"] = None
+    
+    # Check battle end
+    if player_data["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = opponent
+        narration_parts.append(f"💀 {player_data['nome']} è stato sconfitto!")
+    elif opponent_data["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = current_player
+        narration_parts.append(f"🏆 {player_data['nome']} ha vinto!")
+    
+    full_narration = " ".join(narration_parts)
+    battle["log"].append(full_narration)
+    
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "tipo_reazione": tipo_reazione,
+        "danno_subito": final_damage,
+        "distanza": battle.get("distanza"),
+        "narrazione": full_narration,
+        "battle": battle
+    }
         
         # Collision calculation
         collision = calculate_attack_collision(incoming_damage, counter_damage)
