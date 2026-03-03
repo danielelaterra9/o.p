@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -965,6 +965,7 @@ const CharacterCreation = ({ token, setCharacter }) => {
 // ============ DASHBOARD ============
 const Dashboard = ({ user, character, token, logout, isDemo }) => {
   const navigate = useNavigate();
+  const [narrativeExpanded, setNarrativeExpanded] = useState(false);
 
   useEffect(() => {
     if (!isDemo && !user) navigate('/login');
@@ -983,7 +984,7 @@ const Dashboard = ({ user, character, token, logout, isDemo }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#051923]">
+    <div className="min-h-screen bg-[#051923] pb-16">
       {/* Demo Banner */}
       {isDemo && (
         <div className="bg-[#2A9D8F] p-2 text-center">
@@ -1044,7 +1045,7 @@ const Dashboard = ({ user, character, token, logout, isDemo }) => {
         </div>
 
         {/* Menu */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 mb-20">
           {menuItems.map((item) => (
             <motion.button key={item.path} onClick={() => navigate(item.path)} className="glass p-6 rounded-xl text-left" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <item.icon className="w-10 h-10 mb-3" style={{ color: item.color }} />
@@ -1053,6 +1054,15 @@ const Dashboard = ({ user, character, token, logout, isDemo }) => {
           ))}
         </div>
       </div>
+
+      {/* Narrative Panel */}
+      <NarrativePanel 
+        token={token} 
+        character={character} 
+        isDemo={isDemo}
+        isExpanded={narrativeExpanded}
+        setIsExpanded={setNarrativeExpanded}
+      />
     </div>
   );
 };
@@ -1480,6 +1490,15 @@ const ExploreIsland = ({ token, character, isDemo }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Narrative Panel */}
+      <NarrativePanel 
+        token={token} 
+        character={character} 
+        isDemo={isDemo}
+        isExpanded={false}
+        setIsExpanded={() => {}}
+      />
     </div>
   );
 };
@@ -2230,6 +2249,15 @@ const WorldMap = ({ token, character, isDemo }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Narrative Panel */}
+      <NarrativePanel 
+        token={token} 
+        character={character} 
+        isDemo={isDemo}
+        isExpanded={false}
+        setIsExpanded={() => {}}
+      />
     </div>
   );
 };
@@ -2774,7 +2802,7 @@ const Inventory = ({ token, character }) => {
 };
 
 // ============ SHOP ============
-const Shop = ({ token, character }) => {
+const Shop = ({ token, character, isDemo }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [items, setItems] = useState({});
@@ -2890,7 +2918,439 @@ const Shop = ({ token, character }) => {
           </div>
         ))}
       </div>
+
+      {/* Narrative Panel */}
+      <NarrativePanel 
+        token={token} 
+        character={character} 
+        isDemo={isDemo}
+        isExpanded={false}
+        setIsExpanded={() => {}}
+      />
     </div>
+  );
+};
+
+// ============ NARRATIVE PANEL ============
+const NarrativePanel = ({ token, character, isDemo, isExpanded, setIsExpanded }) => {
+  const authToken = token || localStorage.getItem('token');
+  const [activeTab, setActiveTab] = useState('narrative'); // narrative, chat_sea, chat_island, chat_zone
+  const [messages, setMessages] = useState([]);
+  const [chatRooms, setChatRooms] = useState([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [currentRoom, setCurrentRoom] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const messagesEndRef = useRef(null);
+  const wsRef = useRef(null);
+
+  // Fetch available chat rooms based on character location
+  const fetchChatRooms = useCallback(async () => {
+    if (isDemo || !authToken) return;
+    try {
+      const res = await axios.get(`${API}/chat/rooms`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setChatRooms(res.data.rooms || []);
+      // Set default room to sea chat
+      if (res.data.rooms?.length > 0 && !currentRoom) {
+        setCurrentRoom(res.data.rooms[0]);
+      }
+    } catch (e) {
+      console.error('Error fetching chat rooms:', e);
+    }
+  }, [authToken, isDemo, currentRoom]);
+
+  // Fetch chat history for current room
+  const fetchChatHistory = useCallback(async (roomId) => {
+    if (isDemo || !authToken || !roomId) return;
+    try {
+      const res = await axios.get(`${API}/chat/${roomId}/history?limit=50`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMessages(res.data.messages || []);
+    } catch (e) {
+      console.error('Error fetching chat history:', e);
+    }
+  }, [authToken, isDemo]);
+
+  // Connect to WebSocket for real-time chat
+  const connectWebSocket = useCallback((roomId) => {
+    if (isDemo || !authToken || !roomId) return;
+    
+    // Close existing connection
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${BACKEND_URL.replace(/^http/, 'ws')}/ws/chat/${roomId}?token=${authToken}`;
+    
+    try {
+      wsRef.current = new WebSocket(wsUrl);
+      
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected to room:', roomId);
+      };
+      
+      wsRef.current.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setMessages(prev => [...prev, data]);
+      };
+      
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+      
+      wsRef.current.onclose = () => {
+        console.log('WebSocket disconnected');
+      };
+    } catch (e) {
+      console.error('WebSocket connection error:', e);
+    }
+  }, [authToken, isDemo]);
+
+  useEffect(() => {
+    fetchChatRooms();
+  }, [fetchChatRooms]);
+
+  useEffect(() => {
+    if (currentRoom) {
+      fetchChatHistory(currentRoom.room_id);
+      connectWebSocket(currentRoom.room_id);
+    }
+    
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [currentRoom, fetchChatHistory, connectWebSocket]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Send chat message
+  const sendMessage = async () => {
+    if (!inputMessage.trim() || !currentRoom || isDemo) return;
+    
+    try {
+      await axios.post(`${API}/chat/send`, {
+        room_id: currentRoom.room_id,
+        content: inputMessage
+      }, { headers: { Authorization: `Bearer ${authToken}` } });
+      
+      setInputMessage('');
+    } catch (e) {
+      console.error('Error sending message:', e);
+    }
+  };
+
+  // Execute narrative action
+  const executeAction = async (action) => {
+    if (isDemo) {
+      // Demo action results
+      const demoResults = {
+        combat: { success: true, message: "Ti prepari al combattimento!", effects: [], next_event: { type: 'battle' } },
+        flee: { success: Math.random() > 0.3, message: Math.random() > 0.3 ? "Sei fuggito!" : "Non riesci a fuggire!", effects: ["-10 Energia"] },
+        collect: { success: true, message: "Hai raccolto 150 Berry!", effects: ["+150 Berry"] },
+        examine: { success: true, message: "Hai trovato un oggetto nascosto!", effects: ["+50 EXP"] },
+        leave: { success: true, message: "Prosegui il tuo viaggio...", effects: [] }
+      };
+      const result = demoResults[action.id] || demoResults.leave;
+      addNarrativeMessage(result.message, result.success ? 'success' : 'warning');
+      setPendingAction(null);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API}/narrative/action`, {
+        action_id: action.id,
+        event_type: pendingAction?.event_type,
+        context: pendingAction?.context || {}
+      }, { headers: { Authorization: `Bearer ${authToken}` } });
+      
+      addNarrativeMessage(res.data.message, res.data.success ? 'success' : 'warning');
+      
+      if (res.data.effects?.length > 0) {
+        addNarrativeMessage(`Effetti: ${res.data.effects.join(', ')}`, 'effect');
+      }
+      
+      // Handle next event (e.g., forced battle)
+      if (res.data.next_event?.type === 'forced_battle') {
+        addNarrativeMessage("Non c'è via di scampo... preparati a combattere!", 'danger');
+      }
+      
+      setPendingAction(null);
+    } catch (e) {
+      console.error('Error executing action:', e);
+      addNarrativeMessage("Errore nell'esecuzione dell'azione", 'error');
+    }
+    setLoading(false);
+  };
+
+  // Add narrative message locally
+  const addNarrativeMessage = (content, type = 'narrative') => {
+    setMessages(prev => [...prev, {
+      message_id: `local-${Date.now()}`,
+      type,
+      username: type === 'error' ? '⚠️ Errore' : '📜 Narratore',
+      content,
+      timestamp: new Date().toISOString()
+    }]);
+  };
+
+  // Trigger a narrative event (can be called from parent components)
+  const triggerNarrativeEvent = async (eventType, context = {}) => {
+    if (isDemo) {
+      const demoNarratives = {
+        monster_encounter: "Un rumore minaccioso rompe il silenzio! Un nemico ti ha individuato!",
+        treasure_found: "Qualcosa luccica tra le rocce... potrebbe essere un tesoro!",
+        arrival: `Approdi a ${context.location || 'questa isola'}. Una nuova avventura ti attende!`,
+        zone_entry: `Ti addentri in ${context.location || 'questa zona'}. L'atmosfera cambia...`
+      };
+      
+      addNarrativeMessage(demoNarratives[eventType] || "Un evento si verifica...", 'narrative');
+      
+      // Set pending action for events that have options
+      const demoActions = {
+        monster_encounter: [
+          { id: 'combat', label: '⚔️ Combatti', color: 'red' },
+          { id: 'flee', label: '🏃 Fuggi', color: 'yellow' }
+        ],
+        treasure_found: [
+          { id: 'collect', label: '💰 Raccogli', color: 'gold' },
+          { id: 'examine', label: '🔍 Esamina', color: 'blue' },
+          { id: 'leave', label: '❌ Ignora', color: 'gray' }
+        ]
+      };
+      
+      if (demoActions[eventType]) {
+        setPendingAction({ event_type: eventType, actions: demoActions[eventType], context });
+      }
+      return;
+    }
+    
+    try {
+      const res = await axios.post(`${API}/narrative/event-with-chat`, {
+        event_type: eventType,
+        context
+      }, { headers: { Authorization: `Bearer ${authToken}` } });
+      
+      if (res.data.actions?.length > 0) {
+        setPendingAction({
+          event_type: eventType,
+          actions: res.data.actions,
+          context
+        });
+      }
+    } catch (e) {
+      console.error('Error triggering narrative event:', e);
+    }
+  };
+
+  // Expose triggerNarrativeEvent to parent via ref
+  useEffect(() => {
+    window.narrativePanel = { triggerEvent: triggerNarrativeEvent };
+  }, []);
+
+  const getMessageStyle = (msg) => {
+    switch (msg.type) {
+      case 'narrative':
+        return 'bg-[#7209B7]/20 border-l-4 border-[#7209B7] text-[#E3D5CA]';
+      case 'success':
+        return 'bg-[#2A9D8F]/20 border-l-4 border-[#2A9D8F] text-[#2A9D8F]';
+      case 'warning':
+        return 'bg-[#F59E0B]/20 border-l-4 border-[#F59E0B] text-[#F59E0B]';
+      case 'danger':
+        return 'bg-[#D00000]/20 border-l-4 border-[#D00000] text-[#D00000]';
+      case 'effect':
+        return 'bg-[#D4AF37]/20 border-l-4 border-[#D4AF37] text-[#D4AF37]';
+      case 'error':
+        return 'bg-[#D00000]/30 border-l-4 border-[#D00000] text-[#D00000]';
+      case 'system':
+        return 'bg-[#051923]/50 text-[#E3D5CA]/60 italic text-sm';
+      default:
+        return 'bg-[#003566]/20 text-[#E3D5CA]';
+    }
+  };
+
+  const actionColors = {
+    red: 'bg-[#D00000] hover:bg-[#D00000]/80',
+    yellow: 'bg-[#F59E0B] hover:bg-[#F59E0B]/80 text-black',
+    gold: 'bg-[#D4AF37] hover:bg-[#D4AF37]/80 text-black',
+    blue: 'bg-[#00A8E8] hover:bg-[#00A8E8]/80',
+    purple: 'bg-[#7209B7] hover:bg-[#7209B7]/80',
+    gray: 'bg-[#6B7280] hover:bg-[#6B7280]/80'
+  };
+
+  // Demo messages
+  useEffect(() => {
+    if (isDemo && messages.length === 0) {
+      setMessages([
+        { message_id: '1', type: 'system', username: '⚙️ Sistema', content: 'Benvenuto nel pannello narrativo!', timestamp: new Date().toISOString() },
+        { message_id: '2', type: 'narrative', username: '📜 Narratore', content: 'La tua avventura nei mari ha inizio. Cosa ti riserverà il destino?', timestamp: new Date().toISOString() }
+      ]);
+    }
+  }, [isDemo]);
+
+  return (
+    <motion.div
+      className="fixed bottom-0 left-0 right-0 z-40"
+      initial={{ y: '100%' }}
+      animate={{ y: isExpanded ? 0 : 'calc(100% - 48px)' }}
+      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+    >
+      {/* Toggle Bar */}
+      <div 
+        className="glass h-12 flex items-center justify-between px-4 cursor-pointer border-t border-[#D4AF37]/30"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center gap-3">
+          <MessageCircle className="w-5 h-5 text-[#D4AF37]" />
+          <span className="font-pirate text-[#FFC300]">Narrazione & Chat</span>
+          {pendingAction && (
+            <span className="bg-[#D00000] text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
+              Azione richiesta!
+            </span>
+          )}
+        </div>
+        <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
+          <ChevronRight className="w-5 h-5 text-[#E3D5CA] rotate-90" />
+        </motion.div>
+      </div>
+
+      {/* Panel Content */}
+      <div className="glass h-64 flex flex-col border-t border-[#003566]/50">
+        {/* Tabs */}
+        <div className="flex border-b border-[#003566]/50 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('narrative')}
+            className={`px-4 py-2 text-sm font-bold whitespace-nowrap ${activeTab === 'narrative' ? 'text-[#FFC300] border-b-2 border-[#FFC300]' : 'text-[#E3D5CA]/60 hover:text-[#E3D5CA]'}`}
+          >
+            📜 Narrazione
+          </button>
+          {chatRooms.map(room => (
+            <button
+              key={room.room_id}
+              onClick={() => { setActiveTab('chat'); setCurrentRoom(room); }}
+              className={`px-4 py-2 text-sm font-bold whitespace-nowrap ${activeTab === 'chat' && currentRoom?.room_id === room.room_id ? 'text-[#00A8E8] border-b-2 border-[#00A8E8]' : 'text-[#E3D5CA]/60 hover:text-[#E3D5CA]'}`}
+            >
+              {room.name}
+            </button>
+          ))}
+          {isDemo && (
+            <>
+              <button
+                onClick={() => setActiveTab('chat_sea')}
+                className={`px-4 py-2 text-sm font-bold whitespace-nowrap ${activeTab === 'chat_sea' ? 'text-[#00A8E8] border-b-2 border-[#00A8E8]' : 'text-[#E3D5CA]/60 hover:text-[#E3D5CA]'}`}
+              >
+                🌊 East Blue
+              </button>
+              <button
+                onClick={() => setActiveTab('chat_island')}
+                className={`px-4 py-2 text-sm font-bold whitespace-nowrap ${activeTab === 'chat_island' ? 'text-[#2A9D8F] border-b-2 border-[#2A9D8F]' : 'text-[#E3D5CA]/60 hover:text-[#E3D5CA]'}`}
+              >
+                🏝️ Dawn Island
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {messages.map((msg, i) => (
+            <motion.div
+              key={msg.message_id || i}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={`p-2 rounded ${getMessageStyle(msg)}`}
+            >
+              <div className="flex justify-between items-start mb-1">
+                <span className="font-bold text-sm">{msg.username}</span>
+                <span className="text-xs opacity-50">
+                  {new Date(msg.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <p className="text-sm">{msg.content}</p>
+            </motion.div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Action Buttons (when event has options) */}
+        {pendingAction && (
+          <div className="p-3 bg-[#051923]/80 border-t border-[#D4AF37]/30">
+            <p className="text-xs text-[#E3D5CA]/70 mb-2">Scegli un'azione:</p>
+            <div className="flex flex-wrap gap-2">
+              {pendingAction.actions.map(action => (
+                <motion.button
+                  key={action.id}
+                  onClick={() => executeAction(action)}
+                  disabled={loading}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm text-white ${actionColors[action.color] || actionColors.gray}`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {loading ? '...' : action.label}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat Input (only for chat tabs) */}
+        {(activeTab === 'chat' || activeTab.startsWith('chat_')) && !pendingAction && (
+          <div className="p-3 border-t border-[#003566]/50 flex gap-2">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder={isDemo ? "Chat disabilitata in demo..." : "Scrivi un messaggio..."}
+              disabled={isDemo}
+              className="flex-1 bg-[#051923] border border-[#003566] rounded-lg px-3 py-2 text-sm text-[#E3D5CA] placeholder-[#E3D5CA]/40 focus:outline-none focus:border-[#00A8E8]"
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isDemo || !inputMessage.trim()}
+              className="px-4 py-2 bg-[#00A8E8] text-white rounded-lg font-bold disabled:opacity-50"
+            >
+              Invia
+            </button>
+          </div>
+        )}
+
+        {/* Demo Event Trigger Buttons */}
+        {isDemo && activeTab === 'narrative' && !pendingAction && (
+          <div className="p-3 border-t border-[#003566]/50 flex gap-2 overflow-x-auto">
+            <button
+              onClick={() => triggerNarrativeEvent('monster_encounter', { enemy: 'Pirata Selvaggio' })}
+              className="px-3 py-1.5 bg-[#D00000] text-white rounded-lg text-xs font-bold whitespace-nowrap"
+            >
+              🐙 Test Mostro
+            </button>
+            <button
+              onClick={() => triggerNarrativeEvent('treasure_found', {})}
+              className="px-3 py-1.5 bg-[#D4AF37] text-black rounded-lg text-xs font-bold whitespace-nowrap"
+            >
+              💎 Test Tesoro
+            </button>
+            <button
+              onClick={() => triggerNarrativeEvent('arrival', { location: 'Dawn Island' })}
+              className="px-3 py-1.5 bg-[#2A9D8F] text-white rounded-lg text-xs font-bold whitespace-nowrap"
+            >
+              ⚓ Test Arrivo
+            </button>
+            <button
+              onClick={() => triggerNarrativeEvent('zone_entry', { location: 'Foosha Village' })}
+              className="px-3 py-1.5 bg-[#7209B7] text-white rounded-lg text-xs font-bold whitespace-nowrap"
+            >
+              📍 Test Zona
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 };
 

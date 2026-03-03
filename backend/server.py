@@ -2942,6 +2942,527 @@ async def equip_weapon(data: Dict[str, str], request: Request):
     
     return {"message": f"Equipaggiato: {weapon_found.get('name', weapon_id)}"}
 
+# ============ NARRATIVE SYSTEM ============
+
+# Pre-written narrative texts for common events
+NARRATIVE_TEMPLATES = {
+    # Island arrival
+    "arrival": [
+        "La tua nave attracca dolcemente al porto di {location}. L'aria salmastra porta con sé il profumo di nuove avventure...",
+        "Dopo un lungo viaggio, finalmente metti piede su {location}. Cosa ti riserverà questa terra?",
+        "Le onde si infrangono sulle rocce mentre approdi a {location}. Una nuova avventura ti attende!",
+    ],
+    # Zone entry
+    "zone_entry": [
+        "Ti addentri in {location}. L'atmosfera cambia, ogni passo potrebbe nascondere sorprese...",
+        "Entri cautamente in {location}. I tuoi sensi sono all'erta.",
+        "{location} si apre davanti a te. Cosa scoprirai in questo luogo?",
+    ],
+    # Monster encounter
+    "monster_encounter": [
+        "Un rumore minaccioso rompe il silenzio! Dalle ombre emerge una creatura ostile!",
+        "Il terreno trema... qualcosa di pericoloso si avvicina!",
+        "ATTENZIONE! Un nemico ti ha individuato e si prepara ad attaccare!",
+    ],
+    # Treasure found
+    "treasure_found": [
+        "Qualcosa luccica tra le rocce... potrebbe essere un tesoro!",
+        "Il tuo occhio allenato nota qualcosa di nascosto. Un'opportunità?",
+        "Un forziere abbandonato! Cosa conterrà?",
+    ],
+    # Battle start
+    "battle_start": [
+        "Lo scontro è inevitabile! Prepara le tue armi, {player}!",
+        "Il nemico ti sfida! È il momento di combattere, {player}!",
+        "Non c'è via di fuga... che la battaglia abbia inizio!",
+    ],
+    # Victory
+    "victory": [
+        "Con un colpo decisivo, la vittoria è tua! Il nemico cade sconfitto.",
+        "Hai trionfato! La tua forza si è dimostrata superiore.",
+        "La battaglia è vinta! Raccogli i frutti della tua vittoria.",
+    ],
+    # Defeat
+    "defeat": [
+        "Le forze ti abbandonano... questa volta la vittoria non è stata tua.",
+        "Il nemico si è dimostrato più forte. Dovrai riprenderti e tornare più preparato.",
+        "Sconfitto, ma non arreso. Ogni caduta è una lezione.",
+    ],
+    # Navigation events
+    "navigation_calm": [
+        "Il mare è calmo, le stelle guidano la rotta. Un viaggio sereno.",
+        "Onde gentili cullano la nave. La navigazione procede senza intoppi.",
+    ],
+    "navigation_storm": [
+        "Il cielo si oscura! Una tempesta si abbatte sulla nave!",
+        "Onde gigantesche si infrangono contro lo scafo! Resistere sarà difficile!",
+    ],
+    "navigation_pirates": [
+        "All'orizzonte una bandiera nera! Pirati in avvicinamento!",
+        "ALLARME! Una nave nemica vi intercetta! Preparatevi!",
+    ],
+    # Shop
+    "shop_enter": [
+        "Entri nel negozio. Gli scaffali sono pieni di oggetti interessanti...",
+        "Il mercante ti saluta con un sorriso. 'Cosa posso fare per te, pirata?'",
+    ],
+    "shop_buy": [
+        "Affare fatto! Hai acquistato {item} per {price} Berry.",
+        "Il mercante ti consegna {item}. 'Buon viaggio, nakama!'",
+    ],
+    # Random events
+    "random_positive": [
+        "Un colpo di fortuna! Qualcosa di buono ti è capitato.",
+        "Gli dei del mare ti sorridono oggi!",
+    ],
+    "random_negative": [
+        "Sfortuna! Un imprevisto ti colpisce.",
+        "Non tutto va sempre come sperato...",
+    ],
+}
+
+# Event types with action options
+EVENT_ACTIONS = {
+    "monster_encounter": [
+        {"id": "combat", "label": "⚔️ Combatti", "action": "start_battle", "color": "red"},
+        {"id": "card", "label": "🃏 Usa Carta", "action": "use_card", "color": "purple"},
+        {"id": "flee", "label": "🏃 Fuggi", "action": "flee", "color": "yellow"},
+    ],
+    "treasure_found": [
+        {"id": "collect", "label": "💰 Raccogli", "action": "collect_treasure", "color": "gold"},
+        {"id": "examine", "label": "🔍 Esamina", "action": "examine_treasure", "color": "blue"},
+        {"id": "leave", "label": "❌ Ignora", "action": "leave", "color": "gray"},
+    ],
+    "npc_encounter": [
+        {"id": "talk", "label": "💬 Parla", "action": "talk_npc", "color": "blue"},
+        {"id": "trade", "label": "🤝 Commercia", "action": "trade_npc", "color": "gold"},
+        {"id": "challenge", "label": "⚔️ Sfida", "action": "challenge_npc", "color": "red"},
+        {"id": "leave", "label": "👋 Vai via", "action": "leave", "color": "gray"},
+    ],
+    "navigation_danger": [
+        {"id": "face", "label": "💪 Affronta", "action": "face_danger", "color": "red"},
+        {"id": "evade", "label": "🌊 Evita", "action": "evade_danger", "color": "blue"},
+        {"id": "card", "label": "🃏 Usa Carta", "action": "use_card", "color": "purple"},
+    ],
+}
+
+@api_router.get("/narrative/templates")
+async def get_narrative_templates():
+    """Get all narrative templates for client-side rendering"""
+    return {"templates": NARRATIVE_TEMPLATES, "actions": EVENT_ACTIONS}
+
+@api_router.post("/narrative/generate")
+async def generate_narrative(data: Dict[str, Any], request: Request):
+    """Generate narrative text - uses AI for special events, templates for common ones"""
+    user = await get_current_user(request)
+    
+    event_type = data.get("event_type", "general")
+    context = data.get("context", {})
+    use_ai = data.get("use_ai", False)  # Only use AI for special moments
+    
+    # Get character info for personalization
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    player_name = character.get("nome_personaggio", "Pirata") if character else "Pirata"
+    
+    # Try template first
+    template_key = event_type
+    if template_key in NARRATIVE_TEMPLATES:
+        template = random.choice(NARRATIVE_TEMPLATES[template_key])
+        narrative = template.format(
+            location=context.get("location", "questo luogo"),
+            player=player_name,
+            item=context.get("item", "un oggetto"),
+            price=context.get("price", "???"),
+            enemy=context.get("enemy", "un nemico"),
+            **context
+        )
+        
+        # Get available actions for this event type
+        actions = EVENT_ACTIONS.get(event_type, [])
+        
+        return {
+            "narrative": narrative,
+            "source": "template",
+            "event_type": event_type,
+            "actions": actions,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    
+    # Use AI for custom/special narratives
+    if use_ai:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            api_key = os.getenv("EMERGENT_LLM_KEY")
+            session_id = f"narrative_{uuid.uuid4().hex[:8]}"
+            
+            chat = LlmChat(
+                api_key=api_key,
+                session_id=session_id,
+                system_message="""Sei il narratore di un gioco RPG di One Piece.
+Il tuo compito è creare brevi narrazioni epiche ed emozionanti (2-3 frasi max).
+Usa un tono avventuroso e coinvolgente, in stile anime/manga.
+Non usare emoji. Scrivi in italiano."""
+            )
+            chat.with_model("gemini", "gemini-3-flash-preview")
+            
+            prompt = f"Crea una breve narrazione per questo evento: {event_type}. Contesto: {context}. Personaggio: {player_name}."
+            message = UserMessage(text=prompt)
+            
+            response = await chat.send_message(message)
+            
+            return {
+                "narrative": response.strip(),
+                "source": "ai",
+                "event_type": event_type,
+                "actions": EVENT_ACTIONS.get(event_type, []),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        except Exception as e:
+            logger.error(f"AI narrative generation error: {e}")
+    
+    # Fallback
+    return {
+        "narrative": f"Un evento si verifica: {event_type}",
+        "source": "fallback",
+        "event_type": event_type,
+        "actions": [],
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+@api_router.post("/narrative/action")
+async def execute_narrative_action(data: Dict[str, str], request: Request):
+    """Execute an action from a narrative event"""
+    user = await get_current_user(request)
+    
+    action_id = data.get("action_id")
+    event_type = data.get("event_type")
+    context = data.get("context", {})
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    result = {"success": False, "message": "", "effects": [], "next_event": None}
+    
+    if action_id == "flee":
+        # Flee from monster - chance based on speed
+        flee_chance = min(80, 30 + character.get("velocita", 10))
+        success = random.randint(1, 100) <= flee_chance
+        
+        if success:
+            result["success"] = True
+            result["message"] = "Sei riuscito a fuggire!"
+            result["effects"].append("-10 Energia")
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"energia": -10}}
+            )
+        else:
+            result["success"] = False
+            result["message"] = "Non sei riuscito a fuggire! Il nemico ti attacca!"
+            result["next_event"] = {"type": "forced_battle", "enemy": context.get("enemy")}
+    
+    elif action_id == "collect":
+        # Collect treasure
+        berry_amount = random.randint(50, 200)
+        result["success"] = True
+        result["message"] = f"Hai trovato {berry_amount} Berry!"
+        result["effects"].append(f"+{berry_amount} Berry")
+        await db.characters.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"berry": berry_amount}}
+        )
+        await add_logbook_entry(user["user_id"], "tesoro", f"Trovato tesoro: {berry_amount} Berry")
+    
+    elif action_id == "examine":
+        # Examine treasure - might find extra or trap
+        roll = random.randint(1, 100)
+        if roll > 70:
+            # Found extra treasure
+            berry_amount = random.randint(100, 500)
+            result["success"] = True
+            result["message"] = f"Un tesoro nascosto! Hai trovato {berry_amount} Berry!"
+            result["effects"].append(f"+{berry_amount} Berry")
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"berry": berry_amount}}
+            )
+        elif roll < 20:
+            # Trap!
+            damage = random.randint(10, 30)
+            result["success"] = False
+            result["message"] = f"Era una trappola! Subisci {damage} danni!"
+            result["effects"].append(f"-{damage} Vita")
+            new_vita = max(1, character.get("vita", 100) - damage)
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {"vita": new_vita}}
+            )
+        else:
+            berry_amount = random.randint(50, 150)
+            result["success"] = True
+            result["message"] = f"Hai trovato {berry_amount} Berry."
+            result["effects"].append(f"+{berry_amount} Berry")
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"berry": berry_amount}}
+            )
+    
+    elif action_id == "leave":
+        result["success"] = True
+        result["message"] = "Decidi di proseguire..."
+    
+    elif action_id == "talk":
+        # Talk to NPC
+        dialogues = [
+            "L'NPC ti racconta storie del mare...",
+            "Ricevi un consiglio utile per il viaggio.",
+            "L'NPC condivide informazioni sull'isola.",
+        ]
+        result["success"] = True
+        result["message"] = random.choice(dialogues)
+        # Small chance of receiving gift
+        if random.randint(1, 100) > 80:
+            berry_gift = random.randint(20, 50)
+            result["message"] += f" Ti regala {berry_gift} Berry!"
+            result["effects"].append(f"+{berry_gift} Berry")
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"berry": berry_gift}}
+            )
+    
+    elif action_id == "face":
+        # Face danger during navigation
+        stat_check = character.get("difesa", 10) + random.randint(1, 20)
+        difficulty = context.get("difficulty", 15)
+        
+        if stat_check >= difficulty:
+            result["success"] = True
+            result["message"] = "Hai affrontato il pericolo con coraggio!"
+            exp_gain = random.randint(20, 50)
+            result["effects"].append(f"+{exp_gain} EXP")
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$inc": {"esperienza": exp_gain}}
+            )
+        else:
+            result["success"] = False
+            damage = random.randint(15, 35)
+            result["message"] = f"Il pericolo ti ha sopraffatto! -{damage} Vita"
+            result["effects"].append(f"-{damage} Vita")
+            new_vita = max(1, character.get("vita", 100) - damage)
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {"vita": new_vita}}
+            )
+    
+    elif action_id == "evade":
+        # Evade danger
+        evade_check = character.get("agilita", 10) + random.randint(1, 20)
+        difficulty = context.get("difficulty", 12)
+        
+        if evade_check >= difficulty:
+            result["success"] = True
+            result["message"] = "Hai evitato il pericolo con astuzia!"
+        else:
+            result["success"] = False
+            result["message"] = "Non sei riuscito ad evitare! Il pericolo ti colpisce!"
+            damage = random.randint(10, 25)
+            result["effects"].append(f"-{damage} Vita")
+            new_vita = max(1, character.get("vita", 100) - damage)
+            await db.characters.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {"vita": new_vita}}
+            )
+    
+    # Add timestamp
+    result["timestamp"] = datetime.now(timezone.utc).isoformat()
+    
+    return result
+
+# ============ ENHANCED CHAT SYSTEM ============
+
+@api_router.get("/chat/rooms")
+async def get_available_chat_rooms(request: Request):
+    """Get available chat rooms based on character location"""
+    user = await get_current_user(request)
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    rooms = []
+    
+    # Sea-level chat (always available)
+    current_sea = character.get("mare_corrente", "east_blue")
+    sea_names = {
+        "east_blue": "East Blue",
+        "west_blue": "West Blue", 
+        "north_blue": "North Blue",
+        "south_blue": "South Blue"
+    }
+    rooms.append({
+        "room_id": f"mare_{current_sea}",
+        "name": f"🌊 {sea_names.get(current_sea, current_sea)}",
+        "type": "sea",
+        "description": "Chat generale del mare"
+    })
+    
+    # Island-level chat (if on an island)
+    current_island = character.get("isola_corrente")
+    if current_island and current_island in ISLANDS:
+        island_name = ISLANDS[current_island].get("name", current_island)
+        rooms.append({
+            "room_id": f"isola_{current_island}",
+            "name": f"🏝️ {island_name}",
+            "type": "island",
+            "description": f"Chat dell'isola {island_name}"
+        })
+    
+    # Zone-level chat (if in a zone)
+    current_zone = character.get("zona_corrente")
+    if current_zone and current_island:
+        island_data = ISLANDS.get(current_island, {})
+        zones = island_data.get("zone", [])
+        zone_info = next((z for z in zones if z.get("id") == current_zone), None)
+        if zone_info:
+            rooms.append({
+                "room_id": f"zona_{current_island}_{current_zone}",
+                "name": f"📍 {zone_info.get('name', current_zone)}",
+                "type": "zone",
+                "description": f"Chat della zona {zone_info.get('name')}"
+            })
+    
+    return {"rooms": rooms}
+
+@api_router.post("/chat/send")
+async def send_chat_message(data: Dict[str, str], request: Request):
+    """Send a message to a chat room (HTTP fallback for non-WebSocket clients)"""
+    user = await get_current_user(request)
+    
+    room_id = data.get("room_id")
+    content = data.get("content", "").strip()
+    
+    if not content:
+        raise HTTPException(status_code=400, detail="Messaggio vuoto")
+    
+    if len(content) > 500:
+        raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 500 caratteri)")
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    username = character.get("nome_personaggio") if character else user.get("display_username", "Anonimo")
+    
+    message = {
+        "message_id": str(uuid.uuid4()),
+        "room_id": room_id,
+        "type": "message",
+        "user_id": user["user_id"],
+        "username": username,
+        "content": content,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Save to DB
+    await db.chat_messages.insert_one(message)
+    
+    # Broadcast via WebSocket if connections exist
+    await broadcast_to_room(room_id, message)
+    
+    return {"message": message}
+
+@api_router.post("/chat/system-message")
+async def add_system_message(data: Dict[str, str], request: Request):
+    """Add a system/narrative message to a chat room (internal use)"""
+    user = await get_current_user(request)
+    
+    room_id = data.get("room_id")
+    content = data.get("content")
+    message_type = data.get("type", "system")  # system, narrative, event
+    
+    message = {
+        "message_id": str(uuid.uuid4()),
+        "room_id": room_id,
+        "type": message_type,
+        "user_id": "system",
+        "username": "📜 Narratore" if message_type == "narrative" else "⚙️ Sistema",
+        "content": content,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Save to DB
+    await db.chat_messages.insert_one(message)
+    
+    # Broadcast
+    await broadcast_to_room(room_id, message)
+    
+    return {"message": message}
+
+@api_router.post("/narrative/event-with-chat")
+async def trigger_narrative_event(data: Dict[str, Any], request: Request):
+    """Trigger a narrative event and broadcast to appropriate chat room"""
+    user = await get_current_user(request)
+    
+    event_type = data.get("event_type")
+    context = data.get("context", {})
+    
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    player_name = character.get("nome_personaggio", "Pirata")
+    current_island = character.get("isola_corrente", "")
+    current_zone = character.get("zona_corrente", "")
+    
+    # Determine target room (most specific available)
+    if current_zone:
+        room_id = f"zona_{current_island}_{current_zone}"
+    elif current_island:
+        room_id = f"isola_{current_island}"
+    else:
+        current_sea = character.get("mare_corrente", "east_blue")
+        room_id = f"mare_{current_sea}"
+    
+    # Generate narrative
+    if event_type in NARRATIVE_TEMPLATES:
+        template = random.choice(NARRATIVE_TEMPLATES[event_type])
+        narrative = template.format(
+            location=context.get("location", "questo luogo"),
+            player=player_name,
+            item=context.get("item", "un oggetto"),
+            price=context.get("price", "???"),
+            enemy=context.get("enemy", "un nemico"),
+            **{k: v for k, v in context.items() if k not in ["location", "player", "item", "price", "enemy"]}
+        )
+    else:
+        narrative = f"[{player_name}] Un evento si verifica: {event_type}"
+    
+    # Create narrative message
+    message = {
+        "message_id": str(uuid.uuid4()),
+        "room_id": room_id,
+        "type": "narrative",
+        "user_id": "system",
+        "username": "📜 Narratore",
+        "content": narrative,
+        "event_type": event_type,
+        "actions": EVENT_ACTIONS.get(event_type, []),
+        "context": context,
+        "target_player": user["user_id"],
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Save and broadcast
+    await db.chat_messages.insert_one(message)
+    await broadcast_to_room(room_id, message)
+    
+    return {
+        "narrative": narrative,
+        "room_id": room_id,
+        "message": message,
+        "actions": EVENT_ACTIONS.get(event_type, [])
+    }
+
 # ============ ROOT & HEALTH ============
 
 @api_router.get("/")
