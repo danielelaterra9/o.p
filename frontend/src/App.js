@@ -1084,11 +1084,45 @@ const mestieri = {
 };
 
 // ============ CHARACTER SHEET ============
-const CharacterSheet = ({ token, character, setCharacter }) => {
+const CharacterSheet = ({ token, character, setCharacter, isDemo }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [showPrivate, setShowPrivate] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAbilityDistribute, setShowAbilityDistribute] = useState(false);
+  const [abilityDistribution, setAbilityDistribution] = useState({ forza: 0, velocita: 0, resistenza: 0, agilita: 0 });
+  const [distributing, setDistributing] = useState(false);
+
+  const availablePoints = character?.punti_abilita_disponibili || 0;
+  const totalToDistribute = Object.values(abilityDistribution).reduce((a, b) => a + b, 0);
+
+  const handleDistribute = async () => {
+    if (isDemo || distributing || totalToDistribute === 0) return;
+    setDistributing(true);
+    try {
+      const res = await axios.post(`${API}/ability-points/distribute`, abilityDistribution, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      // Update character locally
+      if (setCharacter) {
+        setCharacter(prev => ({
+          ...prev,
+          forza: res.data.nuove_abilita.forza,
+          velocita: res.data.nuove_abilita.velocita,
+          resistenza: res.data.nuove_abilita.resistenza,
+          agilita: res.data.nuove_abilita.agilita,
+          attacco: res.data.nuovi_stats.attacco,
+          difesa: res.data.nuovi_stats.difesa,
+          punti_abilita_disponibili: res.data.punti_rimanenti
+        }));
+      }
+      setAbilityDistribution({ forza: 0, velocita: 0, resistenza: 0, agilita: 0 });
+      setShowAbilityDistribute(false);
+    } catch (e) {
+      console.error('Error distributing points:', e);
+    }
+    setDistributing(false);
+  };
 
   const handleDelete = async () => {
     try {
@@ -1100,8 +1134,12 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
 
   if (!character) return <LoadingScreen />;
 
+  const expPercent = character.esperienza_prossimo_livello > 0 
+    ? (character.esperienza_livello / character.esperienza_prossimo_livello) * 100 
+    : 0;
+
   return (
-    <div className="min-h-screen bg-[#051923] p-4">
+    <div className="min-h-screen bg-[#051923] p-4 pb-20">
       <div className="glass p-4 flex justify-between items-center mb-6">
         <button onClick={() => navigate('/dashboard')} className="text-[#E3D5CA] hover:text-[#FFC300]">
           <Home className="w-6 h-6" />
@@ -1130,9 +1168,161 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
           {character.sogno && <p className="mt-3"><span className="text-[#D4AF37]">Sogno:</span> {character.sogno}</p>}
         </div>
 
+        {/* COMBAT LEVEL & EXP BAR (NEW!) */}
+        <div className="glass p-6 rounded-xl border-2 border-[#7209B7]/50">
+          <h3 className="font-pirate text-xl text-[#7209B7] mb-4 flex items-center gap-2">
+            ⚔️ Livello Combattimento
+          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-3xl font-bold text-[#FFC300]">Lv. {character.livello_combattimento || 1}</span>
+            <span className="text-sm text-[#E3D5CA]/70">
+              Moltiplicatore EXP: x{Math.max(1, Math.floor((character.livello_combattimento || 1) / 4) + 1)}
+            </span>
+          </div>
+          
+          {/* EXP Progress Bar */}
+          <div className="mb-2">
+            <div className="flex justify-between text-xs text-[#E3D5CA]/70 mb-1">
+              <span>EXP Livello</span>
+              <span>{character.esperienza_livello || 0} / {character.esperienza_prossimo_livello || 100}</span>
+            </div>
+            <div className="h-4 bg-[#051923] rounded-full overflow-hidden border border-[#7209B7]/30">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-[#7209B7] to-[#B5179E]"
+                initial={{ width: 0 }}
+                animate={{ width: `${expPercent}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
+          </div>
+          
+          {/* Total EXP */}
+          <div className="text-center mt-3">
+            <span className="text-xs text-[#E3D5CA]/50">EXP Totale: </span>
+            <span className="text-sm text-[#D4AF37] font-bold">{(character.esperienza_totale || 0).toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* ABILITY POINTS (NEW!) */}
+        <div className="glass p-6 rounded-xl border-2 border-[#2A9D8F]/50">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-pirate text-xl text-[#2A9D8F] flex items-center gap-2">
+              💪 Punti Abilità
+            </h3>
+            {availablePoints > 0 && (
+              <motion.button
+                onClick={() => setShowAbilityDistribute(!showAbilityDistribute)}
+                className="px-4 py-2 bg-[#2A9D8F] text-white rounded-lg font-bold text-sm"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                animate={{ boxShadow: ['0 0 0 0 rgba(42, 157, 143, 0.4)', '0 0 0 10px rgba(42, 157, 143, 0)', '0 0 0 0 rgba(42, 157, 143, 0.4)'] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                Distribuisci ({availablePoints})
+              </motion.button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <div className="text-center">
+              <p className="text-xs text-[#E3D5CA]/70">Disponibili</p>
+              <p className="text-2xl font-bold text-[#2A9D8F]">{availablePoints}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-[#E3D5CA]/70">Totali Guadagnati</p>
+              <p className="text-xl text-[#D4AF37]">{character.punti_abilita_totali || 0}</p>
+            </div>
+          </div>
+
+          {/* Distribution Panel */}
+          <AnimatePresence>
+            {showAbilityDistribute && availablePoints > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="border-t border-[#2A9D8F]/30 pt-4 mt-4">
+                  <p className="text-sm text-[#E3D5CA]/70 mb-3">
+                    Punti da distribuire: <span className="text-[#2A9D8F] font-bold">{availablePoints - totalToDistribute}</span>
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { key: 'forza', label: 'Forza', icon: '💪', current: character.forza },
+                      { key: 'velocita', label: 'Velocità', icon: '⚡', current: character.velocita },
+                      { key: 'resistenza', label: 'Resistenza', icon: '🛡️', current: character.resistenza },
+                      { key: 'agilita', label: 'Agilità', icon: '🏃', current: character.agilita }
+                    ].map(stat => (
+                      <div key={stat.key} className="bg-[#051923]/50 p-3 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm">{stat.icon} {stat.label}</span>
+                          <span className="text-[#D4AF37]">{stat.current} {abilityDistribution[stat.key] > 0 && <span className="text-[#2A9D8F]">+{abilityDistribution[stat.key]}</span>}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setAbilityDistribution(prev => ({ ...prev, [stat.key]: Math.max(0, prev[stat.key] - 1) }))}
+                            disabled={abilityDistribution[stat.key] === 0}
+                            className="w-8 h-8 bg-[#D00000]/30 rounded text-[#D00000] disabled:opacity-30"
+                          >-</button>
+                          <span className="flex-1 text-center font-bold">{abilityDistribution[stat.key]}</span>
+                          <button
+                            onClick={() => setAbilityDistribution(prev => ({ ...prev, [stat.key]: prev[stat.key] + 1 }))}
+                            disabled={totalToDistribute >= availablePoints}
+                            className="w-8 h-8 bg-[#2A9D8F]/30 rounded text-[#2A9D8F] disabled:opacity-30"
+                          >+</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Preview */}
+                  {totalToDistribute > 0 && (
+                    <div className="mt-4 p-3 bg-[#051923]/50 rounded-lg">
+                      <p className="text-xs text-[#E3D5CA]/70 mb-2">Anteprima dopo distribuzione:</p>
+                      <div className="flex justify-around text-sm">
+                        <div>
+                          <span className="text-[#D00000]">ATK</span>
+                          <span className="mx-1">{character.attacco}</span>
+                          <span className="text-[#2A9D8F]">→ {character.forza + abilityDistribution.forza + character.velocita + abilityDistribution.velocita}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#00A8E8]">DEF</span>
+                          <span className="mx-1">{character.difesa}</span>
+                          <span className="text-[#2A9D8F]">→ {character.resistenza + abilityDistribution.resistenza + character.agilita + abilityDistribution.agilita}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={handleDistribute}
+                      disabled={isDemo || distributing || totalToDistribute === 0}
+                      className="flex-1 py-2 bg-[#2A9D8F] text-white rounded-lg font-bold disabled:opacity-50"
+                    >
+                      {distributing ? 'Applicando...' : `Conferma (+${totalToDistribute} punti)`}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAbilityDistribution({ forza: 0, velocita: 0, resistenza: 0, agilita: 0 });
+                        setShowAbilityDistribute(false);
+                      }}
+                      className="px-4 py-2 glass rounded-lg text-[#E3D5CA]"
+                    >
+                      Annulla
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* Combat Stats (PUBLIC) */}
         <div className="glass p-6 rounded-xl">
-          <h3 className="font-pirate text-xl text-[#D00000] mb-4">Abilità di Combattimento</h3>
+          <h3 className="font-pirate text-xl text-[#D00000] mb-4">Statistiche Combattimento</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[#D4AF37] text-sm">Vita</p>
@@ -1145,14 +1335,42 @@ const CharacterSheet = ({ token, character, setCharacter }) => {
               <p className="text-xs text-[#E3D5CA]">{character.energia}/{character.energia_max}</p>
             </div>
           </div>
+          
+          {/* Stats with formula explanation */}
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between p-2 bg-[#D00000]/10 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Swords className="w-5 h-5 text-[#D00000]" />
+                <span className="text-[#D00000] font-bold">ATTACCO</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xl font-bold text-[#E3D5CA]">{character.attacco}</span>
+                <p className="text-xs text-[#E3D5CA]/50">= Forza ({character.forza}) + Velocità ({character.velocita})</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-2 bg-[#00A8E8]/10 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-[#00A8E8]" />
+                <span className="text-[#00A8E8] font-bold">DIFESA</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xl font-bold text-[#E3D5CA]">{character.difesa}</span>
+                <p className="text-xs text-[#E3D5CA]/50">= Resistenza ({character.resistenza}) + Agilità ({character.agilita})</p>
+              </div>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-4 gap-2 mt-4 text-center">
-            <div><p className="text-xs text-[#D4AF37]">ATK</p><p className="text-[#E3D5CA] font-bold">{character.attacco}</p></div>
-            <div><p className="text-xs text-[#D4AF37]">DEF</p><p className="text-[#E3D5CA] font-bold">{character.difesa}</p></div>
-            <div><p className="text-xs text-[#D4AF37]">FOR</p><p className="text-[#E3D5CA]">{character.forza}</p></div>
-            <div><p className="text-xs text-[#D4AF37]">VEL</p><p className="text-[#E3D5CA]">{character.velocita}</p></div>
-            <div><p className="text-xs text-[#D4AF37]">RES</p><p className="text-[#E3D5CA]">{character.resistenza}</p></div>
-            <div><p className="text-xs text-[#D4AF37]">AGI</p><p className="text-[#E3D5CA]">{character.agilita}</p></div>
-            <div className="col-span-2"><p className="text-xs text-[#D4AF37]">Aspettativa Vita</p><p className="text-[#E3D5CA]">{character.aspettativa_vita}/{character.aspettativa_vita_max}</p></div>
+            <div className="p-2 bg-[#051923]/50 rounded"><p className="text-xs text-[#D4AF37]">FOR</p><p className="text-[#E3D5CA] font-bold">{character.forza}</p></div>
+            <div className="p-2 bg-[#051923]/50 rounded"><p className="text-xs text-[#D4AF37]">VEL</p><p className="text-[#E3D5CA] font-bold">{character.velocita}</p></div>
+            <div className="p-2 bg-[#051923]/50 rounded"><p className="text-xs text-[#D4AF37]">RES</p><p className="text-[#E3D5CA] font-bold">{character.resistenza}</p></div>
+            <div className="p-2 bg-[#051923]/50 rounded"><p className="text-xs text-[#D4AF37]">AGI</p><p className="text-[#E3D5CA] font-bold">{character.agilita}</p></div>
+          </div>
+          
+          <div className="mt-4 text-center">
+            <p className="text-xs text-[#D4AF37]">Aspettativa Vita</p>
+            <p className="text-[#E3D5CA]">{character.aspettativa_vita}/{character.aspettativa_vita_max}</p>
           </div>
         </div>
 

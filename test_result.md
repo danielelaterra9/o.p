@@ -165,6 +165,18 @@ backend:
         agent: "testing"
         comment: "✅ COMBAT LEVEL SYSTEM FULLY FUNCTIONAL: Comprehensive testing of all requested features completed successfully. 1) Character Creation includes new combat level fields: livello_combattimento: 1, esperienza_livello: 0, esperienza_totale: 0, esperienza_prossimo_livello: 100 ✅, 2) GET /api/combat/level-info returns level progression info with current level, EXP, multiplier, and next 5 levels preview ✅, 3) GET /api/combat/moves returns all combat moves with CD values for mosse_base, mosse_speciali, mosse_difesa, armi, carte_combattimento ✅, 4) POST /api/combat/simulate-damage correctly calculates damage formula (Level × CD × bonus) with min/max range ✅, 5) Battle System uses new damage calculation showing '[LvX × CDY] Danno: Z' format in combat log ✅, 6) Level Up System awards EXP after battles with proper reward structure including exp_gained, exp_multiplier, leveled_up, current_exp, exp_for_next_level, total_exp ✅. Battle victories grant 100 EXP base (+ multiplier), defeats grant 20 EXP consolation. Successfully achieved 2 level ups from 3 battles (300 total EXP). 13/13 Combat Level System tests passed (100% success rate). All review requirements met and fully operational."
 
+  - task: "Ability Points System"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ ABILITY POINTS SYSTEM FULLY FUNCTIONAL: Comprehensive testing of all requested features completed successfully. 1) Character Creation includes new ability points fields: punti_abilita_disponibili: 0, punti_abilita_totali: 0 ✅, 2) Verified Attacco = Forza + Velocità (SUM, not multiplication) and Difesa = Resistenza + Agilità (SUM, not multiplication) in character creation ✅, 3) GET /api/ability-points/status returns complete status with punti_disponibili, punti_totali, abilita_attuali, stats_derivati, and formula_info with correct formulas ('Forza + Velocità' for attack, 'Resistenza + Agilità' for defense) ✅, 4) POST /api/ability-points/distribute validates available points, correctly distributes points to abilities, recalculates attack/defense automatically, and properly rejects excessive distributions ✅, 5) Battle Rewards system awards ability points: winners earn 1 point × opponent level, losers get 10% consolation points. Formula working correctly (e.g., 'Vincitore Lv1 vs Lv1 = 1 punti') ✅, 6) Complete Flow Test: Created character → Won 3 battles → Earned 3 ability points → Distributed 2 to Forza, 1 to Resistenza → Attack increased from 30 to 32, Defense from 25 to 26 ✅. All calculations verified as SUM operations. 15/15 Ability Points System tests passed (100% success rate). System production-ready and meeting all review requirements."
+
   - task: "Character Name Validation (D. blocked)"
     implemented: true
     working: true
@@ -597,11 +609,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Combat Level System"
-    - "EXP and Level Up System"
+    - "Ability Points System"
   stuck_tasks: []
   test_all: false
-  test_priority: "combat_level_system"
+  test_priority: "ability_points_system"
 
 agent_communication:
   - agent: "main"
@@ -630,3 +641,5 @@ agent_communication:
     message: "✅ NARRATIVE AND CHAT SYSTEM TESTING COMPLETE: Comprehensive testing of all 6 requested endpoints completed. WORKING ENDPOINTS (4/6): 1) GET /api/narrative/templates ✅ - Returns 14 template types and 4 action categories with proper structure, 2) POST /api/narrative/action ✅ - Collect and examine actions work perfectly with Berry rewards and effect tracking, 3) GET /api/chat/rooms ✅ - Returns location-based rooms (sea/island/zone levels), 4) GET /api/chat/{room_id}/history ✅ - Retrieves messages with proper structure and chronological order. FAILING ENDPOINTS (2/6): 5) POST /api/narrative/generate ❌ - MongoDB ObjectId serialization error (backend bug), 6) POST /api/chat/send ❌ - Same ObjectId serialization issue. Both failures are backend serialization bugs, not endpoint logic issues. Core narrative and chat functionality is fully operational, only needs ObjectId serialization fixes. 8/11 tests passed (72.7% success rate)."
   - agent: "testing"
     message: "✅ COMBAT LEVEL SYSTEM TESTING COMPLETE: Comprehensive testing of the new Combat Level System according to review request requirements fully successful. All 6 focus areas verified and working: 1) Character Creation with new combat level fields (livello_combattimento: 1, esperienza_livello: 0, esperienza_totale: 0, esperienza_prossimo_livello: 100) ✅, 2) GET /api/combat/level-info returns level progression info with current level, EXP, multiplier, and next 5 levels preview ✅, 3) GET /api/combat/moves returns all moves with CD values across all categories (mosse_base: 4, mosse_speciali: 4, mosse_difesa: 2, armi: 8, carte_combattimento: 3) ✅, 4) POST /api/combat/simulate-damage correctly calculates damage formula (Level × CD × bonus) with variance range ✅, 5) Battle System shows new damage format '[LvX × CDY] Danno: Z' in combat logs and uses updated damage calculation ✅, 6) Level Up System awards EXP after battles with complete reward structure, achieved 2 level ups from 300 total EXP gained across 3 victories ✅. Even defeats award consolation EXP (defeat_exp: true). 13/13 Combat Level System tests passed (100% success rate). New combat mechanics fully operational and production-ready."
+  - agent: "testing"
+    message: "✅ ABILITY POINTS SYSTEM TESTING COMPLETE: Comprehensive verification of the complete Ability Points System according to review request specifications fully successful. All 6 focus areas tested and working perfectly: 1) Character Creation with new fields: punti_abilita_disponibili: 0, punti_abilita_totali: 0 ✅, 2) Verified Attacco = Forza + Velocità (SUM calculation) and Difesa = Resistenza + Agilità (SUM calculation) - NOT multiplication ✅, 3) GET /api/ability-points/status returns complete data: punti_disponibili, punti_totali, abilita_attuali, stats_derivati, formula_info with correct formulas ✅, 4) POST /api/ability-points/distribute validates points, distributes correctly, recalculates attack/defense, rejects excessive distributions ✅, 5) Battle Rewards award ability points: winners get 1 point × opponent level, losers get 10% consolation. Tested formula: 'Vincitore Lv1 vs Lv1 = 1 punti' ✅, 6) Complete Flow: Character creation → 3 battle wins → 3 ability points earned → distributed (2 Forza, 1 Resistenza) → attack 30→32, defense 25→26 ✅. All calculations verified as SUM operations. 15/15 tests passed (100% success rate). System production-ready and fully meeting review requirements."

@@ -583,9 +583,11 @@ async def create_character(char_data: CharacterCreate, request: Request):
     resistenza = race_data["bonus"]["resistenza"] + style_data["bonus"].get("resistenza", 0)
     agilita = race_data["bonus"]["agilita"] + style_data["bonus"].get("agilita", 0)
     
-    # Calculated stats
-    attacco = forza * velocita
-    difesa = resistenza * agilita
+    # Calculated stats (SOMMA, non moltiplicazione!)
+    # Attacco = Forza + Velocità
+    # Difesa = Resistenza + Agilità
+    attacco = forza + velocita
+    difesa = resistenza + agilita
     
     # Life expectancy with gender modifier
     aspettativa_vita = race_data["aspettativa_vita"] + GENDER_LIFE_MODIFIER.get(char_data.genere, 0)
@@ -620,6 +622,10 @@ async def create_character(char_data: CharacterCreate, request: Request):
         "esperienza_livello": 0,  # EXP per livello corrente (si azzera al level up)
         "esperienza_totale": 0,   # EXP totale (mai azzerata)
         "esperienza_prossimo_livello": BASE_EXP_FOR_LEVEL,  # 100 per primo livello
+        
+        # ABILITY POINTS SYSTEM (nuovo)
+        "punti_abilita_disponibili": 0,  # Punti non ancora distribuiti
+        "punti_abilita_totali": 0,       # Totale punti guadagnati
         
         "taglia": 0,  # Bounty in Berry
         "ciurma_id": None,
@@ -897,7 +903,75 @@ async def award_exp_and_check_levelup(user_id: str, exp_gained: int, db_instance
         "total_exp": new_total
     }
 
-# ============ END COMBAT LEVEL SYSTEM ============
+# ============ ABILITY POINTS SYSTEM ============
+
+def calculate_ability_points_reward(winner_level: int, loser_level: int, is_winner: bool) -> int:
+    """
+    Calcola i punti abilità guadagnati dopo un combattimento.
+    
+    Regole:
+    - Se il PIÙ DEBOLE vince: guadagna 1 punto × livello avversario
+    - Se il PIÙ FORTE vince: guadagna 1 punto × livello avversario
+      MA il perdente (più debole) prende comunque 10% del livello avversario
+    - Se i livelli sono UGUALI: il vincitore prende 1 punto × livello avversario
+    
+    Esempio Lv1 vs Lv10:
+    - Se Lv1 vince: Lv1 prende 10 punti
+    - Se Lv1 perde: Lv1 prende 1 punto (10% di 10), Lv10 prende 1 punto
+    """
+    if is_winner:
+        # Il vincitore prende sempre 1 punto × livello avversario
+        return loser_level
+    else:
+        # Il perdente...
+        if winner_level > loser_level:
+            # Se ha perso contro uno più forte, prende 10% del livello avversario
+            consolation = max(1, int(winner_level * 0.1))
+            return consolation
+        else:
+            # Se ha perso contro uno più debole o uguale, non prende nulla
+            return 0
+
+async def award_ability_points(user_id: str, points: int, db_instance) -> Dict:
+    """Assegna punti abilità al personaggio"""
+    if points <= 0:
+        return {"points_awarded": 0}
+    
+    await db_instance.characters.update_one(
+        {"user_id": user_id},
+        {
+            "$inc": {
+                "punti_abilita_disponibili": points,
+                "punti_abilita_totali": points
+            }
+        }
+    )
+    
+    return {"points_awarded": points}
+
+async def recalculate_attack_defense(user_id: str, db_instance) -> Dict:
+    """Ricalcola Attacco e Difesa basandosi sulle abilità attuali"""
+    character = await db_instance.characters.find_one({"user_id": user_id}, {"_id": 0})
+    if not character:
+        return {}
+    
+    forza = character.get("forza", 10)
+    velocita = character.get("velocita", 10)
+    resistenza = character.get("resistenza", 10)
+    agilita = character.get("agilita", 10)
+    
+    # SOMMA, non moltiplicazione!
+    new_attacco = forza + velocita
+    new_difesa = resistenza + agilita
+    
+    await db_instance.characters.update_one(
+        {"user_id": user_id},
+        {"$set": {"attacco": new_attacco, "difesa": new_difesa}}
+    )
+    
+    return {"attacco": new_attacco, "difesa": new_difesa}
+
+# ============ END ABILITY POINTS SYSTEM ============
 
 active_battles: Dict[str, Dict] = {}
 
@@ -1043,6 +1117,10 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
         battle["vincitore"] = result.get("vincitore")
         battle["turno_corrente"] = None
         
+        # Get levels for ability points calculation
+        player1_level = battle["player1"].get("livello_combattimento", 1)
+        player2_level = battle["player2"].get("livello_combattimento", 1)
+        
         # Award experience and berry
         if result.get("vincitore") == "player1":
             # Vittoria: EXP base + bonus per taglia nemico
@@ -1058,6 +1136,10 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
                 {"$inc": {"berry": berry_gain}}
             )
             
+            # Calcola e assegna punti abilità
+            ability_points = calculate_ability_points_reward(player1_level, player2_level, is_winner=True)
+            await award_ability_points(user["user_id"], ability_points, db)
+            
             battle["rewards"] = {
                 "exp_base": base_exp,
                 "exp_gained": level_result["exp_gained"],
@@ -1068,15 +1150,25 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
                 "old_level": level_result.get("old_level"),
                 "current_exp": level_result["current_exp"],
                 "exp_for_next_level": level_result["exp_for_next_level"],
-                "total_exp": level_result["total_exp"]
+                "total_exp": level_result["total_exp"],
+                # Nuovi campi per punti abilità
+                "ability_points_earned": ability_points,
+                "ability_points_formula": f"Vincitore Lv{player1_level} vs Lv{player2_level} = {ability_points} punti"
             }
             
             if level_result["leveled_up"]:
                 battle["log"].append(f"🎉 LEVEL UP! {battle['player1']['nome']} è salito al livello {level_result['new_level']}!")
+            
+            if ability_points > 0:
+                battle["log"].append(f"💪 Guadagnati {ability_points} punti abilità!")
         else:
             # Sconfitta: EXP consolazione (20 base)
             base_exp = 20
             level_result = await award_exp_and_check_levelup(user["user_id"], base_exp, db)
+            
+            # Punti abilità consolazione per sconfitta
+            ability_points = calculate_ability_points_reward(player2_level, player1_level, is_winner=False)
+            await award_ability_points(user["user_id"], ability_points, db)
             
             battle["rewards"] = {
                 "exp_base": base_exp,
@@ -1084,8 +1176,13 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
                 "exp_multiplier": level_result["exp_multiplier"],
                 "berry": 0,
                 "leveled_up": level_result["leveled_up"],
-                "defeat_exp": True  # Flag per sconfitta
+                "defeat_exp": True,
+                "ability_points_earned": ability_points,
+                "ability_points_formula": f"Perdente Lv{player1_level} vs Lv{player2_level} = {ability_points} punti (10% consolazione)"
             }
+            
+            if ability_points > 0:
+                battle["log"].append(f"💪 Nonostante la sconfitta, hai guadagnato {ability_points} punto/i abilità!")
     else:
         # NPC Turn (automatic)
         if battle["player2"].get("is_npc"):
@@ -1103,16 +1200,26 @@ async def battle_action(battle_id: str, data: Dict[str, Any], request: Request):
                 base_exp = 20
                 level_result = await award_exp_and_check_levelup(user["user_id"], base_exp, db)
                 
+                # Punti abilità consolazione per sconfitta contro NPC
+                player1_level = battle["player1"].get("livello_combattimento", 1)
+                npc_level = battle["player2"].get("livello_combattimento", 1)
+                ability_points = calculate_ability_points_reward(npc_level, player1_level, is_winner=False)
+                await award_ability_points(user["user_id"], ability_points, db)
+                
                 battle["rewards"] = {
                     "exp_base": base_exp,
                     "exp_gained": level_result["exp_gained"],
                     "exp_multiplier": level_result["exp_multiplier"],
                     "berry": 0,
                     "leveled_up": level_result["leveled_up"],
-                    "defeat_exp": True
+                    "defeat_exp": True,
+                    "ability_points_earned": ability_points,
+                    "ability_points_formula": f"Perdente Lv{player1_level} vs NPC Lv{npc_level} = {ability_points} punti"
                 }
                 
                 battle["log"].append(f"Sconfitta... ma hai guadagnato {level_result['exp_gained']} EXP!")
+                if ability_points > 0:
+                    battle["log"].append(f"💪 Nonostante la sconfitta, hai guadagnato {ability_points} punto/i abilità!")
             else:
                 battle["turno_corrente"] = "player1"
                 battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
@@ -1334,6 +1441,127 @@ async def simulate_damage(data: Dict[str, Any], request: Request):
         "danno_minimo": min_damage,
         "danno_massimo": max_damage,
         "varianza": f"±{variance}"
+    }
+
+# ============ ABILITY POINTS ENDPOINTS ============
+
+@api_router.get("/ability-points/status")
+async def get_ability_points_status(request: Request):
+    """Get current ability points status"""
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    return {
+        "punti_disponibili": character.get("punti_abilita_disponibili", 0),
+        "punti_totali": character.get("punti_abilita_totali", 0),
+        "abilita_attuali": {
+            "forza": character.get("forza", 10),
+            "velocita": character.get("velocita", 10),
+            "resistenza": character.get("resistenza", 10),
+            "agilita": character.get("agilita", 10)
+        },
+        "stats_derivati": {
+            "attacco": character.get("attacco", 20),
+            "difesa": character.get("difesa", 20)
+        },
+        "formula_info": {
+            "attacco": "Forza + Velocità",
+            "difesa": "Resistenza + Agilità"
+        }
+    }
+
+@api_router.post("/ability-points/distribute")
+async def distribute_ability_points(data: Dict[str, int], request: Request):
+    """
+    Distribuisce i punti abilità disponibili alle statistiche.
+    
+    Body: {
+        "forza": 2,
+        "velocita": 1,
+        "resistenza": 0,
+        "agilita": 1
+    }
+    
+    La somma deve essere <= punti_abilita_disponibili
+    """
+    user = await get_current_user(request)
+    character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not character:
+        raise HTTPException(status_code=404, detail="Personaggio non trovato")
+    
+    available_points = character.get("punti_abilita_disponibili", 0)
+    
+    # Validate distribution
+    forza_add = max(0, data.get("forza", 0))
+    velocita_add = max(0, data.get("velocita", 0))
+    resistenza_add = max(0, data.get("resistenza", 0))
+    agilita_add = max(0, data.get("agilita", 0))
+    
+    total_to_spend = forza_add + velocita_add + resistenza_add + agilita_add
+    
+    if total_to_spend > available_points:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Punti insufficienti. Disponibili: {available_points}, Richiesti: {total_to_spend}"
+        )
+    
+    if total_to_spend == 0:
+        return {
+            "message": "Nessun punto distribuito",
+            "punti_rimanenti": available_points
+        }
+    
+    # Apply distribution
+    new_forza = character.get("forza", 10) + forza_add
+    new_velocita = character.get("velocita", 10) + velocita_add
+    new_resistenza = character.get("resistenza", 10) + resistenza_add
+    new_agilita = character.get("agilita", 10) + agilita_add
+    
+    # Recalculate attack and defense
+    new_attacco = new_forza + new_velocita
+    new_difesa = new_resistenza + new_agilita
+    
+    # Update database
+    await db.characters.update_one(
+        {"user_id": user["user_id"]},
+        {
+            "$set": {
+                "forza": new_forza,
+                "velocita": new_velocita,
+                "resistenza": new_resistenza,
+                "agilita": new_agilita,
+                "attacco": new_attacco,
+                "difesa": new_difesa
+            },
+            "$inc": {
+                "punti_abilita_disponibili": -total_to_spend
+            }
+        }
+    )
+    
+    return {
+        "message": f"Distribuiti {total_to_spend} punti abilità!",
+        "distribuzione": {
+            "forza": f"+{forza_add}" if forza_add > 0 else "0",
+            "velocita": f"+{velocita_add}" if velocita_add > 0 else "0",
+            "resistenza": f"+{resistenza_add}" if resistenza_add > 0 else "0",
+            "agilita": f"+{agilita_add}" if agilita_add > 0 else "0"
+        },
+        "nuove_abilita": {
+            "forza": new_forza,
+            "velocita": new_velocita,
+            "resistenza": new_resistenza,
+            "agilita": new_agilita
+        },
+        "nuovi_stats": {
+            "attacco": new_attacco,
+            "difesa": new_difesa
+        },
+        "punti_rimanenti": available_points - total_to_spend
     }
 
 # ============ AI NARRATION (SIMPLIFIED) ============
