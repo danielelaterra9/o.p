@@ -804,6 +804,67 @@ CARD_COMBAT_COEFFICIENTS = {
     "carta_furia_berserk": {"cd": 10, "tipo": "buff", "durata": 3},
 }
 
+# ============ BATTLE TURN PHASES SYSTEM ============
+# Ogni turno ha 3 fasi:
+# 1. REAZIONE - reagire alla mossa avversaria (spostarsi, subire, difesa, contrasto)
+# 2. ATTIVAZIONE - usare carte eventi o risorse
+# 3. CONTRATTACCO - attaccare l'avversario
+
+BATTLE_PHASES = {
+    "reazione": {
+        "name": "Reazione",
+        "order": 1,
+        "actions": {
+            "subire": {"energia": 0, "description": "Subisci il colpo senza reagire (recuperi energia)"},
+            "schivata": {"energia": 8, "description": "Tenta di schivare l'attacco"},
+            "parata": {"energia": 10, "description": "Para il colpo (riduce danno 50%)"},
+            "haki_difesa": {"energia": 20, "description": "Usa Haki dell'Armatura per difesa", "requires": "haki_armatura"},
+            "contrasto": {"energia": 15, "description": "Tecnica di contrasto (può annullare attacco)"},
+            "spostamento": {"energia": 5, "description": "Spostati per evitare parzialmente"},
+        }
+    },
+    "attivazione": {
+        "name": "Attivazione",
+        "order": 2,
+        "actions": {
+            "usa_carta": {"energia": 5, "description": "Usa una carta evento"},
+            "usa_oggetto": {"energia": 3, "description": "Usa un oggetto dall'inventario"},
+            "attiva_potere": {"energia": 15, "description": "Attiva un potere speciale"},
+            "salta": {"energia": 0, "description": "Non attivare nulla (risparmia energia)"},
+        }
+    },
+    "contrattacco": {
+        "name": "Contrattacco",
+        "order": 3,
+        "actions": {
+            "pugno": {"energia": 5, "cd": 3, "description": "Attacco base con i pugni"},
+            "calcio": {"energia": 5, "cd": 3, "description": "Attacco base con calci"},
+            "colpo_rapido": {"energia": 3, "cd": 2, "description": "Attacco veloce ma debole"},
+            "colpo_potente": {"energia": 15, "cd": 6, "description": "Attacco potente"},
+            "tecnica_segreta": {"energia": 25, "cd": 8, "description": "Tecnica devastante"},
+            "combo": {"energia": 20, "cd": 7, "description": "Combinazione di colpi"},
+            "attacco_arma": {"energia": 10, "cd": 5, "description": "Attacco con arma equipaggiata"},
+            "riposo": {"energia": -20, "cd": 0, "description": "Non attaccare, recupera 20 energia"},
+        }
+    }
+}
+
+# Costo energia per numero di fasi usate
+PHASE_ENERGY_MULTIPLIER = {
+    1: 1.0,   # Solo 1 fase = costo normale
+    2: 1.3,   # 2 fasi = +30% energia
+    3: 1.6,   # Tutte e 3 = +60% energia
+}
+
+# Formule base per stats
+def calculate_max_vita(level: int) -> int:
+    """Vita massima = Livello × 100"""
+    return level * 100
+
+def calculate_max_energia(level: int, base_energia: int = 50) -> int:
+    """Energia massima = Livello × base (default 50)"""
+    return level * base_energia
+
 # EXP base per livello (livello 1 -> 2)
 BASE_EXP_FOR_LEVEL = 100
 
@@ -995,17 +1056,22 @@ async def start_battle(data: Dict[str, str], request: Request):
         if not opponent:
             raise HTTPException(status_code=404, detail="Avversario non trovato")
     
+    # Calcola Vita e Energia basate sul livello
+    player_level = character.get("livello_combattimento", 1)
+    player_vita_max = calculate_max_vita(player_level)
+    player_energia_max = calculate_max_energia(player_level)
+    
     battle = {
         "battle_id": battle_id,
         "player1": {
             "character_id": character["character_id"],
             "user_id": user["user_id"],
             "nome": character["nome_personaggio"],
-            "livello_combattimento": character.get("livello_combattimento", 1),
-            "vita": character["vita"],
-            "vita_max": character["vita_max"],
-            "energia": character["energia"],
-            "energia_max": character["energia_max"],
+            "livello_combattimento": player_level,
+            "vita": player_vita_max,  # Vita piena all'inizio
+            "vita_max": player_vita_max,
+            "energia": player_energia_max,  # Energia piena all'inizio
+            "energia_max": player_energia_max,
             "attacco": character["attacco"],
             "difesa": character["difesa"],
             "forza": character["forza"],
@@ -1015,11 +1081,17 @@ async def start_battle(data: Dict[str, str], request: Request):
             "stile_combattimento": character["stile_combattimento"],
             "armi": character.get("armi", []),
             "haki": character.get("haki", {}),
-            "frutto_diavolo": character.get("frutto_diavolo")
+            "frutto_diavolo": character.get("frutto_diavolo"),
+            "carte": character.get("carte", {}),
+            "oggetti": character.get("oggetti", [])
         },
         "player2": opponent,
         "turno_corrente": "player1",
         "numero_turno": 1,
+        # Sistema 3 fasi
+        "fase_corrente": "reazione",  # reazione -> attivazione -> contrattacco
+        "fasi_completate": [],  # Tiene traccia delle fasi usate nel turno
+        "azione_avversario_pendente": None,  # L'attacco a cui reagire
         "inizio_turno": datetime.now(timezone.utc).isoformat(),
         "tempo_max_turno": 180,
         "tempo_max_battaglia": 1200,
@@ -1035,13 +1107,11 @@ async def start_battle(data: Dict[str, str], request: Request):
     return {"battle_id": battle_id, "battle": battle}
 
 def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
+    # NPC con stats basate sul livello (Vita = Lv × 100, Energia = Lv × 50)
     npcs = {
         "marine_soldato": {
             "nome": "Marine Soldato", 
             "livello_combattimento": 2,
-            "vita": 80, "vita_max": 80, 
-            "energia": 60, "energia_max": 60,
-            "attacco": 100, "difesa": 80,
             "forza": 10, "velocita": 10, "resistenza": 10, "agilita": 8,
             "stile_combattimento": "corpo_misto",
             "taglia": 0, "is_npc": True
@@ -1049,9 +1119,6 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
         "pirata_novizio": {
             "nome": "Pirata Novizio",
             "livello_combattimento": 1,
-            "vita": 70, "vita_max": 70,
-            "energia": 50, "energia_max": 50,
-            "attacco": 90, "difesa": 60,
             "forza": 12, "velocita": 8, "resistenza": 8, "agilita": 8,
             "stile_combattimento": "corpo_pugni",
             "taglia": 5000000, "is_npc": True
@@ -1059,9 +1126,6 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
         "marine_capitano": {
             "nome": "Marine Capitano",
             "livello_combattimento": 5,
-            "vita": 120, "vita_max": 120,
-            "energia": 80, "energia_max": 80,
-            "attacco": 200, "difesa": 150,
             "forza": 15, "velocita": 12, "resistenza": 15, "agilita": 10,
             "stile_combattimento": "armi_mono",
             "taglia": 0, "is_npc": True
@@ -1069,17 +1133,35 @@ def generate_npc_opponent(opponent_id: Optional[str]) -> Dict:
         "capitano_pirata": {
             "nome": "Capitano Pirata",
             "livello_combattimento": 8,
-            "vita": 150, "vita_max": 150,
-            "energia": 100, "energia_max": 100,
-            "attacco": 250, "difesa": 180,
             "forza": 18, "velocita": 14, "resistenza": 16, "agilita": 12,
             "stile_combattimento": "armi_pluri",
             "taglia": 30000000, "is_npc": True
+        },
+        "boss_marine": {
+            "nome": "Ammiraglio Marine",
+            "livello_combattimento": 15,
+            "forza": 25, "velocita": 22, "resistenza": 28, "agilita": 20,
+            "stile_combattimento": "corpo_misto",
+            "taglia": 0, "is_npc": True,
+            "haki": {"armatura": True, "osservazione": True}
         }
     }
     
-    npc = npcs.get(opponent_id, npcs["pirata_novizio"])
-    npc["character_id"] = f"npc_{opponent_id}"
+    npc_base = npcs.get(opponent_id, npcs["pirata_novizio"])
+    npc_level = npc_base["livello_combattimento"]
+    
+    # Calcola stats derivate
+    npc = {
+        **npc_base,
+        "character_id": f"npc_{opponent_id}",
+        "vita": calculate_max_vita(npc_level),
+        "vita_max": calculate_max_vita(npc_level),
+        "energia": calculate_max_energia(npc_level),
+        "energia_max": calculate_max_energia(npc_level),
+        "attacco": npc_base["forza"] + npc_base["velocita"],
+        "difesa": npc_base["resistenza"] + npc_base["agilita"],
+    }
+    
     return npc
 
 @api_router.post("/battle/{battle_id}/action")
@@ -1562,6 +1644,423 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
             "difesa": new_difesa
         },
         "punti_rimanenti": available_points - total_to_spend
+    }
+
+# ============ BATTLE PHASE SYSTEM ENDPOINTS ============
+
+@api_router.get("/battle/phases")
+async def get_battle_phases(request: Request):
+    """Get all available battle phases and their actions"""
+    await get_current_user(request)
+    return {
+        "phases": BATTLE_PHASES,
+        "energy_multipliers": PHASE_ENERGY_MULTIPLIER,
+        "description": "Ogni turno ha 3 fasi: Reazione → Attivazione → Contrattacco. Più fasi usi, più energia consumi."
+    }
+
+@api_router.post("/battle/{battle_id}/phase-action")
+async def battle_phase_action(battle_id: str, data: Dict[str, Any], request: Request):
+    """
+    Execute an action in the current phase of battle.
+    
+    Body: {
+        "fase": "reazione" | "attivazione" | "contrattacco",
+        "azione": "schivata" | "usa_carta" | "pugno" | etc,
+        "parametri": {} // Optional: card_id, item_id, etc.
+    }
+    """
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+        active_battles[battle_id] = battle
+    
+    if battle["stato"] == "finita":
+        raise HTTPException(status_code=400, detail="Battaglia già terminata")
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    opponent = "player2" if is_player1 else "player1"
+    
+    if battle["turno_corrente"] != current_player:
+        raise HTTPException(status_code=400, detail="Non è il tuo turno!")
+    
+    fase = data.get("fase")
+    azione = data.get("azione")
+    parametri = data.get("parametri", {})
+    
+    # Validate phase
+    if fase not in BATTLE_PHASES:
+        raise HTTPException(status_code=400, detail=f"Fase non valida: {fase}")
+    
+    # Check if phase was already completed this turn
+    if fase in battle.get("fasi_completate", []):
+        raise HTTPException(status_code=400, detail=f"Fase {fase} già completata in questo turno")
+    
+    # Get phase data
+    phase_data = BATTLE_PHASES[fase]
+    if azione not in phase_data["actions"]:
+        raise HTTPException(status_code=400, detail=f"Azione {azione} non disponibile nella fase {fase}")
+    
+    action_data = phase_data["actions"][azione]
+    player_data = battle[current_player]
+    opponent_data = battle[opponent]
+    
+    # Calculate energy cost with multiplier based on phases used
+    fasi_usate = len(battle.get("fasi_completate", [])) + 1
+    energy_multiplier = PHASE_ENERGY_MULTIPLIER.get(fasi_usate, 1.0)
+    base_energy = action_data.get("energia", 0)
+    actual_energy_cost = int(base_energy * energy_multiplier)
+    
+    # Check energy (negative means recovery)
+    if actual_energy_cost > 0 and player_data["energia"] < actual_energy_cost:
+        return {
+            "success": False,
+            "error": f"Energia insufficiente. Richiesta: {actual_energy_cost}, Disponibile: {player_data['energia']}",
+            "battle": battle
+        }
+    
+    # Check special requirements
+    if action_data.get("requires") == "haki_armatura" and not player_data.get("haki", {}).get("armatura"):
+        return {
+            "success": False, 
+            "error": "Richiede Haki dell'Armatura",
+            "battle": battle
+        }
+    
+    result = {
+        "fase": fase,
+        "azione": azione,
+        "energia_spesa": actual_energy_cost,
+        "energy_multiplier": energy_multiplier,
+        "danno": 0,
+        "effetto": "",
+        "log_entry": ""
+    }
+    
+    # Process action based on phase
+    if fase == "reazione":
+        # Reazione all'attacco avversario
+        pending_attack = battle.get("azione_avversario_pendente")
+        pending_damage = pending_attack.get("danno", 0) if pending_attack else 0
+        
+        if azione == "subire":
+            # Take full damage but recover energy
+            result["danno"] = pending_damage
+            result["effetto"] = "Subisci il colpo, recuperi energia"
+            energy_recovery = 10
+            player_data["energia"] = min(player_data["energia_max"], player_data["energia"] + energy_recovery)
+            result["log_entry"] = f"{player_data['nome']} subisce il colpo ({pending_damage} danni) ma recupera {energy_recovery} energia"
+            
+        elif azione == "schivata":
+            # Chance to dodge based on agilita
+            dodge_chance = min(80, 30 + player_data.get("agilita", 10) * 2)
+            if random.randint(1, 100) <= dodge_chance:
+                result["danno"] = 0
+                result["effetto"] = "Schivata riuscita!"
+                result["log_entry"] = f"🏃 {player_data['nome']} schiva l'attacco!"
+            else:
+                result["danno"] = pending_damage
+                result["effetto"] = "Schivata fallita!"
+                result["log_entry"] = f"❌ {player_data['nome']} non riesce a schivare! Subisce {pending_damage} danni"
+                
+        elif azione == "parata":
+            # Block 50% damage
+            blocked_damage = pending_damage // 2
+            result["danno"] = pending_damage - blocked_damage
+            result["effetto"] = f"Parato {blocked_damage} danni"
+            result["log_entry"] = f"🛡️ {player_data['nome']} para! Riduce il danno a {result['danno']}"
+            
+        elif azione == "haki_difesa":
+            # Block 80% damage with Haki
+            blocked_damage = int(pending_damage * 0.8)
+            result["danno"] = pending_damage - blocked_damage
+            result["effetto"] = f"Haki! Bloccato {blocked_damage} danni"
+            result["log_entry"] = f"⚫ {player_data['nome']} usa Haki dell'Armatura! Solo {result['danno']} danni passano!"
+            
+        elif azione == "contrasto":
+            # Chance to negate attack completely
+            contrast_chance = min(60, 20 + player_data.get("forza", 10) + player_data.get("velocita", 10))
+            if random.randint(1, 100) <= contrast_chance:
+                result["danno"] = 0
+                result["effetto"] = "Contrasto perfetto!"
+                result["log_entry"] = f"💥 {player_data['nome']} contrasta l'attacco completamente!"
+            else:
+                result["danno"] = pending_damage
+                result["effetto"] = "Contrasto fallito!"
+                result["log_entry"] = f"❌ {player_data['nome']} fallisce il contrasto! Subisce {pending_damage} danni"
+                
+        elif azione == "spostamento":
+            # Reduce damage by 30%
+            reduced = int(pending_damage * 0.3)
+            result["danno"] = pending_damage - reduced
+            result["effetto"] = f"Evitato parzialmente: -{reduced} danni"
+            result["log_entry"] = f"↔️ {player_data['nome']} si sposta! Subisce solo {result['danno']} danni"
+        
+        # Apply damage
+        if result["danno"] > 0:
+            player_data["vita"] = max(0, player_data["vita"] - result["danno"])
+        
+        # Clear pending attack
+        battle["azione_avversario_pendente"] = None
+        
+    elif fase == "attivazione":
+        if azione == "usa_carta":
+            card_id = parametri.get("card_id")
+            result["effetto"] = f"Carta {card_id} attivata"
+            result["log_entry"] = f"🃏 {player_data['nome']} usa una carta!"
+            # TODO: implement card effects
+            
+        elif azione == "usa_oggetto":
+            item_id = parametri.get("item_id")
+            result["effetto"] = f"Oggetto {item_id} usato"
+            result["log_entry"] = f"📦 {player_data['nome']} usa un oggetto!"
+            # TODO: implement item effects
+            
+        elif azione == "attiva_potere":
+            result["effetto"] = "Potere speciale attivato"
+            result["log_entry"] = f"✨ {player_data['nome']} attiva un potere speciale!"
+            
+        elif azione == "salta":
+            result["effetto"] = "Nessuna attivazione"
+            result["log_entry"] = f"{player_data['nome']} non attiva nulla"
+    
+    elif fase == "contrattacco":
+        attacker_level = player_data.get("livello_combattimento", 1)
+        cd = action_data.get("cd", 3)
+        
+        if azione == "riposo":
+            # Recovery action
+            recovery = abs(actual_energy_cost)  # energia is negative for riposo
+            player_data["energia"] = min(player_data["energia_max"], player_data["energia"] + recovery)
+            result["effetto"] = f"Recuperati {recovery} energia"
+            result["log_entry"] = f"💤 {player_data['nome']} recupera energie (+{recovery})"
+            actual_energy_cost = 0
+        else:
+            # Attack action
+            damage = calculate_combat_damage(attacker_level, cd)
+            result["danno"] = damage
+            result["effetto"] = f"Infligge {damage} danni"
+            result["log_entry"] = f"⚔️ {player_data['nome']} usa {azione}! [Lv{attacker_level} × CD{cd}] = {damage} danni!"
+            
+            # Apply damage to opponent
+            opponent_data["vita"] = max(0, opponent_data["vita"] - damage)
+            
+            # Store this attack for opponent's reaction phase
+            battle["azione_avversario_pendente"] = {
+                "tipo": azione,
+                "danno": damage,
+                "attaccante": current_player
+            }
+    
+    # Apply energy cost
+    if actual_energy_cost > 0:
+        player_data["energia"] = max(0, player_data["energia"] - actual_energy_cost)
+    
+    # Mark phase as completed
+    if "fasi_completate" not in battle:
+        battle["fasi_completate"] = []
+    battle["fasi_completate"].append(fase)
+    
+    # Add to log
+    battle["log"].append(result["log_entry"])
+    
+    # Check for battle end
+    if opponent_data["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = current_player
+        battle["log"].append(f"🏆 {player_data['nome']} ha vinto la battaglia!")
+        # Award rewards (existing logic)
+        # ... rewards code would go here
+    elif player_data["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = opponent
+        battle["log"].append(f"💀 {player_data['nome']} è stato sconfitto!")
+    
+    # Update battle in memory and DB
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "result": result,
+        "battle": battle,
+        "next_phase": get_next_phase(fase) if battle["stato"] == "attivo" else None
+    }
+
+@api_router.post("/battle/{battle_id}/end-turn")
+async def end_battle_turn(battle_id: str, request: Request):
+    """End current turn and switch to opponent"""
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+        active_battles[battle_id] = battle
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    current_player = "player1" if is_player1 else "player2"
+    opponent = "player2" if is_player1 else "player1"
+    
+    if battle["turno_corrente"] != current_player:
+        raise HTTPException(status_code=400, detail="Non è il tuo turno!")
+    
+    # Reset phases for new turn
+    battle["fasi_completate"] = []
+    battle["turno_corrente"] = opponent
+    battle["numero_turno"] += 1
+    battle["inizio_turno"] = datetime.now(timezone.utc).isoformat()
+    
+    battle["log"].append(f"--- Turno {battle['numero_turno']}: {battle[opponent]['nome']} ---")
+    
+    # If opponent is NPC, auto-play their turn
+    if battle[opponent].get("is_npc"):
+        npc_result = await process_npc_phase_turn(battle, opponent, current_player)
+        battle["log"].extend(npc_result["logs"])
+        
+        # Switch back to player if NPC turn complete
+        battle["fasi_completate"] = []
+        battle["turno_corrente"] = current_player
+        battle["numero_turno"] += 1
+    
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {"battle": battle}
+
+def get_next_phase(current_phase: str) -> str:
+    """Get next phase in turn order"""
+    order = ["reazione", "attivazione", "contrattacco"]
+    try:
+        idx = order.index(current_phase)
+        return order[idx + 1] if idx + 1 < len(order) else None
+    except ValueError:
+        return "reazione"
+
+async def process_npc_phase_turn(battle: Dict, npc_player: str, human_player: str) -> Dict:
+    """Process NPC's full turn with phases"""
+    npc = battle[npc_player]
+    human = battle[human_player]
+    logs = []
+    
+    # NPC Phase 1: Reazione (if there's a pending attack)
+    pending = battle.get("azione_avversario_pendente")
+    if pending and pending.get("danno", 0) > 0:
+        # Simple NPC logic: try to dodge if has energy, else take hit
+        if npc["energia"] >= 8:
+            dodge_chance = min(70, 25 + npc.get("agilita", 10) * 2)
+            if random.randint(1, 100) <= dodge_chance:
+                logs.append(f"🏃 {npc['nome']} schiva l'attacco!")
+            else:
+                npc["vita"] = max(0, npc["vita"] - pending["danno"])
+                logs.append(f"❌ {npc['nome']} non riesce a schivare! -{pending['danno']} vita")
+            npc["energia"] -= 8
+        else:
+            npc["vita"] = max(0, npc["vita"] - pending["danno"])
+            npc["energia"] = min(npc["energia_max"], npc["energia"] + 10)
+            logs.append(f"{npc['nome']} subisce il colpo ({pending['danno']} danni) e recupera energia")
+        
+        battle["azione_avversario_pendente"] = None
+    
+    # Check if NPC died
+    if npc["vita"] <= 0:
+        battle["stato"] = "finita"
+        battle["vincitore"] = human_player
+        logs.append(f"🏆 {human['nome']} ha vinto la battaglia!")
+        return {"logs": logs}
+    
+    # NPC Phase 2: Attivazione (skip for now - NPCs don't use cards)
+    logs.append(f"{npc['nome']} non attiva nulla")
+    
+    # NPC Phase 3: Contrattacco
+    npc_level = npc.get("livello_combattimento", 1)
+    
+    if npc["energia"] >= 15:
+        # Special attack
+        cd = 6
+        energia_costo = 15
+        attack_name = "Colpo Potente"
+    elif npc["energia"] >= 5:
+        # Basic attack
+        cd = 3
+        energia_costo = 5
+        attack_name = "Pugno"
+    else:
+        # Rest
+        recovery = 20
+        npc["energia"] = min(npc["energia_max"], npc["energia"] + recovery)
+        logs.append(f"💤 {npc['nome']} recupera energie (+{recovery})")
+        return {"logs": logs}
+    
+    damage = calculate_combat_damage(npc_level, cd)
+    npc["energia"] -= energia_costo
+    
+    logs.append(f"⚔️ {npc['nome']} usa {attack_name}! [Lv{npc_level} × CD{cd}] = {damage} danni!")
+    
+    # Store attack for player's reaction
+    battle["azione_avversario_pendente"] = {
+        "tipo": attack_name,
+        "danno": damage,
+        "attaccante": npc_player
+    }
+    
+    return {"logs": logs}
+
+@api_router.get("/battle/{battle_id}/character-stats")
+async def get_battle_character_stats(battle_id: str, request: Request):
+    """Get full character stats during battle (for popup)"""
+    user = await get_current_user(request)
+    
+    battle = active_battles.get(battle_id)
+    if not battle:
+        battle_doc = await db.battles.find_one({"battle_id": battle_id}, {"_id": 0})
+        if not battle_doc:
+            raise HTTPException(status_code=404, detail="Battaglia non trovata")
+        battle = battle_doc
+    
+    is_player1 = battle["player1"]["user_id"] == user["user_id"]
+    player = battle["player1"] if is_player1 else battle["player2"]
+    opponent = battle["player2"] if is_player1 else battle["player1"]
+    
+    return {
+        "player": {
+            "nome": player["nome"],
+            "livello_combattimento": player.get("livello_combattimento", 1),
+            "vita": player["vita"],
+            "vita_max": player["vita_max"],
+            "energia": player["energia"],
+            "energia_max": player["energia_max"],
+            "forza": player.get("forza", 10),
+            "velocita": player.get("velocita", 10),
+            "resistenza": player.get("resistenza", 10),
+            "agilita": player.get("agilita", 10),
+            "attacco": player.get("attacco", 20),
+            "difesa": player.get("difesa", 20),
+            "haki": player.get("haki", {}),
+            "armi": player.get("armi", []),
+            "carte": player.get("carte", {}),
+            "stile_combattimento": player.get("stile_combattimento")
+        },
+        "opponent": {
+            "nome": opponent["nome"],
+            "livello_combattimento": opponent.get("livello_combattimento", 1),
+            "vita": opponent["vita"],
+            "vita_max": opponent["vita_max"],
+            "is_npc": opponent.get("is_npc", False)
+        },
+        "battle_info": {
+            "turno": battle["numero_turno"],
+            "fase_corrente": battle.get("fase_corrente", "reazione"),
+            "fasi_completate": battle.get("fasi_completate", []),
+            "azione_pendente": battle.get("azione_avversario_pendente")
+        }
     }
 
 # ============ AI NARRATION (SIMPLIFIED) ============

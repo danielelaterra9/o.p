@@ -18,25 +18,26 @@ def random_string(length=8):
 def random_character_data():
     """Generate random character data for testing"""
     return {
-        "nome_personaggio": f"TestPirate{random.randint(10000, 99999)}",
+        "nome_personaggio": f"BattlePirate{random.randint(10000, 99999)}",
         "ruolo": "Pirata",
         "genere": random.choice(["maschio", "femmina"]),
         "eta": random.randint(16, 30),
         "razza": random.choice(["umano", "uomo_pesce", "visone"]),
         "stile_combattimento": random.choice(["corpo_misto", "corpo_pugni", "corpo_calci", "armi_mono", "armi_pluri", "tiratore"]),
-        "sogno": "Diventare il Re dei Pirati!",
-        "storia_carattere": "Un giovane pirata con grandi ambizioni di esplorare il Grand Line.",
+        "sogno": "Diventare il maestro delle fasi di battaglia!",
+        "storia_carattere": "Un giovane pirata che ha scoperto il segreto delle fasi di battaglia.",
         "mestiere": random.choice(["navigatore", "cuoco", "medico", "musicista"]),
         "mare_partenza": "east_blue"
     }
 
-class OnePixelRPGTester:
+class BattlePhaseSystemTester:
     def __init__(self):
         self.base_url = BASE_URL
         self.session = requests.Session()
         self.token = None
         self.user_data = None
         self.character_data = None
+        self.battle_id = None
         self.test_results = []
         
     def log_test(self, test_name, success, details="", error=""):
@@ -59,9 +60,9 @@ class OnePixelRPGTester:
         try:
             random_id = random_string()
             user_data = {
-                "username": f"testuser_{random_id}",
-                "email": f"test_{random_id}@example.com",
-                "password": "testpassword123"
+                "username": f"battleuser_{random_id}",
+                "email": f"battle_{random_id}@example.com",
+                "password": "battlepass123"
             }
             
             response = self.session.post(f"{self.base_url}/auth/register", json=user_data)
@@ -82,7 +83,7 @@ class OnePixelRPGTester:
             return False
 
     def create_character(self):
-        """Create character with mare_partenza: east_blue"""
+        """Create character for battle phase testing"""
         try:
             char_data = random_character_data()
             response = self.session.post(f"{self.base_url}/characters", json=char_data)
@@ -90,7 +91,7 @@ class OnePixelRPGTester:
             if response.status_code == 200:
                 self.character_data = response.json()
                 self.log_test("Character Creation", True, 
-                            f"Character {char_data['nome_personaggio']} created with mare_partenza: {char_data['mare_partenza']}")
+                            f"Character {char_data['nome_personaggio']} created successfully")
                 return True
             else:
                 self.log_test("Character Creation", False, "", f"Status: {response.status_code}, Response: {response.text}")
@@ -100,458 +101,91 @@ class OnePixelRPGTester:
             self.log_test("Character Creation", False, "", str(e))
             return False
 
-    def test_narrative_templates(self):
-        """Test GET /api/narrative/templates"""
+    def test_battle_phases_endpoint(self):
+        """Test GET /api/battle/phases - Returns all battle phases and actions"""
         try:
-            response = self.session.get(f"{self.base_url}/narrative/templates")
+            response = self.session.get(f"{self.base_url}/battle/phases")
             
             if response.status_code == 200:
                 data = response.json()
-                templates = data.get("templates", {})
-                actions = data.get("actions", {})
+                phases = data.get("phases", {})
+                energy_multipliers = data.get("energy_multipliers", {})
+                description = data.get("description", "")
                 
-                # Check for expected template types
-                expected_templates = ["arrival", "treasure_found", "monster_encounter", "battle_start"]
-                templates_found = [t for t in expected_templates if t in templates]
+                # Check for expected 3 phases
+                expected_phases = ["reazione", "attivazione", "contrattacco"]
+                phases_found = [phase for phase in expected_phases if phase in phases]
                 
-                # Check for expected action types  
-                expected_actions = ["treasure_found", "monster_encounter", "npc_encounter"]
-                actions_found = [a for a in expected_actions if a in actions]
+                if len(phases_found) == 3:
+                    # Check each phase has actions
+                    phase_details = []
+                    for phase in expected_phases:
+                        actions = phases[phase].get("actions", {})
+                        phase_details.append(f"{phase}: {len(actions)} actions")
+                    
+                    # Check energy multipliers
+                    multiplier_check = all(str(i) in energy_multipliers for i in [1, 2, 3])
+                    
+                    if multiplier_check:
+                        self.log_test("Battle Phases Endpoint", True, 
+                                    f"Found all 3 phases ({', '.join(phases_found)}). {', '.join(phase_details)}. Energy multipliers: {energy_multipliers}")
+                        return data
+                    else:
+                        self.log_test("Battle Phases Endpoint", False, "", f"Missing energy multipliers. Got: {energy_multipliers}")
+                        return False
+                else:
+                    self.log_test("Battle Phases Endpoint", False, "", 
+                                f"Expected 3 phases, found {len(phases_found)}: {phases_found}")
+                    return False
+            else:
+                self.log_test("Battle Phases Endpoint", False, "", f"Status: {response.status_code}, Response: {response.text}")
+                return False
                 
-                self.log_test("Narrative Templates", True, 
-                            f"Templates: {len(templates)} types, Actions: {len(actions)} types. Found templates: {templates_found}, Found actions: {actions_found}")
+        except Exception as e:
+            self.log_test("Battle Phases Endpoint", False, "", str(e))
+            return False
+
+    def test_vita_energia_formulas(self):
+        """Test new Vita/Energia formulas - Vita = Level × 100, Energia = Level × 50"""
+        try:
+            if not self.character_data:
+                self.log_test("Vita/Energia Formulas", False, "", "No character data available")
+                return False
+            
+            level = self.character_data.get("livello_combattimento", 1)
+            vita = self.character_data.get("vita", 0)
+            vita_max = self.character_data.get("vita_max", 0)
+            energia = self.character_data.get("energia", 0)
+            energia_max = self.character_data.get("energia_max", 0)
+            
+            # Expected formulas: Vita = Level × 100, Energia = Level × 50
+            expected_vita = level * 100
+            expected_energia = level * 50
+            
+            vita_correct = vita_max == expected_vita
+            energia_correct = energia_max == expected_energia
+            
+            if vita_correct and energia_correct:
+                self.log_test("Vita/Energia Formulas", True, 
+                            f"Level {level}: Vita = {vita_max} (expected {expected_vita}), Energia = {energia_max} (expected {expected_energia})")
                 return True
             else:
-                self.log_test("Narrative Templates", False, "", f"Status: {response.status_code}, Response: {response.text}")
+                errors = []
+                if not vita_correct:
+                    errors.append(f"Vita: got {vita_max}, expected {expected_vita}")
+                if not energia_correct:
+                    errors.append(f"Energia: got {energia_max}, expected {expected_energia}")
+                
+                self.log_test("Vita/Energia Formulas", False, "", f"Level {level} - {', '.join(errors)}")
                 return False
                 
         except Exception as e:
-            self.log_test("Narrative Templates", False, "", str(e))
+            self.log_test("Vita/Energia Formulas", False, "", str(e))
             return False
 
-    def test_narrative_generate(self):
-        """Test POST /api/narrative/generate"""
+    def start_battle_for_phase_testing(self):
+        """Start a battle to test phase actions"""
         try:
-            # Test with arrival event
-            test_data = {
-                "event_type": "arrival",
-                "context": {
-                    "location": "Dawn Island"
-                }
-            }
-            
-            response = self.session.post(f"{self.base_url}/narrative/generate", json=test_data)
-            
-            if response.status_code == 500:
-                # Known issue with ObjectId serialization 
-                self.log_test("Narrative Generate", False, "KNOWN ISSUE: MongoDB ObjectId serialization error in character lookup", 
-                            f"Status: {response.status_code} - This is a backend serialization bug, not endpoint logic issue")
-                return False
-            elif response.status_code == 200:
-                data = response.json()
-                narrative = data.get("narrative", "")
-                source = data.get("source", "")
-                event_type = data.get("event_type", "")
-                actions = data.get("actions", [])
-                
-                # Validate response structure
-                if narrative and event_type == "arrival":
-                    self.log_test("Narrative Generate (Arrival)", True, 
-                                f"Generated narrative for arrival at Dawn Island. Source: {source}, Actions: {len(actions)}")
-                    
-                    # Test with treasure_found event 
-                    treasure_data = {
-                        "event_type": "treasure_found",
-                        "context": {}
-                    }
-                    
-                    treasure_response = self.session.post(f"{self.base_url}/narrative/generate", json=treasure_data)
-                    if treasure_response.status_code == 200:
-                        treasure_result = treasure_response.json()
-                        treasure_actions = treasure_result.get("actions", [])
-                        
-                        # Check for expected actions
-                        action_ids = [a.get("id") for a in treasure_actions]
-                        expected_action_ids = ["collect", "examine", "leave"]
-                        
-                        if any(aid in action_ids for aid in expected_action_ids):
-                            self.log_test("Narrative Generate (Treasure)", True, 
-                                        f"Generated treasure narrative with actions: {action_ids}")
-                            return True
-                        else:
-                            self.log_test("Narrative Generate (Treasure)", False, "", 
-                                        f"Missing expected actions. Got: {action_ids}")
-                            return False
-                    else:
-                        self.log_test("Narrative Generate (Treasure)", False, "", 
-                                    f"Treasure test failed: {treasure_response.status_code}")
-                        return False
-                else:
-                    self.log_test("Narrative Generate (Arrival)", False, "", 
-                                f"Invalid response structure. Narrative: {bool(narrative)}, Event: {event_type}")
-                    return False
-            else:
-                self.log_test("Narrative Generate", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Narrative Generate", False, "", str(e))
-            return False
-
-    def test_narrative_action(self):
-        """Test POST /api/narrative/action"""
-        try:
-            # Test collect action
-            test_data = {
-                "action_id": "collect",
-                "event_type": "treasure_found",
-                "context": "{}"
-            }
-            
-            response = self.session.post(f"{self.base_url}/narrative/action", json=test_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                success = data.get("success", False)
-                message = data.get("message", "")
-                effects = data.get("effects", [])
-                
-                if success and "Berry" in message:
-                    self.log_test("Narrative Action (Collect)", True, 
-                                f"Collect action successful: {message}. Effects: {effects}")
-                    
-                    # Test examine action
-                    examine_data = {
-                        "action_id": "examine",
-                        "event_type": "treasure_found", 
-                        "context": "{}"
-                    }
-                    
-                    examine_response = self.session.post(f"{self.base_url}/narrative/action", json=examine_data)
-                    if examine_response.status_code == 200:
-                        examine_result = examine_response.json()
-                        examine_message = examine_result.get("message", "")
-                        
-                        self.log_test("Narrative Action (Examine)", True, 
-                                    f"Examine action executed: {examine_message}")
-                        return True
-                    else:
-                        self.log_test("Narrative Action (Examine)", False, "", 
-                                    f"Examine failed: {examine_response.status_code}")
-                        return False
-                else:
-                    self.log_test("Narrative Action (Collect)", False, "", 
-                                f"Collect failed. Success: {success}, Message: {message}")
-                    return False
-            else:
-                self.log_test("Narrative Action", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Narrative Action", False, "", str(e))
-            return False
-
-    def test_chat_rooms(self):
-        """Test GET /api/chat/rooms"""
-        try:
-            response = self.session.get(f"{self.base_url}/chat/rooms")
-            
-            if response.status_code == 200:
-                data = response.json()
-                rooms = data.get("rooms", [])
-                
-                # Should have at least sea-level chat for east_blue
-                sea_room = None
-                island_room = None
-                
-                for room in rooms:
-                    if room.get("type") == "sea" and "east_blue" in room.get("room_id", ""):
-                        sea_room = room
-                    elif room.get("type") == "island":
-                        island_room = room
-                
-                if sea_room:
-                    room_details = f"Sea room: {sea_room['name']} (ID: {sea_room['room_id']})"
-                    if island_room:
-                        room_details += f", Island room: {island_room['name']} (ID: {island_room['room_id']})"
-                        
-                    self.log_test("Chat Rooms", True, 
-                                f"Found {len(rooms)} rooms. {room_details}")
-                    return rooms
-                else:
-                    self.log_test("Chat Rooms", False, "", "No East Blue sea room found")
-                    return []
-            else:
-                self.log_test("Chat Rooms", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                return []
-                
-        except Exception as e:
-            self.log_test("Chat Rooms", False, "", str(e))
-            return []
-
-    def test_chat_send(self, room_id):
-        """Test POST /api/chat/send"""
-        try:
-            test_message = f"Test message from {self.character_data.get('nome_personaggio', 'TestPirate')} at {datetime.now().strftime('%H:%M:%S')}"
-            
-            message_data = {
-                "room_id": room_id,
-                "content": test_message
-            }
-            
-            response = self.session.post(f"{self.base_url}/chat/send", json=message_data)
-            
-            if response.status_code == 500:
-                # Known issue with ObjectId serialization
-                self.log_test("Chat Send", False, "KNOWN ISSUE: MongoDB ObjectId serialization error in message creation", 
-                            f"Status: {response.status_code} - This is a backend serialization bug, not endpoint logic issue")
-                return None
-            elif response.status_code == 200:
-                data = response.json()
-                message_obj = data.get("message", {})
-                content = message_obj.get("content", "")
-                username = message_obj.get("username", "")
-                
-                if content == test_message:
-                    self.log_test("Chat Send", True, 
-                                f"Message sent successfully to {room_id}. Username: {username}")
-                    return message_obj.get("message_id")
-                else:
-                    self.log_test("Chat Send", False, "", f"Message content mismatch. Sent: {test_message}, Got: {content}")
-                    return None
-            else:
-                self.log_test("Chat Send", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                return None
-                
-        except Exception as e:
-            self.log_test("Chat Send", False, "", str(e))
-            return None
-
-    def test_chat_history(self, room_id):
-        """Test GET /api/chat/{room_id}/history"""
-        try:
-            response = self.session.get(f"{self.base_url}/chat/{room_id}/history?limit=10")
-            
-            if response.status_code == 200:
-                data = response.json()
-                messages = data.get("messages", [])
-                
-                # Check if our test message appears
-                test_message_found = False
-                for msg in messages:
-                    if msg.get("content", "").startswith("Test message from"):
-                        test_message_found = True
-                        break
-                
-                if test_message_found:
-                    self.log_test("Chat History", True, 
-                                f"Retrieved {len(messages)} messages from {room_id}. Test message found.")
-                else:
-                    self.log_test("Chat History", True, 
-                                f"Retrieved {len(messages)} messages from {room_id}. (Test message may have been sent to different room)")
-                return True
-            else:
-                self.log_test("Chat History", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Chat History", False, "", str(e))
-            return False
-
-    def run_narrative_and_chat_tests(self):
-        """Run comprehensive tests for narrative and chat systems"""
-        print("🏴‍☠️ ONE PIECE RPG - NARRATIVE AND CHAT SYSTEM TESTING")
-        print("=" * 60)
-        
-        # Setup phase
-        print("\n📋 SETUP PHASE")
-        if not self.register_user():
-            print("❌ Failed at user registration - cannot continue")
-            return self.generate_summary()
-            
-        if not self.create_character():
-            print("❌ Failed at character creation - cannot continue") 
-            return self.generate_summary()
-        
-        # Narrative system tests
-        print("\n📖 NARRATIVE SYSTEM TESTS")
-        self.test_narrative_templates()
-        self.test_narrative_generate()
-        self.test_narrative_action()
-        
-        # Chat system tests
-        print("\n💬 CHAT SYSTEM TESTS") 
-        rooms = self.test_chat_rooms()
-        
-        if rooms:
-            # Test with the first available room (should be East Blue sea room)
-            primary_room = rooms[0]
-            room_id = primary_room.get("room_id")
-            
-            message_id = self.test_chat_send(room_id)
-            time.sleep(1)  # Brief pause to ensure message is saved
-            self.test_chat_history(room_id)
-            
-            # Test with additional rooms if available
-            if len(rooms) > 1:
-                secondary_room = rooms[1]
-                secondary_room_id = secondary_room.get("room_id")
-                self.test_chat_send(secondary_room_id)
-                self.test_chat_history(secondary_room_id)
-        
-        return self.generate_summary()
-
-    def test_ability_points_status(self):
-        """Test GET /api/ability-points/status"""
-        try:
-            response = self.session.get(f"{self.base_url}/ability-points/status")
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Verify required fields
-                required_fields = ["punti_disponibili", "punti_totali", "abilita_attuali", "stats_derivati", "formula_info"]
-                missing_fields = [f for f in required_fields if f not in data]
-                
-                if missing_fields:
-                    self.log_test("Ability Points Status - Structure", False, "", f"Missing fields: {missing_fields}")
-                    return False
-                
-                punti_disponibili = data.get("punti_disponibili", 0)
-                punti_totali = data.get("punti_totali", 0)
-                abilita = data.get("abilita_attuali", {})
-                stats = data.get("stats_derivati", {})
-                formulas = data.get("formula_info", {})
-                
-                # Verify ability stats structure
-                required_abilities = ["forza", "velocita", "resistenza", "agilita"]
-                ability_check = all(ability in abilita for ability in required_abilities)
-                
-                # Verify stats structure
-                required_stats = ["attacco", "difesa"]
-                stats_check = all(stat in stats for stat in required_stats)
-                
-                # Verify formulas
-                formula_check = (
-                    formulas.get("attacco") == "Forza + Velocità" and 
-                    formulas.get("difesa") == "Resistenza + Agilità"
-                )
-                
-                # Verify calculation (Attacco = Forza + Velocità, Difesa = Resistenza + Agilità)
-                expected_attacco = abilita.get("forza", 0) + abilita.get("velocita", 0)
-                expected_difesa = abilita.get("resistenza", 0) + abilita.get("agilita", 0)
-                calc_check = (
-                    stats.get("attacco") == expected_attacco and
-                    stats.get("difesa") == expected_difesa
-                )
-                
-                if ability_check and stats_check and formula_check and calc_check:
-                    self.log_test("Ability Points Status", True, 
-                                f"Punti disponibili: {punti_disponibili}, Punti totali: {punti_totali}. " +
-                                f"Attacco: {stats['attacco']} (F:{abilita['forza']}+V:{abilita['velocita']}), " +
-                                f"Difesa: {stats['difesa']} (R:{abilita['resistenza']}+A:{abilita['agilita']})")
-                    return data
-                else:
-                    error_details = []
-                    if not ability_check: error_details.append("Missing ability stats")
-                    if not stats_check: error_details.append("Missing derived stats")
-                    if not formula_check: error_details.append("Wrong formulas")
-                    if not calc_check: error_details.append(f"Wrong calculation: Expected A:{expected_attacco}, D:{expected_difesa}, Got A:{stats.get('attacco')}, D:{stats.get('difesa')}")
-                    
-                    self.log_test("Ability Points Status - Validation", False, "", "; ".join(error_details))
-                    return False
-            else:
-                self.log_test("Ability Points Status", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Ability Points Status", False, "", str(e))
-            return False
-
-    def test_ability_points_distribute(self, available_points):
-        """Test POST /api/ability-points/distribute"""
-        try:
-            # Test valid distribution if points available
-            if available_points > 0:
-                distribution = {
-                    "forza": min(1, available_points),
-                    "velocita": 0,
-                    "resistenza": min(1, available_points - min(1, available_points)) if available_points > 1 else 0,
-                    "agilita": 0
-                }
-                
-                response = self.session.post(f"{self.base_url}/ability-points/distribute", json=distribution)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    message = data.get("message", "")
-                    distribuzione = data.get("distribuzione", {})
-                    nuove_abilita = data.get("nuove_abilita", {})
-                    nuovi_stats = data.get("nuovi_stats", {})
-                    punti_rimanenti = data.get("punti_rimanenti", 0)
-                    
-                    # Verify calculation: Attacco = Forza + Velocità, Difesa = Resistenza + Agilità
-                    expected_attacco = nuove_abilita.get("forza", 0) + nuove_abilita.get("velocita", 0)
-                    expected_difesa = nuove_abilita.get("resistenza", 0) + nuove_abilita.get("agilita", 0)
-                    
-                    calc_correct = (
-                        nuovi_stats.get("attacco") == expected_attacco and
-                        nuovi_stats.get("difesa") == expected_difesa
-                    )
-                    
-                    if calc_correct and "distribuiti" in message.lower():
-                        self.log_test("Ability Points Distribute (Valid)", True,
-                                    f"Distributed successfully. New stats: Attacco {expected_attacco}, Difesa {expected_difesa}. Points remaining: {punti_rimanenti}")
-                        
-                        # Test invalid distribution (more points than available)
-                        invalid_distribution = {
-                            "forza": 999,
-                            "velocita": 999,
-                            "resistenza": 0,
-                            "agilita": 0
-                        }
-                        
-                        invalid_response = self.session.post(f"{self.base_url}/ability-points/distribute", json=invalid_distribution)
-                        
-                        if invalid_response.status_code == 400:
-                            self.log_test("Ability Points Distribute (Invalid)", True, "Correctly rejected excessive point distribution")
-                            return True
-                        else:
-                            self.log_test("Ability Points Distribute (Invalid)", False, "", 
-                                        f"Should reject excessive distribution. Status: {invalid_response.status_code}")
-                            return False
-                    else:
-                        self.log_test("Ability Points Distribute (Valid)", False, "", 
-                                    f"Calculation error or wrong message. Expected A:{expected_attacco}, D:{expected_difesa}, Got A:{nuovi_stats.get('attacco')}, D:{nuovi_stats.get('difesa')}")
-                        return False
-                else:
-                    self.log_test("Ability Points Distribute (Valid)", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                    return False
-            else:
-                # No points to distribute - test with 0 distribution
-                zero_distribution = {"forza": 0, "velocita": 0, "resistenza": 0, "agilita": 0}
-                response = self.session.post(f"{self.base_url}/ability-points/distribute", json=zero_distribution)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "nessun punto" in data.get("message", "").lower():
-                        self.log_test("Ability Points Distribute (Zero)", True, "Correctly handled zero point distribution")
-                        return True
-                    else:
-                        self.log_test("Ability Points Distribute (Zero)", False, "", f"Unexpected message: {data.get('message')}")
-                        return False
-                else:
-                    self.log_test("Ability Points Distribute (Zero)", False, "", f"Status: {response.status_code}, Response: {response.text}")
-                    return False
-                
-        except Exception as e:
-            self.log_test("Ability Points Distribute", False, "", str(e))
-            return False
-
-    def test_battle_for_ability_points(self):
-        """Test battle system to earn ability points"""
-        try:
-            # Start battle with NPC
             battle_data = {
                 "opponent_type": "npc", 
                 "opponent_id": "pirata_novizio"
@@ -561,131 +195,452 @@ class OnePixelRPGTester:
             
             if response.status_code == 200:
                 battle_info = response.json()
-                battle_id = battle_info.get("battle_id")
+                self.battle_id = battle_info.get("battle_id")
                 battle = battle_info.get("battle", {})
                 
-                if battle_id:
-                    # Check initial battle state
-                    player_hp = battle.get("player1", {}).get("vita", 0)
-                    enemy_hp = battle.get("player2", {}).get("vita", 0)
+                if self.battle_id:
+                    player = battle.get("player1", {})
+                    opponent = battle.get("player2", {})
                     
-                    # Execute battle action with more aggressive attacks
-                    actions_to_try = [
-                        {"action_type": "attacco_speciale", "action_name": "Colpo Potente"},
-                        {"action_type": "attacco_base", "action_name": "Pugno"},
-                        {"action_type": "attacco_base", "action_name": "Calcio"}
-                    ]
-                    
-                    # Try multiple attacks until battle ends
-                    max_attempts = 15
-                    battle_finished = False
-                    
-                    for attempt in range(max_attempts):
-                        # Cycle through different attacks
-                        action_data = actions_to_try[attempt % len(actions_to_try)]
-                        
-                        action_response = self.session.post(f"{self.base_url}/battle/{battle_id}/action", json=action_data)
-                        
-                        if action_response.status_code == 200:
-                            action_result = action_response.json()
-                            battle = action_result.get("battle", {})
-                            result = action_result.get("result", {})
-                            
-                            # Check current battle state
-                            current_player_hp = battle.get("player1", {}).get("vita", 0)
-                            current_enemy_hp = battle.get("player2", {}).get("vita", 0)
-                            
-                            if battle.get("stato") == "finita":
-                                battle_finished = True
-                                rewards = battle.get("rewards", {})
-                                ability_points_earned = rewards.get("ability_points_earned", 0)
-                                ability_points_formula = rewards.get("ability_points_formula", "")
-                                vincitore = battle.get("vincitore")
-                                
-                                if vincitore == "player1":
-                                    # Victory case
-                                    if ability_points_earned > 0:
-                                        self.log_test("Battle Victory Ability Points", True,
-                                                    f"Won battle and earned {ability_points_earned} ability points. Formula: {ability_points_formula}")
-                                    else:
-                                        self.log_test("Battle Victory Ability Points", False, "", 
-                                                    f"Won battle but got 0 ability points. Rewards: {rewards}")
-                                        return False
-                                elif vincitore == "player2":
-                                    # Defeat case - should still get consolation points
-                                    defeat_exp = rewards.get("defeat_exp", False)
-                                    if defeat_exp and ability_points_earned >= 0:
-                                        self.log_test("Battle Defeat Ability Points", True,
-                                                    f"Lost battle but earned {ability_points_earned} consolation ability points. Formula: {ability_points_formula}")
-                                    else:
-                                        self.log_test("Battle Defeat Ability Points", True,
-                                                    f"Lost battle, earned {ability_points_earned} points (could be 0 for defeat)")
-                                
-                                return True
-                            else:
-                                # Battle continues - just a quick status update for debugging
-                                if attempt < 3:  # Only log first few attempts to avoid spam
-                                    print(f"      Attempt {attempt+1}: Player HP {current_player_hp}, Enemy HP {current_enemy_hp}")
-                        else:
-                            self.log_test("Battle Action", False, "", f"Battle action failed: {action_response.status_code}")
-                            return False
-                    
-                    if not battle_finished:
-                        self.log_test("Battle for Ability Points", False, "", 
-                                    f"Battle didn't finish after {max_attempts} attempts. Final state - Player HP: {current_player_hp}, Enemy HP: {current_enemy_hp}")
-                        return False
+                    self.log_test("Start Battle for Phase Testing", True, 
+                                f"Battle {self.battle_id} started. Player: {player.get('nome')}, Opponent: {opponent.get('nome')}")
+                    return battle
                 else:
-                    self.log_test("Battle Start", False, "", "No battle_id returned")
+                    self.log_test("Start Battle for Phase Testing", False, "", "No battle_id returned")
                     return False
             else:
-                self.log_test("Battle Start", False, "", f"Status: {response.status_code}, Response: {response.text}")
+                self.log_test("Start Battle for Phase Testing", False, "", f"Status: {response.status_code}, Response: {response.text}")
                 return False
                 
         except Exception as e:
-            self.log_test("Battle for Ability Points", False, "", str(e))
+            self.log_test("Start Battle for Phase Testing", False, "", str(e))
             return False
 
-    def test_character_creation_ability_fields(self):
-        """Verify new character has correct ability points fields"""
-        if self.character_data:
-            punti_disponibili = self.character_data.get("punti_abilita_disponibili", None)
-            punti_totali = self.character_data.get("punti_abilita_totali", None)
-            attacco = self.character_data.get("attacco", 0)
-            difesa = self.character_data.get("difesa", 0)
-            forza = self.character_data.get("forza", 0)
-            velocita = self.character_data.get("velocita", 0)
-            resistenza = self.character_data.get("resistenza", 0)
-            agilita = self.character_data.get("agilita", 0)
+    def test_phase_action_contrattacco(self):
+        """Test POST /api/battle/{id}/phase-action - Execute contrattacco phase with pugno action"""
+        try:
+            if not self.battle_id:
+                self.log_test("Phase Action - Contrattacco", False, "", "No battle ID available")
+                return False
             
-            # Check new fields exist and are correct
-            fields_correct = (
-                punti_disponibili == 0 and 
-                punti_totali == 0 and
-                attacco == forza + velocita and  # SUM not multiplication
-                difesa == resistenza + agilita   # SUM not multiplication
-            )
+            # Test contrattacco phase with pugno action
+            action_data = {
+                "fase": "contrattacco",
+                "azione": "pugno",
+                "parametri": {}
+            }
             
-            if fields_correct:
-                self.log_test("Character Creation - Ability Fields", True,
-                            f"New character has punti_abilita_disponibili: {punti_disponibili}, punti_abilita_totali: {punti_totali}. " +
-                            f"Attacco: {attacco} (F:{forza}+V:{velocita}), Difesa: {difesa} (R:{resistenza}+A:{agilita})")
+            response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/phase-action", json=action_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                success = data.get("success", False)
+                result = data.get("result", {})
+                battle = data.get("battle", {})
+                
+                if success:
+                    fase = result.get("fase")
+                    azione = result.get("azione")
+                    energia_spesa = result.get("energia_spesa", 0)
+                    energy_multiplier = result.get("energy_multiplier", 1.0)
+                    danno = result.get("danno", 0)
+                    log_entry = result.get("log_entry", "")
+                    
+                    # Verify phase action details
+                    fasi_completate = battle.get("fasi_completate", [])
+                    contrattacco_completed = "contrattacco" in fasi_completate
+                    
+                    if fase == "contrattacco" and azione == "pugno" and danno > 0 and contrattacco_completed:
+                        self.log_test("Phase Action - Contrattacco", True, 
+                                    f"Contrattacco/Pugno executed. Damage: {danno}, Energy: {energia_spesa} (x{energy_multiplier}), Log: {log_entry}")
+                        return True
+                    else:
+                        self.log_test("Phase Action - Contrattacco", False, "", 
+                                    f"Invalid result: fase={fase}, azione={azione}, danno={danno}, completed={contrattacco_completed}")
+                        return False
+                else:
+                    error = data.get("error", "Unknown error")
+                    self.log_test("Phase Action - Contrattacco", False, "", f"Action failed: {error}")
+                    return False
+            else:
+                self.log_test("Phase Action - Contrattacco", False, "", f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Phase Action - Contrattacco", False, "", str(e))
+            return False
+
+    def test_energy_multiplier_multiple_phases(self):
+        """Test energy multiplier when using multiple phases"""
+        try:
+            if not self.battle_id:
+                self.log_test("Energy Multiplier - Multiple Phases", False, "", "No battle ID available")
+                return False
+            
+            # Get current battle state
+            stats_response = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+            if stats_response.status_code != 200:
+                self.log_test("Energy Multiplier - Multiple Phases", False, "", "Could not get battle stats")
+                return False
+            
+            initial_stats = stats_response.json()
+            initial_energy = initial_stats.get("player", {}).get("energia", 0)
+            
+            # First, end turn to reset phases
+            end_turn_response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/end-turn")
+            if end_turn_response.status_code != 200:
+                self.log_test("Energy Multiplier - Multiple Phases", False, "", "Could not end turn")
+                return False
+            
+            # Wait for NPC turn to complete
+            time.sleep(1)
+            
+            # Now test multiple phases in sequence
+            phases_to_test = [
+                {"fase": "reazione", "azione": "subire"},  # Phase 1 - multiplier 1.0
+                {"fase": "attivazione", "azione": "salta"},  # Phase 2 - multiplier 1.3
+                {"fase": "contrattacco", "azione": "pugno"}  # Phase 3 - multiplier 1.6
+            ]
+            
+            energy_costs = []
+            multipliers = []
+            
+            for i, action_data in enumerate(phases_to_test):
+                response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/phase-action", json=action_data)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("success"):
+                        result = data.get("result", {})
+                        energia_spesa = result.get("energia_spesa", 0)
+                        energy_multiplier = result.get("energy_multiplier", 1.0)
+                        
+                        energy_costs.append(energia_spesa)
+                        multipliers.append(energy_multiplier)
+                    else:
+                        break
+                else:
+                    break
+            
+            if len(energy_costs) >= 2:
+                # Check that multipliers increase as expected
+                multipliers_increasing = all(multipliers[i] <= multipliers[i+1] for i in range(len(multipliers)-1))
+                
+                if multipliers_increasing:
+                    self.log_test("Energy Multiplier - Multiple Phases", True, 
+                                f"Energy multipliers work correctly: {multipliers}. Energy costs: {energy_costs}")
+                    return True
+                else:
+                    self.log_test("Energy Multiplier - Multiple Phases", False, "", 
+                                f"Multipliers not increasing: {multipliers}")
+                    return False
+            else:
+                self.log_test("Energy Multiplier - Multiple Phases", False, "", 
+                            f"Could only execute {len(energy_costs)} phases")
+                return False
+                
+        except Exception as e:
+            self.log_test("Energy Multiplier - Multiple Phases", False, "", str(e))
+            return False
+
+    def test_end_turn_and_switch(self):
+        """Test POST /api/battle/{id}/end-turn - End turn and switch"""
+        try:
+            if not self.battle_id:
+                self.log_test("End Turn and Switch", False, "", "No battle ID available")
+                return False
+            
+            # Get initial battle state
+            stats_response = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+            if stats_response.status_code == 200:
+                initial_battle_info = stats_response.json().get("battle_info", {})
+                initial_turn = initial_battle_info.get("turno", 0)
+                initial_phases = initial_battle_info.get("fasi_completate", [])
+            else:
+                self.log_test("End Turn and Switch", False, "", "Could not get initial battle state")
+                return False
+            
+            # End turn
+            response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/end-turn")
+            
+            if response.status_code == 200:
+                data = response.json()
+                battle = data.get("battle", {})
+                
+                new_turn = battle.get("numero_turno", 0)
+                new_phases = battle.get("fasi_completate", [])
+                current_player = battle.get("turno_corrente", "")
+                
+                # Check that turn advanced and phases reset
+                turn_advanced = new_turn > initial_turn
+                phases_reset = len(new_phases) == 0  # Should be reset for new turn
+                
+                if turn_advanced and phases_reset:
+                    self.log_test("End Turn and Switch", True, 
+                                f"Turn advanced from {initial_turn} to {new_turn}. Phases reset from {len(initial_phases)} to {len(new_phases)}. Current player: {current_player}")
+                    
+                    # Check if NPC auto-played (should switch back to player)
+                    time.sleep(1)
+                    
+                    # Get battle state after NPC turn
+                    final_stats = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+                    if final_stats.status_code == 200:
+                        final_battle_info = final_stats.json().get("battle_info", {})
+                        final_turn = final_battle_info.get("turno", 0)
+                        
+                        if final_turn > new_turn:
+                            self.log_test("NPC Auto-Turn", True, 
+                                        f"NPC automatically played turn {new_turn + 1}")
+                        else:
+                            self.log_test("NPC Auto-Turn", True, 
+                                        "Turn switch working, NPC turn processing")
+                    
+                    return True
+                else:
+                    self.log_test("End Turn and Switch", False, "", 
+                                f"Turn not properly advanced or phases not reset. Turn: {initial_turn}->{new_turn}, Phases: {len(initial_phases)}->{len(new_phases)}")
+                    return False
+            else:
+                self.log_test("End Turn and Switch", False, "", f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("End Turn and Switch", False, "", str(e))
+            return False
+
+    def test_character_stats_popup(self):
+        """Test GET /api/battle/{id}/character-stats - Stats popup during battle"""
+        try:
+            if not self.battle_id:
+                self.log_test("Character Stats Popup", False, "", "No battle ID available")
+                return False
+            
+            response = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+            
+            if response.status_code == 200:
+                data = response.json()
+                player = data.get("player", {})
+                opponent = data.get("opponent", {})
+                battle_info = data.get("battle_info", {})
+                
+                # Check player full stats
+                required_player_stats = ["nome", "livello_combattimento", "vita", "vita_max", "energia", "energia_max", 
+                                        "forza", "velocita", "resistenza", "agilita", "attacco", "difesa"]
+                player_stats_present = all(stat in player for stat in required_player_stats)
+                
+                # Check opponent basic info
+                required_opponent_info = ["nome", "livello_combattimento", "vita", "vita_max"]
+                opponent_info_present = all(info in opponent for info in required_opponent_info)
+                
+                # Check battle info
+                required_battle_info = ["turno", "fase_corrente", "fasi_completate"]
+                battle_info_present = all(info in battle_info for info in required_battle_info)
+                
+                if player_stats_present and opponent_info_present and battle_info_present:
+                    player_details = f"Player: {player['nome']} (Lv{player['livello_combattimento']}) - HP:{player['vita']}/{player['vita_max']}, Energy:{player['energia']}/{player['energia_max']}"
+                    opponent_details = f"Opponent: {opponent['nome']} (Lv{opponent['livello_combattimento']}) - HP:{opponent['vita']}/{opponent['vita_max']}"
+                    battle_details = f"Battle: Turn {battle_info['turno']}, Current Phase: {battle_info.get('fase_corrente', 'N/A')}, Completed: {battle_info['fasi_completate']}"
+                    
+                    self.log_test("Character Stats Popup", True, 
+                                f"{player_details}. {opponent_details}. {battle_details}")
+                    return data
+                else:
+                    missing = []
+                    if not player_stats_present:
+                        missing_player = [stat for stat in required_player_stats if stat not in player]
+                        missing.append(f"Player stats: {missing_player}")
+                    if not opponent_info_present:
+                        missing_opponent = [info for info in required_opponent_info if info not in opponent]
+                        missing.append(f"Opponent info: {missing_opponent}")
+                    if not battle_info_present:
+                        missing_battle = [info for info in required_battle_info if info not in battle_info]
+                        missing.append(f"Battle info: {missing_battle}")
+                    
+                    self.log_test("Character Stats Popup", False, "", f"Missing data: {'; '.join(missing)}")
+                    return False
+            else:
+                self.log_test("Character Stats Popup", False, "", f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Character Stats Popup", False, "", str(e))
+            return False
+
+    def test_reazione_phase_to_npc_attack(self):
+        """Test reazione phase to react to NPC attack"""
+        try:
+            if not self.battle_id:
+                self.log_test("Reazione Phase to NPC Attack", False, "", "No battle ID available")
+                return False
+            
+            # First check if there's a pending attack
+            stats_response = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+            if stats_response.status_code != 200:
+                self.log_test("Reazione Phase to NPC Attack", False, "", "Could not get battle stats")
+                return False
+            
+            battle_info = stats_response.json().get("battle_info", {})
+            pending_attack = battle_info.get("azione_pendente")
+            
+            if not pending_attack:
+                # End turn to trigger NPC attack
+                end_turn_response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/end-turn")
+                if end_turn_response.status_code != 200:
+                    self.log_test("Reazione Phase to NPC Attack", False, "", "Could not end turn to trigger NPC")
+                    return False
+                
+                # Wait for NPC to act
+                time.sleep(1)
+                
+                # Check again for pending attack
+                stats_response = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+                if stats_response.status_code == 200:
+                    battle_info = stats_response.json().get("battle_info", {})
+                    pending_attack = battle_info.get("azione_pendente")
+            
+            # Now test reazione phase
+            reaction_actions = ["schivata", "parata", "subire"]
+            
+            for action in reaction_actions:
+                # Try each reaction type
+                action_data = {
+                    "fase": "reazione",
+                    "azione": action
+                }
+                
+                response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/phase-action", json=action_data)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("success"):
+                        result = data.get("result", {})
+                        danno = result.get("danno", 0)
+                        effetto = result.get("effetto", "")
+                        log_entry = result.get("log_entry", "")
+                        
+                        self.log_test("Reazione Phase to NPC Attack", True, 
+                                    f"Reaction '{action}' executed. Damage taken: {danno}, Effect: {effetto}, Log: {log_entry}")
+                        return True
+                    else:
+                        error = data.get("error", "")
+                        if "già completata" in error.lower():
+                            continue  # This phase already used, try next action
+                        else:
+                            self.log_test("Reazione Phase to NPC Attack", False, "", f"Action '{action}' failed: {error}")
+                            return False
+                else:
+                    continue
+            
+            # If we get here, no reaction worked
+            self.log_test("Reazione Phase to NPC Attack", False, "", "No reaction actions could be executed")
+            return False
+                
+        except Exception as e:
+            self.log_test("Reazione Phase to NPC Attack", False, "", str(e))
+            return False
+
+    def run_complete_battle_flow_test(self):
+        """Test complete battle flow with phases"""
+        try:
+            if not self.battle_id:
+                self.log_test("Complete Battle Flow", False, "", "No battle ID available")
+                return False
+            
+            print("\n🏴‍☠️ TESTING COMPLETE BATTLE FLOW WITH PHASES")
+            
+            max_turns = 10
+            turn_count = 0
+            battle_complete = False
+            
+            while turn_count < max_turns and not battle_complete:
+                turn_count += 1
+                print(f"   Turn {turn_count}")
+                
+                # Get current battle state
+                stats_response = self.session.get(f"{self.base_url}/battle/{self.battle_id}/character-stats")
+                if stats_response.status_code != 200:
+                    break
+                
+                stats_data = stats_response.json()
+                player_hp = stats_data.get("player", {}).get("vita", 0)
+                opponent_hp = stats_data.get("opponent", {}).get("vita", 0)
+                battle_info = stats_data.get("battle_info", {})
+                
+                # Check if battle is over
+                if player_hp <= 0 or opponent_hp <= 0:
+                    battle_complete = True
+                    winner = "Player" if opponent_hp <= 0 else "NPC"
+                    print(f"   Battle ended! Winner: {winner}")
+                    break
+                
+                # Try to use each phase in order
+                phases_used = 0
+                
+                # Phase 1: Reazione (if there's a pending attack)
+                pending_attack = battle_info.get("azione_pendente")
+                if pending_attack:
+                    reaction_data = {
+                        "fase": "reazione", 
+                        "azione": random.choice(["schivata", "parata", "subire"])
+                    }
+                    
+                    reaction_response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/phase-action", json=reaction_data)
+                    if reaction_response.status_code == 200 and reaction_response.json().get("success"):
+                        phases_used += 1
+                        print(f"      Reazione: {reaction_data['azione']}")
+                
+                # Phase 2: Attivazione (skip most of the time to save energy)
+                if random.choice([True, False, False]):  # 33% chance
+                    activation_data = {
+                        "fase": "attivazione",
+                        "azione": "salta"
+                    }
+                    
+                    activation_response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/phase-action", json=activation_data)
+                    if activation_response.status_code == 200 and activation_response.json().get("success"):
+                        phases_used += 1
+                        print(f"      Attivazione: {activation_data['azione']}")
+                
+                # Phase 3: Contrattacco
+                counter_attacks = ["pugno", "calcio", "colpo_rapido", "colpo_potente"]
+                counter_data = {
+                    "fase": "contrattacco",
+                    "azione": random.choice(counter_attacks)
+                }
+                
+                counter_response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/phase-action", json=counter_data)
+                if counter_response.status_code == 200 and counter_response.json().get("success"):
+                    phases_used += 1
+                    result = counter_response.json().get("result", {})
+                    damage = result.get("danno", 0)
+                    print(f"      Contrattacco: {counter_data['azione']} ({damage} damage)")
+                
+                print(f"      Used {phases_used} phases this turn")
+                
+                # End turn
+                end_response = self.session.post(f"{self.base_url}/battle/{self.battle_id}/end-turn")
+                if end_response.status_code != 200:
+                    break
+                
+                # Wait for NPC turn
+                time.sleep(0.5)
+            
+            if battle_complete:
+                self.log_test("Complete Battle Flow", True, 
+                            f"Battle completed successfully in {turn_count} turns. Winner: {winner}")
                 return True
             else:
-                error_details = []
-                if punti_disponibili != 0: error_details.append(f"punti_disponibili should be 0, got {punti_disponibili}")
-                if punti_totali != 0: error_details.append(f"punti_totali should be 0, got {punti_totali}")
-                if attacco != forza + velocita: error_details.append(f"Attacco should be {forza + velocita}, got {attacco}")
-                if difesa != resistenza + agilita: error_details.append(f"Difesa should be {resistenza + agilita}, got {difesa}")
-                
-                self.log_test("Character Creation - Ability Fields", False, "", "; ".join(error_details))
+                self.log_test("Complete Battle Flow", False, "", 
+                            f"Battle didn't complete within {max_turns} turns")
                 return False
-        else:
-            self.log_test("Character Creation - Ability Fields", False, "", "No character data available")
+                
+        except Exception as e:
+            self.log_test("Complete Battle Flow", False, "", str(e))
             return False
 
-    def run_ability_points_tests(self):
-        """Run comprehensive tests for Ability Points System"""
-        print("💪 ONE PIECE RPG - ABILITY POINTS SYSTEM TESTING")
+    def run_new_battle_phase_system_tests(self):
+        """Run comprehensive tests for the NEW Battle Phase System"""
+        print("⚔️ ONE PIECE RPG - NEW BATTLE PHASE SYSTEM TESTING")
         print("=" * 60)
         
         # Setup phase
@@ -698,42 +653,47 @@ class OnePixelRPGTester:
             print("❌ Failed at character creation - cannot continue") 
             return self.generate_summary()
         
-        print("\n💪 ABILITY POINTS SYSTEM TESTS")
+        print("\n⚔️ BATTLE PHASE SYSTEM TESTS")
         
-        # Test 1: Character creation with new fields
-        self.test_character_creation_ability_fields()
+        # Test 1: GET /api/battle/phases endpoint
+        print("\n1️⃣ Testing Battle Phases Endpoint")
+        phases_data = self.test_battle_phases_endpoint()
         
-        # Test 2: GET /api/ability-points/status
-        initial_status = self.test_ability_points_status()
+        # Test 2: New Vita/Energia formulas
+        print("\n2️⃣ Testing New Vita/Energia Formulas") 
+        self.test_vita_energia_formulas()
         
-        # Test 3: Battle to earn ability points (2-3 battles)
-        print("\n⚔️ EARNING ABILITY POINTS THROUGH BATTLES")
-        battles_won = 0
-        for i in range(3):
-            print(f"   Battle {i+1}/3...")
-            if self.test_battle_for_ability_points():
-                battles_won += 1
-            time.sleep(0.5)  # Brief pause between battles
+        # Test 3: Start battle for phase testing
+        print("\n3️⃣ Starting Battle for Phase Testing")
+        battle = self.start_battle_for_phase_testing()
         
-        # Test 4: Check status after battles
-        print("\n📊 CHECKING STATUS AFTER BATTLES")
-        post_battle_status = self.test_ability_points_status()
+        if not battle:
+            print("❌ Cannot continue without battle - skipping phase action tests")
+            return self.generate_summary()
         
-        # Test 5: Distribute points if available
-        if post_battle_status and isinstance(post_battle_status, dict):
-            available_points = post_battle_status.get("punti_disponibili", 0)
-            
-            if available_points > 0:
-                print(f"\n🎯 DISTRIBUTING {available_points} AVAILABLE POINTS")
-                self.test_ability_points_distribute(available_points)
-                
-                # Test 6: Final status check after distribution
-                print("\n📈 FINAL STATUS CHECK")
-                final_status = self.test_ability_points_status()
-            else:
-                print(f"\n⚠️  No ability points available for distribution (got {available_points} points)")
-                # Still test zero distribution
-                self.test_ability_points_distribute(0)
+        # Test 4: Phase action - contrattacco with pugno
+        print("\n4️⃣ Testing Phase Action - Contrattacco")
+        self.test_phase_action_contrattacco()
+        
+        # Test 5: Energy multiplier with multiple phases
+        print("\n5️⃣ Testing Energy Multiplier - Multiple Phases")
+        self.test_energy_multiplier_multiple_phases()
+        
+        # Test 6: End turn and switch
+        print("\n6️⃣ Testing End Turn and Switch")
+        self.test_end_turn_and_switch()
+        
+        # Test 7: Character stats popup
+        print("\n7️⃣ Testing Character Stats Popup")
+        self.test_character_stats_popup()
+        
+        # Test 8: Reazione phase to NPC attack
+        print("\n8️⃣ Testing Reazione Phase")
+        self.test_reazione_phase_to_npc_attack()
+        
+        # Test 9: Complete battle flow
+        print("\n9️⃣ Testing Complete Battle Flow")
+        self.run_complete_battle_flow_test()
         
         return self.generate_summary()
 
@@ -743,7 +703,7 @@ class OnePixelRPGTester:
         passed_tests = sum(1 for r in self.test_results if r["success"])
         failed_tests = total_tests - passed_tests
         
-        print(f"\n📊 TEST SUMMARY")
+        print(f"\n📊 BATTLE PHASE SYSTEM TEST SUMMARY")
         print("=" * 60)
         print(f"Total Tests: {total_tests}")
         print(f"Passed: {passed_tests}")
@@ -770,5 +730,5 @@ class OnePixelRPGTester:
         }
 
 if __name__ == "__main__":
-    tester = OnePixelRPGTester()
-    summary = tester.run_ability_points_tests()
+    tester = BattlePhaseSystemTester()
+    summary = tester.run_new_battle_phase_system_tests()
