@@ -2481,24 +2481,91 @@ const WorldMap = ({ token, character, isDemo }) => {
 };
 
 // ============ BATTLE ARENA (improved) ============
-const BattleArena = ({ token, character }) => {
+const BattleArena = ({ token, character, isDemo }) => {
   const navigate = useNavigate();
   const authToken = token || localStorage.getItem('token');
   const [battle, setBattle] = useState(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [phases, setPhases] = useState(null);
+  const [currentPhase, setCurrentPhase] = useState('contrattacco'); // Default to attack phase
+  const [showStatsPopup, setShowStatsPopup] = useState(false);
+  const [playerStats, setPlayerStats] = useState(null);
+
+  // Fetch battle phases info
+  useEffect(() => {
+    const fetchPhases = async () => {
+      try {
+        const res = await axios.get(`${API}/battle/phases`, { headers: { Authorization: `Bearer ${authToken}` } });
+        setPhases(res.data.phases);
+      } catch (e) {
+        console.error('Error fetching phases:', e);
+      }
+    };
+    if (authToken) fetchPhases();
+  }, [authToken]);
 
   const startBattle = async (opponentId) => {
     setLoading(true);
     try {
       const res = await axios.post(`${API}/battle/start`, { opponent_type: 'npc', opponent_id: opponentId }, { headers: { Authorization: `Bearer ${authToken}` } });
       setBattle(res.data.battle);
+      setCurrentPhase('contrattacco');
     } catch (e) {
       console.error('Battle start error:', e);
     }
     setLoading(false);
   };
 
+  // New phase-based action
+  const doPhaseAction = async (fase, azione, parametri = {}) => {
+    if (!battle || battle.turno_corrente !== 'player1' || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const res = await axios.post(`${API}/battle/${battle.battle_id}/phase-action`, 
+        { fase, azione, parametri }, 
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      if (res.data.success) {
+        setBattle(res.data.battle);
+        // Auto-advance to next phase if available
+        if (res.data.next_phase) {
+          setCurrentPhase(res.data.next_phase);
+        }
+      }
+    } catch (e) {
+      console.error('Phase action error:', e);
+    }
+    setActionLoading(false);
+  };
+
+  // End turn
+  const endTurn = async () => {
+    if (!battle || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const res = await axios.post(`${API}/battle/${battle.battle_id}/end-turn`, {}, { headers: { Authorization: `Bearer ${authToken}` } });
+      setBattle(res.data.battle);
+      setCurrentPhase('reazione'); // Start next turn with reaction phase
+    } catch (e) {
+      console.error('End turn error:', e);
+    }
+    setActionLoading(false);
+  };
+
+  // Fetch character stats popup
+  const fetchCharacterStats = async () => {
+    if (!battle) return;
+    try {
+      const res = await axios.get(`${API}/battle/${battle.battle_id}/character-stats`, { headers: { Authorization: `Bearer ${authToken}` } });
+      setPlayerStats(res.data);
+      setShowStatsPopup(true);
+    } catch (e) {
+      console.error('Error fetching stats:', e);
+    }
+  };
+
+  // Legacy action (fallback)
   const doAction = async (actionType, actionName) => {
     if (!battle || battle.turno_corrente !== 'player1' || actionLoading) return;
     setActionLoading(true);
@@ -2512,10 +2579,18 @@ const BattleArena = ({ token, character }) => {
   };
 
   const npcInfo = {
-    marine_soldato: { name: 'Marine Soldato', desc: 'Un soldato della Marina', difficulty: '⭐' },
-    pirata_novizio: { name: 'Pirata Novizio', desc: 'Un pirata alle prime armi', difficulty: '⭐' },
-    marine_capitano: { name: 'Marine Capitano', desc: 'Un ufficiale della Marina', difficulty: '⭐⭐' },
-    capitano_pirata: { name: 'Capitano Pirata', desc: 'Un temibile capitano pirata', difficulty: '⭐⭐⭐' }
+    marine_soldato: { name: 'Marine Soldato', desc: 'Lv.2 - Un soldato della Marina', difficulty: '⭐', level: 2 },
+    pirata_novizio: { name: 'Pirata Novizio', desc: 'Lv.1 - Un pirata alle prime armi', difficulty: '⭐', level: 1 },
+    marine_capitano: { name: 'Marine Capitano', desc: 'Lv.5 - Un ufficiale della Marina', difficulty: '⭐⭐', level: 5 },
+    capitano_pirata: { name: 'Capitano Pirata', desc: 'Lv.8 - Un temibile capitano pirata', difficulty: '⭐⭐⭐', level: 8 },
+    boss_marine: { name: 'Ammiraglio Marine', desc: 'Lv.15 - Boss con Haki', difficulty: '⭐⭐⭐⭐', level: 15 }
+  };
+
+  // Phase icons and colors
+  const phaseConfig = {
+    reazione: { icon: '🛡️', color: '#00A8E8', name: 'Reazione' },
+    attivazione: { icon: '🃏', color: '#7209B7', name: 'Attivazione' },
+    contrattacco: { icon: '⚔️', color: '#D00000', name: 'Contrattacco' }
   };
 
   if (!battle) {
@@ -2544,6 +2619,7 @@ const BattleArena = ({ token, character }) => {
                   <Skull className="w-8 h-8 text-[#D00000] mb-2" />
                   <p className="font-bold text-[#E3D5CA]">{info.name}</p>
                   <p className="text-sm text-[#E3D5CA]/60">{info.desc}</p>
+                  <p className="text-xs text-[#D4AF37] mt-1">HP: {info.level * 100} | EN: {info.level * 50}</p>
                 </div>
                 <span className="text-lg">{info.difficulty}</span>
               </div>
@@ -2566,16 +2642,63 @@ const BattleArena = ({ token, character }) => {
   const isPlayerTurn = battle.turno_corrente === 'player1';
   const isBattleOver = battle.stato === 'finita';
   const playerWon = battle.vincitore === 'player1';
+  const pendingAttack = battle.azione_avversario_pendente;
+  const completedPhases = battle.fasi_completate || [];
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] flex flex-col">
-      {/* Turn indicator */}
+      {/* Turn & Phase indicator */}
       {!isBattleOver && (
-        <div className={`p-2 text-center ${isPlayerTurn ? 'bg-[#2A9D8F]' : 'bg-[#D00000]'}`}>
-          <p className="font-pixel text-sm text-white">
-            {isPlayerTurn ? '🎯 È il TUO turno!' : '⏳ Turno avversario...'}
-          </p>
+        <div className={`p-2 ${isPlayerTurn ? 'bg-[#2A9D8F]' : 'bg-[#D00000]'}`}>
+          <div className="flex justify-between items-center max-w-lg mx-auto">
+            <p className="font-pixel text-sm text-white">
+              {isPlayerTurn ? '🎯 TUO TURNO' : '⏳ Turno avversario'}
+            </p>
+            <p className="text-xs text-white/80">Turno {battle.numero_turno}</p>
+          </div>
         </div>
+      )}
+
+      {/* Phase Tabs */}
+      {!isBattleOver && isPlayerTurn && (
+        <div className="flex justify-center gap-2 p-2 bg-[#051923]">
+          {['reazione', 'attivazione', 'contrattacco'].map(phase => {
+            const config = phaseConfig[phase];
+            const isCompleted = completedPhases.includes(phase);
+            const isActive = currentPhase === phase;
+            const isDisabled = isCompleted || (phase === 'reazione' && !pendingAttack);
+            
+            return (
+              <button
+                key={phase}
+                onClick={() => !isCompleted && setCurrentPhase(phase)}
+                disabled={isDisabled}
+                className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                  isActive ? `bg-[${config.color}] text-white` : 
+                  isCompleted ? 'bg-[#333] text-[#666] line-through' :
+                  'bg-[#1a1a2e] text-[#E3D5CA]/70 hover:text-white'
+                }`}
+                style={isActive ? { backgroundColor: config.color } : {}}
+              >
+                {config.icon} {config.name}
+                {isCompleted && ' ✓'}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pending Attack Warning */}
+      {pendingAttack && isPlayerTurn && (
+        <motion.div 
+          className="bg-[#D00000]/20 border-l-4 border-[#D00000] p-3 mx-4 mt-2 rounded"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <p className="text-[#D00000] font-bold">⚠️ Attacco in arrivo!</p>
+          <p className="text-sm text-[#E3D5CA]">{pendingAttack.tipo} - {pendingAttack.danno} danni</p>
+          <p className="text-xs text-[#E3D5CA]/70">Usa la fase REAZIONE per difenderti!</p>
+        </motion.div>
       )}
 
       {/* Enemy */}
@@ -2586,7 +2709,10 @@ const BattleArena = ({ token, character }) => {
           transition={{ duration: 0.3 }}
         >
           <div className="flex justify-between items-start">
-            <h3 className="font-pixel text-xl text-[#D00000]">{battle.player2.nome}</h3>
+            <div>
+              <h3 className="font-pixel text-xl text-[#D00000]">{battle.player2.nome}</h3>
+              <p className="text-xs text-[#E3D5CA]/60">Lv.{battle.player2.livello_combattimento || 1}</p>
+            </div>
             {battle.player2.taglia > 0 && (
               <span className="text-xs bg-[#D00000]/30 px-2 py-1 rounded text-[#D00000]">
                 ฿{battle.player2.taglia.toLocaleString()}
@@ -2607,11 +2733,11 @@ const BattleArena = ({ token, character }) => {
       </div>
 
       {/* Battle Log */}
-      <div className="p-4 max-h-40 overflow-y-auto bg-[#000]/30">
+      <div className="p-4 max-h-32 overflow-y-auto bg-[#000]/30">
         <AnimatePresence>
           {battle.log.slice(-5).map((l, i) => (
             <motion.p 
-              key={`${battle.numero_turno}-${i}`}
+              key={`${battle.numero_turno}-${i}-${l.substring(0,10)}`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               className="font-pixel text-sm text-[#E3D5CA]/80 mb-1"
@@ -2622,11 +2748,23 @@ const BattleArena = ({ token, character }) => {
         </AnimatePresence>
       </div>
 
-      {/* Player */}
+      {/* Player Panel */}
       <div className="gameboy-panel p-4">
         <div className="max-w-lg mx-auto">
-          <h3 className="font-pixel text-xl text-[#FFC300]">{battle.player1.nome}</h3>
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          {/* Player Stats Header - Click for popup */}
+          <div 
+            className="flex justify-between items-center cursor-pointer hover:bg-[#FFC300]/10 rounded p-2 -m-2 mb-2"
+            onClick={fetchCharacterStats}
+          >
+            <div>
+              <h3 className="font-pixel text-xl text-[#FFC300]">{battle.player1.nome}</h3>
+              <p className="text-xs text-[#E3D5CA]/60">Lv.{battle.player1.livello_combattimento || 1} • Clicca per stats</p>
+            </div>
+            <UserCircle className="w-6 h-6 text-[#FFC300]" />
+          </div>
+
+          {/* HP & Energy */}
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <div className="hp-bar">
                 <motion.div 
@@ -2649,42 +2787,99 @@ const BattleArena = ({ token, character }) => {
             </div>
           </div>
 
-          {!isBattleOver && (
-            <div className="grid grid-cols-2 gap-2 mt-4">
+          {/* Stats Grid - Always visible */}
+          <div className="grid grid-cols-4 gap-1 mt-2 text-center text-xs">
+            <div className="bg-[#D00000]/20 rounded p-1">
+              <span className="text-[#D00000]">FOR</span>
+              <p className="font-bold">{battle.player1.forza}</p>
+            </div>
+            <div className="bg-[#00A8E8]/20 rounded p-1">
+              <span className="text-[#00A8E8]">VEL</span>
+              <p className="font-bold">{battle.player1.velocita}</p>
+            </div>
+            <div className="bg-[#2A9D8F]/20 rounded p-1">
+              <span className="text-[#2A9D8F]">RES</span>
+              <p className="font-bold">{battle.player1.resistenza}</p>
+            </div>
+            <div className="bg-[#7209B7]/20 rounded p-1">
+              <span className="text-[#7209B7]">AGI</span>
+              <p className="font-bold">{battle.player1.agilita}</p>
+            </div>
+          </div>
+
+          {/* Phase Actions */}
+          {!isBattleOver && isPlayerTurn && (
+            <div className="mt-4">
+              {/* REAZIONE Phase */}
+              {currentPhase === 'reazione' && pendingAttack && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#00A8E8] mb-2">🛡️ Come reagisci all'attacco?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => doPhaseAction('reazione', 'subire')} disabled={actionLoading} className="gameboy-button text-sm">
+                      😤 Subisci (+10 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('reazione', 'schivata')} disabled={actionLoading || battle.player1.energia < 8} className="gameboy-button text-sm">
+                      🏃 Schiva (8 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('reazione', 'parata')} disabled={actionLoading || battle.player1.energia < 10} className="gameboy-button text-sm">
+                      🛡️ Para (10 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('reazione', 'contrasto')} disabled={actionLoading || battle.player1.energia < 15} className="gameboy-button text-sm">
+                      💥 Contrasta (15 EN)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ATTIVAZIONE Phase */}
+              {currentPhase === 'attivazione' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#7209B7] mb-2">🃏 Vuoi attivare qualcosa?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => doPhaseAction('attivazione', 'usa_carta')} disabled={actionLoading} className="gameboy-button text-sm">
+                      🃏 Usa Carta
+                    </button>
+                    <button onClick={() => doPhaseAction('attivazione', 'usa_oggetto')} disabled={actionLoading} className="gameboy-button text-sm">
+                      📦 Usa Oggetto
+                    </button>
+                    <button onClick={() => doPhaseAction('attivazione', 'salta')} disabled={actionLoading} className="gameboy-button text-sm col-span-2">
+                      ⏭️ Salta Fase
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* CONTRATTACCO Phase */}
+              {currentPhase === 'contrattacco' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#D00000] mb-2">⚔️ Contrattacca!</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => doPhaseAction('contrattacco', 'pugno')} disabled={actionLoading || battle.player1.energia < 5} className="gameboy-button text-sm">
+                      👊 Pugno (5 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('contrattacco', 'calcio')} disabled={actionLoading || battle.player1.energia < 5} className="gameboy-button text-sm">
+                      🦵 Calcio (5 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('contrattacco', 'colpo_potente')} disabled={actionLoading || battle.player1.energia < 15} className="gameboy-button text-sm">
+                      💪 Potente (15 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('contrattacco', 'tecnica_segreta')} disabled={actionLoading || battle.player1.energia < 25} className="gameboy-button text-sm">
+                      ⚡ Segreta (25 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('contrattacco', 'riposo')} disabled={actionLoading} className="gameboy-button text-sm col-span-2">
+                      💤 Riposa (+20 EN)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* End Turn Button */}
               <button 
-                onClick={() => doAction('attacco_base', 'Pugno')} 
-                disabled={!isPlayerTurn || actionLoading} 
-                className={`gameboy-button ${!isPlayerTurn ? 'opacity-50' : ''}`}
+                onClick={endTurn} 
+                disabled={actionLoading}
+                className="w-full mt-3 py-2 bg-[#2A9D8F] text-white rounded-lg font-bold"
               >
-                👊 Pugno
-              </button>
-              <button 
-                onClick={() => doAction('attacco_base', 'Calcio')} 
-                disabled={!isPlayerTurn || actionLoading} 
-                className={`gameboy-button ${!isPlayerTurn ? 'opacity-50' : ''}`}
-              >
-                🦵 Calcio
-              </button>
-              <button 
-                onClick={() => doAction('attacco_speciale', 'Colpo Speciale')} 
-                disabled={!isPlayerTurn || actionLoading || battle.player1.energia < 20} 
-                className={`gameboy-button ${(!isPlayerTurn || battle.player1.energia < 20) ? 'opacity-50' : ''}`}
-              >
-                ⚡ Speciale (20 EN)
-              </button>
-              <button 
-                onClick={() => doAction('difesa', 'Difendi')} 
-                disabled={!isPlayerTurn || actionLoading} 
-                className={`gameboy-button ${!isPlayerTurn ? 'opacity-50' : ''}`}
-              >
-                🛡️ Difendi
-              </button>
-              <button 
-                onClick={() => doAction('passa', 'Riposa')} 
-                disabled={!isPlayerTurn || actionLoading} 
-                className={`gameboy-button col-span-2 ${!isPlayerTurn ? 'opacity-50' : ''}`}
-              >
-                💤 Riposa (+15 EN)
+                ✅ Fine Turno
               </button>
             </div>
           )}
@@ -2695,6 +2890,7 @@ const BattleArena = ({ token, character }) => {
             </div>
           )}
 
+          {/* Battle Over */}
           {isBattleOver && (
             <motion.div 
               className="mt-4 text-center"
@@ -2705,12 +2901,21 @@ const BattleArena = ({ token, character }) => {
                 {playerWon ? '🎉 VITTORIA!' : '💀 SCONFITTA'}
               </p>
               
-              {playerWon && battle.rewards && (
+              {battle.rewards && (
                 <div className="mt-3 p-3 bg-[#FFC300]/10 rounded-lg">
                   <p className="text-sm text-[#E3D5CA]">Ricompense:</p>
                   <p className="font-pirate text-lg text-[#FFC300]">
-                    +{battle.rewards.exp} EXP • +฿{battle.rewards.berry}
+                    +{battle.rewards.exp_gained || battle.rewards.exp || 0} EXP
                   </p>
+                  {battle.rewards.berry > 0 && (
+                    <p className="text-[#D4AF37]">+฿{battle.rewards.berry}</p>
+                  )}
+                  {battle.rewards.ability_points_earned > 0 && (
+                    <p className="text-[#2A9D8F]">+{battle.rewards.ability_points_earned} Punti Abilità 💪</p>
+                  )}
+                  {battle.rewards.leveled_up && (
+                    <p className="text-[#7209B7] font-bold">🎉 LEVEL UP! → Lv.{battle.rewards.new_level}</p>
+                  )}
                 </div>
               )}
               
@@ -2726,6 +2931,89 @@ const BattleArena = ({ token, character }) => {
           )}
         </div>
       </div>
+
+      {/* Character Stats Popup */}
+      <AnimatePresence>
+        {showStatsPopup && playerStats && (
+          <motion.div
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowStatsPopup(false)}
+          >
+            <motion.div
+              className="glass p-6 rounded-xl max-w-md w-full max-h-[80vh] overflow-y-auto"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-pirate text-2xl text-[#FFC300]">{playerStats.player.nome}</h2>
+                <button onClick={() => setShowStatsPopup(false)} className="text-[#E3D5CA]">✕</button>
+              </div>
+              
+              <p className="text-[#D4AF37] mb-4">Livello Combattimento: {playerStats.player.livello_combattimento}</p>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-[#D00000]/20 p-3 rounded-lg text-center">
+                  <p className="text-xs text-[#D00000]">FORZA</p>
+                  <p className="text-2xl font-bold">{playerStats.player.forza}</p>
+                </div>
+                <div className="bg-[#00A8E8]/20 p-3 rounded-lg text-center">
+                  <p className="text-xs text-[#00A8E8]">VELOCITÀ</p>
+                  <p className="text-2xl font-bold">{playerStats.player.velocita}</p>
+                </div>
+                <div className="bg-[#2A9D8F]/20 p-3 rounded-lg text-center">
+                  <p className="text-xs text-[#2A9D8F]">RESISTENZA</p>
+                  <p className="text-2xl font-bold">{playerStats.player.resistenza}</p>
+                </div>
+                <div className="bg-[#7209B7]/20 p-3 rounded-lg text-center">
+                  <p className="text-xs text-[#7209B7]">AGILITÀ</p>
+                  <p className="text-2xl font-bold">{playerStats.player.agilita}</p>
+                </div>
+              </div>
+              
+              {/* Derived Stats */}
+              <div className="flex justify-around mb-4">
+                <div className="text-center">
+                  <p className="text-xs text-[#E3D5CA]/70">ATK</p>
+                  <p className="text-xl font-bold text-[#D00000]">{playerStats.player.attacco}</p>
+                  <p className="text-xs text-[#E3D5CA]/50">FOR + VEL</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-[#E3D5CA]/70">DEF</p>
+                  <p className="text-xl font-bold text-[#00A8E8]">{playerStats.player.difesa}</p>
+                  <p className="text-xs text-[#E3D5CA]/50">RES + AGI</p>
+                </div>
+              </div>
+              
+              {/* Haki */}
+              {playerStats.player.haki && (
+                <div className="mb-4">
+                  <p className="text-sm text-[#D4AF37] mb-2">Haki:</p>
+                  <div className="flex gap-2">
+                    {playerStats.player.haki.osservazione && <span className="px-2 py-1 bg-[#00A8E8]/30 rounded text-xs">👁️ Osservazione</span>}
+                    {playerStats.player.haki.armatura && <span className="px-2 py-1 bg-[#333]/50 rounded text-xs">⚫ Armatura</span>}
+                    {playerStats.player.haki.conquistatore && <span className="px-2 py-1 bg-[#D4AF37]/30 rounded text-xs">👑 Conquistatore</span>}
+                    {!playerStats.player.haki.osservazione && !playerStats.player.haki.armatura && !playerStats.player.haki.conquistatore && (
+                      <span className="text-xs text-[#E3D5CA]/50">Nessun Haki risvegliato</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Battle Info */}
+              <div className="border-t border-[#E3D5CA]/20 pt-3">
+                <p className="text-xs text-[#E3D5CA]/70">Turno: {playerStats.battle_info.turno}</p>
+                <p className="text-xs text-[#E3D5CA]/70">Fasi completate: {playerStats.battle_info.fasi_completate.join(', ') || 'Nessuna'}</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
