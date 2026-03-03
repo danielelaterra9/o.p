@@ -3363,8 +3363,8 @@ async def send_chat_message(data: Dict[str, str], request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Save to DB
-    await db.chat_messages.insert_one(message)
+    # Save to DB (creates a copy to avoid _id being added to original)
+    await db.chat_messages.insert_one({**message})
     
     # Broadcast via WebSocket if connections exist
     await broadcast_to_room(room_id, message)
@@ -3390,8 +3390,8 @@ async def add_system_message(data: Dict[str, str], request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Save to DB
-    await db.chat_messages.insert_one(message)
+    # Save to DB (use copy to avoid _id being added)
+    await db.chat_messages.insert_one({**message})
     
     # Broadcast
     await broadcast_to_room(room_id, message)
@@ -3452,8 +3452,8 @@ async def trigger_narrative_event(data: Dict[str, Any], request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Save and broadcast
-    await db.chat_messages.insert_one(message)
+    # Save and broadcast (use copy to avoid _id)
+    await db.chat_messages.insert_one({**message})
     await broadcast_to_room(room_id, message)
     
     return {
