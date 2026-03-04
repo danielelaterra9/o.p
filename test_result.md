@@ -659,10 +659,11 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Race System with modifiers"
   stuck_tasks: []
   test_all: false
-  test_priority: "new_combat_moves_system"
+  test_priority: "race_system_complete"
 
 agent_communication:
   - agent: "main"

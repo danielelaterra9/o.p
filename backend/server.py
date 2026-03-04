@@ -71,69 +71,413 @@ logger = logging.getLogger(__name__)
 
 # ============ GAME CONSTANTS ============
 
-# Race bonuses: {forza, velocita, resistenza, agilita, vita_base, energia_base, aspettativa_vita}
+# Race System - Configurazione completa delle razze con tutti i modificatori
 RACE_STATS = {
     "umano": {
         "name": "Umano",
-        "description": "Razza equilibrata, versatile in ogni situazione.",
-        "bonus": {"forza": 10, "velocita": 10, "resistenza": 10, "agilita": 10},
-        "vita_base": 100,
-        "energia_base": 100,
+        "description": "Razza equilibrata e versatile. Può apprendere qualsiasi stile, usare qualsiasi arma e mangiare qualsiasi frutto del diavolo.",
+        "taglia": 1,  # Taglia base
+        "livello_iniziale": 1,
+        "abilita_base": {
+            "forza": 2,
+            "velocita": 3,
+            "resistenza": 2,
+            "agilita": 3
+        },
         "aspettativa_vita": 80,
-        "vantaggi": ["Versatilità in tutti i ruoli", "Apprendimento rapido"],
-        "svantaggi": ["Nessun bonus particolare"]
+        "modificatori": {
+            "exp_multiplier": 1.0,  # 100% exp
+            "danno_armi_subito": 1.0,  # Nessuna modifica
+            "danno_fuoco_subito": 1.0,
+            "recupero_vita_multiplier": 1.0,
+            "recupero_energia_multiplier": 1.0,
+            "spostamento_combattimento": 1
+        },
+        "restrizioni": {
+            "armi_giganti": False,  # Non può usare armi dei giganti
+            "stili_bloccati": [],
+            "frutti_bloccati": [],
+            "luoghi_bloccati": []
+        },
+        "bonus_speciali": {
+            "tutti_stili": True,  # Può usare qualsiasi stile
+            "tutte_armi": True,  # Può usare qualsiasi arma (tranne giganti)
+            "tutti_frutti": True  # Può mangiare qualsiasi frutto
+        },
+        "vantaggi": [
+            "Può usare e imparare qualsiasi stile di combattimento",
+            "Può usare qualsiasi tipo di arma (tranne armi dei giganti)",
+            "Può mangiare qualsiasi frutto del diavolo",
+            "Nessun limite o restrizione particolare"
+        ],
+        "svantaggi": [
+            "Nessun bonus particolare di razza"
+        ]
     },
-    "uomo_pesce": {
-        "name": "Uomo Pesce",
-        "description": "Creature marine con forza 10 volte superiore agli umani in acqua.",
-        "bonus": {"forza": 20, "velocita": 8, "resistenza": 15, "agilita": 12},
-        "vita_base": 120,
-        "energia_base": 90,
-        "aspettativa_vita": 100,
-        "vantaggi": ["Forza 10x in acqua", "Può respirare sott'acqua", "Bonus nuoto"],
-        "svantaggi": ["Meno agile sulla terraferma"]
-    },
+    
     "visone": {
         "name": "Visone",
-        "description": "Creature antropomorfe con abilità elettriche innate (Electro).",
-        "bonus": {"forza": 12, "velocita": 15, "resistenza": 8, "agilita": 18},
-        "vita_base": 90,
-        "energia_base": 110,
+        "description": "Creature antropomorfe con abilità elettriche innate (Electro). Agili e veloci, ma vulnerabili alle armi.",
+        "taglia": 1,
+        "livello_iniziale": 1,
+        "abilita_base": {
+            "forza": 2,
+            "velocita": 4,
+            "resistenza": 1,
+            "agilita": 4
+        },
         "aspettativa_vita": 70,
-        "vantaggi": ["Electro innato", "Agilità superiore", "Sensi potenziati"],
-        "svantaggi": ["Resistenza minore", "Vita più bassa"]
+        "modificatori": {
+            "exp_multiplier": 0.5,  # 50% exp (la metà)
+            "danno_armi_subito": 1.25,  # +25% danno da armi (arrotondato per eccesso)
+            "danno_fuoco_subito": 1.0,
+            "recupero_vita_multiplier": 1.0,
+            "recupero_energia_multiplier": 1.0,
+            "spostamento_combattimento": 1
+        },
+        "restrizioni": {
+            "armi_giganti": False,
+            "stili_bloccati": [],
+            "frutti_bloccati": ["zoan"],  # Non può mangiare frutti Zoan
+            "luoghi_bloccati": []
+        },
+        "bonus_speciali": {
+            "stile_speciale": "visone",  # Sblocca stile combattimento Visone
+            "electro_innato": True,  # Può usare Electro senza allenamento
+            "luna_piena": {
+                "durata_turni": 5,
+                "danno_bonus": 1.0,  # +100% (raddoppia)
+                "abilita_bonus": 0.5,  # +50% a tutte le abilità
+                "spostamento_multiplier": 2,  # Spostamenti x2
+                "energia_finale_reduction": 0.7  # -70% energia a fine trasformazione
+            }
+        },
+        "vantaggi": [
+            "Velocità e Agilità elevate",
+            "Sblocca stile di combattimento speciale 'Visone' con mosse uniche",
+            "Electro innato (attacco elettrico)",
+            "Luna Piena: per 5 turni danno x2, abilità +50%, spostamenti x2"
+        ],
+        "svantaggi": [
+            "Danno da armi subito aumentato del 25%",
+            "Esperienza acquisita dimezzata (50%)",
+            "Non può mangiare frutti del diavolo di tipo Zoan",
+            "Dopo Luna Piena: energia residua -70%"
+        ]
     },
+    
+    "uomo_pesce": {
+        "name": "Uomo Pesce",
+        "description": "Creature marine con forza straordinaria in acqua. Maestri del Karate degli Uomini Pesce.",
+        "taglia": 1,
+        "livello_iniziale": 1,
+        "abilita_base": {
+            "forza": 4,
+            "velocita": 1,
+            "resistenza": 4,
+            "agilita": 1
+        },
+        "aspettativa_vita": 100,
+        "modificatori": {
+            "exp_multiplier": 1.0,  # 100% exp
+            "danno_armi_subito": 1.0,
+            "danno_fuoco_subito": 0.75,  # -25% danno da fuoco
+            "recupero_vita_multiplier": 1.0,
+            "recupero_energia_multiplier": 1.0,
+            "spostamento_combattimento": 1
+        },
+        "modificatori_acqua": {
+            "velocita_bonus": 2.0,  # +200% velocità in acqua
+            "agilita_bonus": 2.0,  # +200% agilità in acqua
+            "spostamento_multiplier": 2,  # Spostamenti x2 in acqua
+            "tempo_sott_acqua": -1  # Illimitato (-1 = infinito)
+        },
+        "restrizioni": {
+            "armi_giganti": False,
+            "stili_bloccati": [],
+            "frutti_bloccati": [],
+            "luoghi_bloccati": []
+        },
+        "bonus_speciali": {
+            "stile_speciale": "karate_uomini_pesce",  # Unico stile esclusivo
+            "mestiere_bonus": {
+                "timoniere": {"livello_iniziale": 2}  # Parte dal livello 2 come Timoniere
+            },
+            "respirazione_acquatica": True
+        },
+        "vantaggi": [
+            "In acqua: Velocità e Agilità +200%",
+            "Può stare in acqua quanto vuole (respirazione acquatica)",
+            "In acqua: spostamenti in combattimento x2",
+            "Danno da fuoco subito ridotto del 25%",
+            "Sblocca stile esclusivo 'Karate degli Uomini Pesce'",
+            "Se Timoniere: parte dal livello 2 del mestiere"
+        ],
+        "svantaggi": [
+            "Velocità e Agilità basse fuori dall'acqua"
+        ]
+    },
+    
     "semi_gigante": {
         "name": "Semi-Gigante",
-        "description": "Ibridi con sangue di gigante, più forti e resistenti della media.",
-        "bonus": {"forza": 18, "velocita": 6, "resistenza": 18, "agilita": 5},
-        "vita_base": 150,
-        "energia_base": 80,
-        "aspettativa_vita": 120,
-        "vantaggi": ["Forza e resistenza elevate", "Vita molto alta"],
-        "svantaggi": ["Lenti", "Poca agilità", "Bersaglio facile"]
+        "description": "Umani di taglia 3 volte superiore (come Bartolomeo, Big Mom, Kaido). Forti e resistenti ma lenti.",
+        "taglia": 3,  # 3x umano
+        "livello_iniziale": 3,  # Parte dal livello 3
+        "abilita_base": {
+            "forza": 4,
+            "velocita": 2,
+            "resistenza": 4,
+            "agilita": 2
+        },
+        "aspettativa_vita": 120,  # +50% rispetto umano
+        "modificatori": {
+            "exp_multiplier": 0.75,  # 75% exp (-25%)
+            "danno_armi_subito": 0.70,  # -30% danno da armi (arrotondato per eccesso)
+            "danno_fuoco_subito": 1.0,
+            "recupero_vita_multiplier": 1.3,  # +30% tempo recupero (più lento)
+            "recupero_energia_multiplier": 1.3,  # +30% tempo recupero (più lento)
+            "spostamento_combattimento": 1
+        },
+        "restrizioni": {
+            "armi_giganti": False,  # Può usare armi normali
+            "stili_bloccati": [],
+            "frutti_bloccati": [],
+            "luoghi_bloccati": []
+        },
+        "bonus_speciali": {
+            "distribuzione_abilita": {
+                # Per dare 1 punto a velocità/agilità, deve prima dare 3 punti a forza/resistenza
+                "rapporto_vel_agi": 3,  # 3:1
+                "abilita_primarie": ["forza", "resistenza"],
+                "abilita_secondarie": ["velocita", "agilita"]
+            }
+        },
+        "vantaggi": [
+            "Parte dal livello di combattimento 3",
+            "Danno da armi subito ridotto del 30%",
+            "Forza e Resistenza elevate",
+            "Aspettativa di vita aumentata del 50%"
+        ],
+        "svantaggi": [
+            "Esperienza acquisita ridotta del 25%",
+            "Tempi di recupero Vita ed Energia più lenti del 30%",
+            "Per ogni punto in Velocità/Agilità: prima 3 punti in Forza/Resistenza"
+        ]
     },
+    
     "gigante": {
         "name": "Gigante",
-        "description": "Creature enormi con forza devastante ma lente.",
-        "bonus": {"forza": 25, "velocita": 3, "resistenza": 22, "agilita": 2},
-        "vita_base": 200,
-        "energia_base": 70,
-        "aspettativa_vita": 300,
-        "vantaggi": ["Forza devastante", "Vita altissima", "Lunga vita"],
-        "svantaggi": ["Molto lenti", "Agilità quasi nulla", "Difficoltà in spazi stretti"]
+        "description": "Creature enormi da 10 a 20 volte la taglia umana. Forza devastante ma molte limitazioni.",
+        "taglia": 15,  # 10-20x umano (media 15)
+        "livello_iniziale": 7,  # Parte dal livello 7
+        "abilita_base": {
+            "forza": 10,
+            "velocita": 1,
+            "resistenza": 10,
+            "agilita": 1
+        },
+        "aspettativa_vita": 160,  # Doppio di umano
+        "modificatori": {
+            "exp_multiplier": 0.75,  # 75% exp (-25%)
+            "danno_armi_subito": 0.25,  # -75% danno da armi non giganti
+            "danno_fuoco_subito": 1.0,
+            "recupero_vita_multiplier": 1.5,  # +50% tempo recupero (più lento)
+            "recupero_energia_multiplier": 1.5,  # +50% tempo recupero (più lento)
+            "spostamento_combattimento": 4  # Spostamenti fissi a 4
+        },
+        "modificatori_acqua": {
+            "affonda": False  # Non affonda, sta sopra l'acqua
+        },
+        "restrizioni": {
+            "armi_giganti": True,  # Può usare SOLO armi dei giganti
+            "armi_normali": False,  # NON può usare armi normali
+            "oggetti_normali": False,  # Alcuni oggetti non utilizzabili
+            "stili_bloccati": [],
+            "frutti_bloccati": ["rogia"],  # Non può mangiare frutti Rogia
+            "luoghi_bloccati": ["locali", "edifici"],  # Solo spiagge, foreste, moli
+            "navi_normali": False  # Solo navi per giganti
+        },
+        "bonus_speciali": {
+            "distribuzione_abilita": {
+                # Per dare 1 punto a velocità/agilità, deve prima dare 5 punti a forza/resistenza
+                "rapporto_vel_agi": 5,  # 5:1
+                "abilita_primarie": ["forza", "resistenza"],
+                "abilita_secondarie": ["velocita", "agilita"]
+            }
+        },
+        "vantaggi": [
+            "Parte dal livello di combattimento 7",
+            "Forza e Resistenza enormi (10 base)",
+            "Danno da armi non giganti ridotto del 75%",
+            "Aspettativa di vita doppia (160 anni)",
+            "Spostamenti in combattimento fissi a 4",
+            "Non affonda in acqua (troppo grande)"
+        ],
+        "svantaggi": [
+            "Può usare SOLO armi dei giganti",
+            "Non può accedere a locali/edifici (solo spiagge, foreste, moli)",
+            "Può imbarcarsi solo su navi per giganti",
+            "Non può mangiare frutti del diavolo Rogia",
+            "Esperienza acquisita ridotta del 25%",
+            "Tempi di recupero Vita/Energia più lenti del 50%",
+            "Per ogni punto in Velocità/Agilità: prima 5 punti in Forza/Resistenza"
+        ]
     },
+    
     "cyborg": {
-        "name": "Cyborg",
-        "description": "Umani potenziati con parti meccaniche.",
-        "bonus": {"forza": 15, "velocita": 10, "resistenza": 20, "agilita": 8},
-        "vita_base": 130,
-        "energia_base": 120,
-        "aspettativa_vita": 60,
-        "vantaggi": ["Alta resistenza", "Può usare armi integrate", "Bonus con scienziato"],
-        "svantaggi": ["Vulnerabile all'acqua", "Necessita manutenzione", "Vita più breve"]
+        "name": "Cyborg (Androide)",
+        "description": "Umani potenziati con parti meccaniche. Possono integrare armi speciali e sono resistenti ai proiettili.",
+        "taglia": 1,
+        "livello_iniziale": 1,
+        "abilita_base": {
+            "forza": 4,
+            "velocita": 2,
+            "resistenza": 6,
+            "agilita": 1
+        },
+        "aspettativa_vita": 60,  # Vita più breve per usura meccanica
+        "modificatori": {
+            "exp_multiplier": 0.5,  # 50% exp (la metà)
+            "danno_armi_subito": 0.70,  # -30% danno da armi (arrotondato per eccesso)
+            "danno_fuoco_subito": 1.0,
+            "danno_armi_fuoco_normali": 0.0,  # Pistole/fucili/mitra = 0 danno
+            "recupero_vita_multiplier": 1.0,
+            "recupero_energia_multiplier": 1.0,
+            "spostamento_combattimento": 1
+        },
+        "restrizioni": {
+            "armi_giganti": False,
+            "stili_bloccati": [],
+            "frutti_bloccati": [],
+            "luoghi_bloccati": []
+        },
+        "bonus_speciali": {
+            "armi_integrate": True,  # Può integrare armi nel corpo
+            "armi_speciali": True,  # Può usare raggi laser, missili, ecc.
+            "mosse_esclusive": True,  # Mosse che altri non possono avere
+            "mestiere_bonus": {
+                "scienziato": {"livello_iniziale": 2},
+                "carpentiere": {"livello_iniziale": 2}
+            },
+            "armi_iniziali": ["cannone_braccio", "pugno_razzo"]  # Armi dalla creazione
+        },
+        "vantaggi": [
+            "Può integrare armi speciali (raggi laser, missili, ecc.)",
+            "Danno da armi ridotto del 30%",
+            "Colpi da armi da fuoco normali (pistola, fucile, mitra) = nessun effetto",
+            "Se Scienziato o Carpentiere: parte dal livello 2 del mestiere",
+            "Armi incorporate e mosse esclusive dalla creazione"
+        ],
+        "svantaggi": [
+            "Esperienza acquisita ridotta del 50%",
+            "Aspettativa di vita ridotta (60 anni)",
+            "Agilità molto bassa"
+        ]
     }
 }
+
+# Helper function per calcolare le statistiche iniziali del personaggio basate sulla razza
+def calculate_race_starting_stats(razza: str, mestiere: str = None) -> dict:
+    """
+    Calcola tutte le statistiche iniziali di un personaggio basandosi sulla razza scelta.
+    Include: abilità base, livello iniziale, modificatori, bonus mestiere, ecc.
+    """
+    race_data = RACE_STATS.get(razza, RACE_STATS["umano"])
+    
+    # Abilità base dalla razza
+    abilita = race_data.get("abilita_base", {"forza": 2, "velocita": 2, "resistenza": 2, "agilita": 2})
+    
+    # Calcola Attacco e Difesa derivati
+    attacco = abilita["forza"] + abilita["velocita"]
+    difesa = abilita["resistenza"] + abilita["agilita"]
+    
+    # Livello iniziale dalla razza
+    livello_iniziale = race_data.get("livello_iniziale", 1)
+    
+    # Vita ed Energia base (Livello × 100 per vita, Livello × 50 per energia)
+    vita_max = livello_iniziale * 100
+    energia_max = livello_iniziale * 50
+    
+    # Modificatori di razza
+    modificatori = race_data.get("modificatori", {})
+    
+    # Livello mestiere iniziale (controlla bonus razza)
+    livello_mestiere = 1  # Default "principiante"
+    bonus_speciali = race_data.get("bonus_speciali", {})
+    if mestiere and "mestiere_bonus" in bonus_speciali:
+        mestiere_bonus = bonus_speciali["mestiere_bonus"]
+        if mestiere.lower() in mestiere_bonus:
+            livello_mestiere = mestiere_bonus[mestiere.lower()].get("livello_iniziale", 1)
+    
+    # Armi iniziali per cyborg
+    armi_iniziali = []
+    if razza == "cyborg" and "armi_iniziali" in bonus_speciali:
+        for arma_id in bonus_speciali["armi_iniziali"]:
+            armi_iniziali.append({
+                "id": arma_id,
+                "nome": arma_id.replace("_", " ").title(),
+                "tipo": "integrata",
+                "equipaggiata": True
+            })
+    
+    # Stile speciale sbloccato dalla razza
+    stile_speciale = bonus_speciali.get("stile_speciale", None)
+    
+    return {
+        # Abilità
+        "forza": abilita["forza"],
+        "velocita": abilita["velocita"],
+        "resistenza": abilita["resistenza"],
+        "agilita": abilita["agilita"],
+        "attacco": attacco,
+        "difesa": difesa,
+        
+        # Livello e combat
+        "livello_combattimento": livello_iniziale,
+        "esperienza_livello": 0,
+        "esperienza_totale": 0,
+        "esperienza_prossimo_livello": 100 * livello_iniziale,
+        
+        # Vita ed Energia
+        "vita": vita_max,
+        "vita_max": vita_max,
+        "energia": energia_max,
+        "energia_max": energia_max,
+        
+        # Mestiere
+        "livello_mestiere": livello_mestiere,
+        
+        # Razza info
+        "taglia": race_data.get("taglia", 1),
+        "aspettativa_vita": race_data.get("aspettativa_vita", 80),
+        
+        # Modificatori combattimento
+        "modificatori_razza": {
+            "exp_multiplier": modificatori.get("exp_multiplier", 1.0),
+            "danno_armi_subito": modificatori.get("danno_armi_subito", 1.0),
+            "danno_fuoco_subito": modificatori.get("danno_fuoco_subito", 1.0),
+            "danno_armi_fuoco_normali": modificatori.get("danno_armi_fuoco_normali", 1.0),
+            "recupero_vita_multiplier": modificatori.get("recupero_vita_multiplier", 1.0),
+            "recupero_energia_multiplier": modificatori.get("recupero_energia_multiplier", 1.0),
+            "spostamento_combattimento": modificatori.get("spostamento_combattimento", 1)
+        },
+        
+        # Restrizioni
+        "restrizioni_razza": race_data.get("restrizioni", {}),
+        
+        # Bonus speciali
+        "stile_speciale_razza": stile_speciale,
+        "armi_iniziali": armi_iniziali,
+        
+        # Per distribuzione abilità (giganti/semi-giganti)
+        "distribuzione_abilita_regole": bonus_speciali.get("distribuzione_abilita", None),
+        
+        # Punti abilità
+        "punti_abilita_disponibili": 0,
+        "punti_abilita_totali": 0,
+        "punti_forza_resistenza_assegnati": 0  # Per tracking rapporto giganti
+    }
+
 
 # Fighting style bonuses
 FIGHTING_STYLES = {
@@ -620,24 +964,35 @@ async def create_character(char_data: CharacterCreate, request: Request):
     if char_data.genere not in ["maschio", "femmina", "non_definito"]:
         raise HTTPException(status_code=400, detail="Genere non valido")
     
-    # Calculate base stats from race
+    # Get race data and calculate starting stats
     race_data = RACE_STATS[char_data.razza]
     style_data = FIGHTING_STYLES[char_data.stile_combattimento]
     
-    # Base stats
-    forza = race_data["bonus"]["forza"] + style_data["bonus"].get("forza", 0)
-    velocita = race_data["bonus"]["velocita"] + style_data["bonus"].get("velocita", 0)
-    resistenza = race_data["bonus"]["resistenza"] + style_data["bonus"].get("resistenza", 0)
-    agilita = race_data["bonus"]["agilita"] + style_data["bonus"].get("agilita", 0)
+    # Calculate stats using the new race system
+    race_stats = calculate_race_starting_stats(char_data.razza, char_data.mestiere)
     
-    # Calculated stats (SOMMA, non moltiplicazione!)
-    # Attacco = Forza + Velocità
-    # Difesa = Resistenza + Agilità
+    # Add style bonuses to abilities
+    forza = race_stats["forza"] + style_data["bonus"].get("forza", 0)
+    velocita = race_stats["velocita"] + style_data["bonus"].get("velocita", 0)
+    resistenza = race_stats["resistenza"] + style_data["bonus"].get("resistenza", 0)
+    agilita = race_stats["agilita"] + style_data["bonus"].get("agilita", 0)
+    
+    # Recalculate derived stats with style bonuses
     attacco = forza + velocita
     difesa = resistenza + agilita
     
     # Life expectancy with gender modifier
-    aspettativa_vita = race_data["aspettativa_vita"] + GENDER_LIFE_MODIFIER.get(char_data.genere, 0)
+    aspettativa_vita = race_stats["aspettativa_vita"] + GENDER_LIFE_MODIFIER.get(char_data.genere, 0)
+    
+    # Determine mestiere level (check race bonus)
+    mestiere_livello = "principiante"
+    if race_stats["livello_mestiere"] > 1:
+        mestiere_livello = "esperto"  # Livello 2
+    
+    # Check if race has a special fighting style
+    stili_sbloccati = [char_data.stile_combattimento]
+    if race_stats["stile_speciale_razza"]:
+        stili_sbloccati.append(race_stats["stile_speciale_razza"])
     
     character_id = f"char_{uuid.uuid4().hex[:12]}"
     character = {
@@ -651,42 +1006,49 @@ async def create_character(char_data: CharacterCreate, request: Request):
         "genere": char_data.genere,
         "eta": char_data.eta,
         "razza": char_data.razza,
+        "taglia_razza": race_stats["taglia"],  # NEW: taglia fisica
         "stile_combattimento": char_data.stile_combattimento,
+        "stili_sbloccati": stili_sbloccati,  # NEW: lista stili utilizzabili
         "sogno": char_data.sogno,
         "storia_carattere": char_data.storia_carattere,
-        "tratti_carattere": [],  # Will be filled by AI extraction
+        "tratti_carattere": [],
         
         # Mestiere
         "mestiere": char_data.mestiere,
-        "mestiere_livello": "principiante",
+        "mestiere_livello": mestiere_livello,
+        "mestiere_exp": 0,
         
-        # PUBLIC STATS (visible to others)
-        "livello": 1,
+        # PUBLIC STATS
+        "livello": race_stats["livello_combattimento"],  # Usa livello iniziale razza
         "esperienza": 0,
         
-        # COMBAT LEVEL SYSTEM (nuovo)
-        "livello_combattimento": 1,
-        "esperienza_livello": 0,  # EXP per livello corrente (si azzera al level up)
-        "esperienza_totale": 0,   # EXP totale (mai azzerata)
-        "esperienza_prossimo_livello": BASE_EXP_FOR_LEVEL,  # 100 per primo livello
+        # COMBAT LEVEL SYSTEM - usa livello iniziale dalla razza
+        "livello_combattimento": race_stats["livello_combattimento"],
+        "esperienza_livello": 0,
+        "esperienza_totale": 0,
+        "esperienza_prossimo_livello": race_stats["esperienza_prossimo_livello"],
         
-        # ABILITY POINTS SYSTEM (nuovo)
-        "punti_abilita_disponibili": 0,  # Punti non ancora distribuiti
-        "punti_abilita_totali": 0,       # Totale punti guadagnati
+        # ABILITY POINTS SYSTEM
+        "punti_abilita_disponibili": 0,
+        "punti_abilita_totali": 0,
+        "punti_forza_resistenza_assegnati": 0,  # Per tracking rapporto giganti
+        
+        # Regole distribuzione abilità (per giganti/semi-giganti)
+        "distribuzione_abilita_regole": race_stats["distribuzione_abilita_regole"],
         
         "taglia": 0,  # Bounty in Berry
         "ciurma_id": None,
-        "ciurma_ruolo": None,  # "fondatore" or "membro"
+        "ciurma_ruolo": None,
         
-        # Combat abilities (PUBLIC)
-        "vita": race_data["vita_base"],
-        "vita_max": race_data["vita_base"],
-        "energia": race_data["energia_base"],
-        "energia_max": race_data["energia_base"],
+        # Combat stats - usa vita/energia basate su livello
+        "vita": race_stats["vita_max"],
+        "vita_max": race_stats["vita_max"],
+        "energia": race_stats["energia_max"],
+        "energia_max": race_stats["energia_max"],
         "attacco": attacco,
         "difesa": difesa,
         
-        # Base stats (can grow with experience)
+        # Base stats
         "forza": forza,
         "velocita": velocita,
         "resistenza": resistenza,
@@ -696,7 +1058,13 @@ async def create_character(char_data: CharacterCreate, request: Request):
         "aspettativa_vita": aspettativa_vita,
         "aspettativa_vita_max": aspettativa_vita,
         
-        # Altre capacità (PUBLIC - empty at start)
+        # === MODIFICATORI RAZZA (NEW) ===
+        "modificatori_razza": race_stats["modificatori_razza"],
+        
+        # === RESTRIZIONI RAZZA (NEW) ===
+        "restrizioni_razza": race_stats["restrizioni_razza"],
+        
+        # Altre capacità
         "frutto_diavolo": None,
         "haki": {
             "osservazione": False,
@@ -705,28 +1073,32 @@ async def create_character(char_data: CharacterCreate, request: Request):
         },
         "poteri_speciali": [],
         
-        # Equipment (PUBLIC)
-        "armi": [],
+        # Equipment - include armi iniziali per cyborg
+        "armi": race_stats["armi_iniziali"] if race_stats["armi_iniziali"] else [],
         "oggetti": [],
         "carte": {
             "storytelling": [],
             "eventi": [],
             "duello": [],
+            "combattimento": [],  # Per carte combattimento (es. Luna Piena)
             "risorse": []
         },
         
-        # PRIVATE STATS (only owner can see)
+        # PRIVATE STATS
         "abilita_base": {
             "forza_raw": forza,
             "velocita_raw": velocita,
             "resistenza_raw": resistenza,
             "agilita_raw": agilita,
-            "danno_subibile": race_data["vita_base"]
+            "danno_subibile": race_stats["vita_max"]
         },
         "armi_speciali": [],
         "poteri_segreti": [],
         "missioni_attive": [],
         "missioni_completate": [],
+        
+        # Mosse apprese (per mosse non base)
+        "mosse_apprese": [],
         
         # Appearance for avatar
         "aspetto": {
@@ -735,14 +1107,16 @@ async def create_character(char_data: CharacterCreate, request: Request):
             "particolarita": char_data.particolarita
         },
         
-        # Location - based on chosen sea
+        # Location
         "mare_corrente": char_data.mare_partenza,
         "isola_corrente": get_starting_island(char_data.mare_partenza),
+        "zona_corrente": None,
+        "in_acqua": False,  # Per bonus uomo pesce
         "nave": None,
         "navigazione_progresso": 0,
         
         # Economy
-        "berry": 1000,  # Starting money
+        "berry": 1000,
         
         # Logbook
         "logbook": [],
@@ -751,6 +1125,20 @@ async def create_character(char_data: CharacterCreate, request: Request):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "last_active": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Log iniziale basato sulla razza
+    log_entry = f"🎭 {char_data.nome_personaggio} inizia la sua avventura come {race_data['name']}!"
+    if race_stats["livello_combattimento"] > 1:
+        log_entry += f" Parte dal livello {race_stats['livello_combattimento']}."
+    if race_stats["stile_speciale_razza"]:
+        log_entry += f" Ha sbloccato lo stile speciale: {race_stats['stile_speciale_razza'].replace('_', ' ').title()}."
+    if race_stats["armi_iniziali"]:
+        log_entry += f" Armi integrate: {', '.join([a['nome'] for a in race_stats['armi_iniziali']])}."
+    
+    character["logbook"].append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "evento": log_entry
+    })
     
     await db.characters.insert_one(character)
     character.pop("_id", None)
