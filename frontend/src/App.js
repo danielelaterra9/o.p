@@ -2491,6 +2491,10 @@ const BattleArena = ({ token, character, isDemo }) => {
   const [currentPhase, setCurrentPhase] = useState('contrattacco'); // Default to attack phase
   const [showStatsPopup, setShowStatsPopup] = useState(false);
   const [playerStats, setPlayerStats] = useState(null);
+  
+  // Move Image Animation State
+  const [showMoveImage, setShowMoveImage] = useState(false);
+  const [currentMoveData, setCurrentMoveData] = useState(null);
 
   // Fetch battle phases info
   useEffect(() => {
@@ -2517,26 +2521,70 @@ const BattleArena = ({ token, character, isDemo }) => {
     setLoading(false);
   };
 
-  // New phase-based action
+  // Move names mapping for images
+  const moveNames = {
+    pugno: 'Pugno',
+    calcio: 'Calcio',
+    gomitata: 'Gomitata',
+    ginocchiata: 'Ginocchiata',
+    testata: 'Testata',
+    schivata: 'Schivata',
+    parata: 'Parata',
+    protezione: 'Protezione',
+    subire: 'Subire',
+    contrasto: 'Contrattacco',
+    colpo_potente: 'Colpo Potente',
+    tecnica_segreta: 'Tecnica Segreta'
+  };
+
+  // New phase-based action with image animation
   const doPhaseAction = async (fase, azione, parametri = {}) => {
     if (!battle || battle.turno_corrente !== 'player1' || actionLoading) return;
     setActionLoading(true);
+    
+    // Show move image for attack moves
+    const attackMoves = ['pugno', 'calcio', 'gomitata', 'ginocchiata', 'testata', 'colpo_potente', 'tecnica_segreta'];
+    const defenseMoves = ['schivata', 'parata', 'protezione', 'subire', 'contrasto'];
+    const isAttack = attackMoves.includes(azione);
+    const isDefense = defenseMoves.includes(azione);
+    
+    if (isAttack || isDefense) {
+      setCurrentMoveData({
+        moveId: azione,
+        moveName: moveNames[azione] || azione,
+        attackerName: battle.player1.nome,
+        defenderName: isAttack ? battle.player2.nome : null,
+        isDefense: isDefense
+      });
+      setShowMoveImage(true);
+    }
+    
     try {
       const res = await axios.post(`${API}/battle/${battle.battle_id}/phase-action`, 
         { fase, azione, parametri }, 
         { headers: { Authorization: `Bearer ${authToken}` } }
       );
-      if (res.data.success) {
-        setBattle(res.data.battle);
-        // Auto-advance to next phase if available
-        if (res.data.next_phase) {
-          setCurrentPhase(res.data.next_phase);
+      
+      // Wait for animation then update battle
+      setTimeout(() => {
+        setShowMoveImage(false);
+        setCurrentMoveData(null);
+        
+        if (res.data.success) {
+          setBattle(res.data.battle);
+          if (res.data.next_phase) {
+            setCurrentPhase(res.data.next_phase);
+          }
         }
-      }
+        setActionLoading(false);
+      }, isAttack || isDefense ? 2000 : 0);
+      
     } catch (e) {
       console.error('Phase action error:', e);
+      setShowMoveImage(false);
+      setCurrentMoveData(null);
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
 
   // End turn
@@ -2647,6 +2695,89 @@ const BattleArena = ({ token, character, isDemo }) => {
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] flex flex-col">
+      {/* Move Image Animation Overlay */}
+      <AnimatePresence>
+        {showMoveImage && currentMoveData && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="relative max-w-lg w-full mx-4"
+              initial={{ scale: 0.3, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              transition={{ type: "spring", damping: 15 }}
+            >
+              {/* Glowing border */}
+              <div className={`absolute -inset-2 rounded-2xl blur-md ${currentMoveData.isDefense ? 'bg-blue-500' : 'bg-red-500'}`} />
+              
+              {/* Image container */}
+              <div className="relative bg-gray-900 rounded-2xl overflow-hidden border-4 border-yellow-500/50">
+                <img
+                  src={`${BACKEND_URL}/api/moves/image/${currentMoveData.moveId}`}
+                  alt={currentMoveData.moveName}
+                  className="w-full aspect-video object-cover"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+                
+                {/* Overlay gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30" />
+                
+                {/* Move name */}
+                <motion.div 
+                  className="absolute top-4 left-0 right-0 text-center"
+                  initial={{ y: -50, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <h2 
+                    className="text-4xl md:text-5xl font-black text-white uppercase tracking-wider"
+                    style={{
+                      textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000'
+                    }}
+                  >
+                    {currentMoveData.moveName}
+                  </h2>
+                </motion.div>
+                
+                {/* Attacker/Defender names */}
+                <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                  <div className="text-left">
+                    <p className="text-xs text-gray-400">{currentMoveData.isDefense ? 'Difensore' : 'Attaccante'}</p>
+                    <p className="text-xl font-bold text-yellow-400">{currentMoveData.attackerName}</p>
+                  </div>
+                  {currentMoveData.defenderName && (
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400">Bersaglio</p>
+                      <p className="text-xl font-bold text-red-400">{currentMoveData.defenderName}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Speed lines decoration */}
+              <div className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-60">
+                {[...Array(5)].map((_, i) => (
+                  <motion.div 
+                    key={i}
+                    className="h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent mb-2"
+                    style={{ width: `${80 + i * 15}px` }}
+                    initial={{ x: -100, opacity: 0 }}
+                    animate={{ x: 0, opacity: 0.6 }}
+                    transition={{ delay: i * 0.05 }}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Turn & Phase indicator */}
       {!isBattleOver && (
         <div className={`p-2 ${isPlayerTurn ? 'bg-[#2A9D8F]' : 'bg-[#D00000]'}`}>
@@ -2816,16 +2947,16 @@ const BattleArena = ({ token, character, isDemo }) => {
                   <p className="text-xs text-[#00A8E8] mb-2">🛡️ Come reagisci all'attacco?</p>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => doPhaseAction('reazione', 'subire')} disabled={actionLoading} className="gameboy-button text-sm">
-                      😤 Subisci (+10 EN)
+                      😤 Subisci (+10% EN)
                     </button>
-                    <button onClick={() => doPhaseAction('reazione', 'schivata')} disabled={actionLoading || battle.player1.energia < 8} className="gameboy-button text-sm">
-                      🏃 Schiva (8 EN)
+                    <button onClick={() => doPhaseAction('reazione', 'schivata')} disabled={actionLoading || battle.player1.energia < 2} className="gameboy-button text-sm">
+                      💨 Schivata (2 EN)
                     </button>
-                    <button onClick={() => doPhaseAction('reazione', 'parata')} disabled={actionLoading || battle.player1.energia < 10} className="gameboy-button text-sm">
-                      🛡️ Para (10 EN)
+                    <button onClick={() => doPhaseAction('reazione', 'parata')} disabled={actionLoading || battle.player1.energia < 2} className="gameboy-button text-sm">
+                      🛡️ Parata (2 EN)
                     </button>
-                    <button onClick={() => doPhaseAction('reazione', 'contrasto')} disabled={actionLoading || battle.player1.energia < 15} className="gameboy-button text-sm">
-                      💥 Contrasta (15 EN)
+                    <button onClick={() => doPhaseAction('reazione', 'protezione')} disabled={actionLoading || battle.player1.energia < 4} className="gameboy-button text-sm">
+                      🙅 Protezione (4 EN)
                     </button>
                   </div>
                 </div>
@@ -2854,19 +2985,22 @@ const BattleArena = ({ token, character, isDemo }) => {
                 <div className="space-y-2">
                   <p className="text-xs text-[#D00000] mb-2">⚔️ Contrattacca!</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => doPhaseAction('contrattacco', 'pugno')} disabled={actionLoading || battle.player1.energia < 5} className="gameboy-button text-sm">
-                      👊 Pugno (5 EN)
+                    <button onClick={() => doPhaseAction('contrattacco', 'pugno')} disabled={actionLoading || battle.player1.energia < 1} className="gameboy-button text-sm">
+                      👊 Pugno (1 EN)
                     </button>
-                    <button onClick={() => doPhaseAction('contrattacco', 'calcio')} disabled={actionLoading || battle.player1.energia < 5} className="gameboy-button text-sm">
-                      🦵 Calcio (5 EN)
+                    <button onClick={() => doPhaseAction('contrattacco', 'calcio')} disabled={actionLoading || battle.player1.energia < 2} className="gameboy-button text-sm">
+                      🦵 Calcio (2 EN)
                     </button>
-                    <button onClick={() => doPhaseAction('contrattacco', 'colpo_potente')} disabled={actionLoading || battle.player1.energia < 15} className="gameboy-button text-sm">
-                      💪 Potente (15 EN)
+                    <button onClick={() => doPhaseAction('contrattacco', 'gomitata')} disabled={actionLoading || battle.player1.energia < 1} className="gameboy-button text-sm">
+                      💪 Gomitata (1 EN)
                     </button>
-                    <button onClick={() => doPhaseAction('contrattacco', 'tecnica_segreta')} disabled={actionLoading || battle.player1.energia < 25} className="gameboy-button text-sm">
-                      ⚡ Segreta (25 EN)
+                    <button onClick={() => doPhaseAction('contrattacco', 'ginocchiata')} disabled={actionLoading || battle.player1.energia < 1} className="gameboy-button text-sm">
+                      🦿 Ginocchiata (1 EN)
                     </button>
-                    <button onClick={() => doPhaseAction('contrattacco', 'riposo')} disabled={actionLoading} className="gameboy-button text-sm col-span-2">
+                    <button onClick={() => doPhaseAction('contrattacco', 'testata')} disabled={actionLoading || battle.player1.energia < 1} className="gameboy-button text-sm">
+                      🗣️ Testata (1 EN)
+                    </button>
+                    <button onClick={() => doPhaseAction('contrattacco', 'riposo')} disabled={actionLoading} className="gameboy-button text-sm">
                       💤 Riposa (+20 EN)
                     </button>
                   </div>
