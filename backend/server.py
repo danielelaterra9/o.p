@@ -813,6 +813,7 @@ async def delete_character(request: Request):
 # Ogni mossa ha: nome, energia, cd, distanza_max, raggio, condizioni, effetti, annullamento
 # Energia effettiva = energia_base × livello_combattimento / 2
 # Danno effettivo = CD × livello_combattimento
+# NOTA: Valori base per razza Umana. Altre razze avranno modificatori.
 
 # === MOSSE BASE ===
 # Disponibili a tutti i personaggi senza requisiti speciali
@@ -821,60 +822,21 @@ MOSSE_BASE = {
         "id": "pugno",
         "nome": "Pugno",
         "descrizione": "Un pugno diretto verso l'avversario.",
-        "energia": 5,
-        "cd": 3,
+        "energia": 1,
+        "cd": 1,
         "distanza_max": 1,
         "raggio": "corto",
         "condizioni": [],
         "effetti": None,
         "annullamento": None,
-        "tipo": "base"
-    },
-    "calcio": {
-        "id": "calcio",
-        "nome": "Calcio",
-        "descrizione": "Un calcio potente con la gamba.",
-        "energia": 5,
-        "cd": 3,
-        "distanza_max": 1,
-        "raggio": "corto",
-        "condizioni": [],
-        "effetti": None,
-        "annullamento": None,
-        "tipo": "base"
-    },
-    "colpo_rapido": {
-        "id": "colpo_rapido",
-        "nome": "Colpo Rapido",
-        "descrizione": "Un attacco veloce ma meno potente.",
-        "energia": 3,
-        "cd": 2,
-        "distanza_max": 1,
-        "raggio": "corto",
-        "condizioni": [],
-        "effetti": "Attacco prioritario: colpisce prima degli attacchi normali.",
-        "annullamento": None,
-        "tipo": "base"
-    },
-    "testata": {
-        "id": "testata",
-        "nome": "Testata",
-        "descrizione": "Un colpo violento con la testa.",
-        "energia": 8,
-        "cd": 4,
-        "distanza_max": 1,
-        "raggio": "corto",
-        "condizioni": [],
-        "effetti": "10% probabilità di stordire per 1 turno.",
-        "annullamento": "Non funziona contro elmetti o teste corazzate.",
         "tipo": "base"
     },
     "gomitata": {
         "id": "gomitata",
         "nome": "Gomitata",
         "descrizione": "Un colpo secco con il gomito.",
-        "energia": 6,
-        "cd": 4,
+        "energia": 1,
+        "cd": 1,
         "distanza_max": 1,
         "raggio": "corto",
         "condizioni": [],
@@ -886,8 +848,8 @@ MOSSE_BASE = {
         "id": "ginocchiata",
         "nome": "Ginocchiata",
         "descrizione": "Un colpo con il ginocchio.",
-        "energia": 6,
-        "cd": 4,
+        "energia": 1,
+        "cd": 1,
         "distanza_max": 1,
         "raggio": "corto",
         "condizioni": [],
@@ -895,31 +857,70 @@ MOSSE_BASE = {
         "annullamento": None,
         "tipo": "base"
     },
-    "spinta": {
-        "id": "spinta",
-        "nome": "Spinta",
-        "descrizione": "Spingi l'avversario per allontanarlo.",
-        "energia": 4,
+    "testata": {
+        "id": "testata",
+        "nome": "Testata",
+        "descrizione": "Un colpo violento con la testa.",
+        "energia": 1,
         "cd": 1,
         "distanza_max": 1,
         "raggio": "corto",
         "condizioni": [],
-        "effetti": "Sposta l'avversario di 1 distanza indietro.",
-        "annullamento": "Non funziona contro avversari molto più pesanti.",
+        "effetti": None,
+        "annullamento": None,
         "tipo": "base"
     },
-    "presa": {
-        "id": "presa",
-        "nome": "Presa",
-        "descrizione": "Afferra l'avversario per immobilizzarlo.",
-        "energia": 7,
-        "cd": 1,
-        "distanza_max": 1,
+    "calcio": {
+        "id": "calcio",
+        "nome": "Calcio",
+        "descrizione": "Un calcio potente con la gamba. Maggiore portata del pugno.",
+        "energia": 2,
+        "cd": 1.5,
+        "distanza_max": 2,
         "raggio": "corto",
         "condizioni": [],
-        "effetti": "Se riesce, l'avversario non può spostarsi per 1 turno.",
-        "annullamento": "Annullato da olio, corpo scivoloso o Logia.",
+        "effetti": None,
+        "annullamento": None,
         "tipo": "base"
+    },
+    "schivata": {
+        "id": "schivata",
+        "nome": "Schivata",
+        "descrizione": "Evita l'attacco avversario con un movimento agile.",
+        "energia": 2,
+        "cd": 0,
+        "distanza_max": 5,
+        "raggio": "corto",
+        "condizioni": ["distanza_attacco >= 2", "agilita_propria >= velocita_avversaria * 1.5"],
+        "effetti": "Non subisce danno diretto se l'agilità propria è almeno il 50% maggiore della velocità avversaria.",
+        "annullamento": "Non utilizzabile contro attacchi da distanza 1 (ravvicinato).",
+        "tipo": "difesa"
+    },
+    "parata": {
+        "id": "parata",
+        "nome": "Parata",
+        "descrizione": "Blocca l'attacco avversario con le braccia o un'arma.",
+        "energia": 2,
+        "cd": 0,
+        "distanza_max": 5,
+        "raggio": "corto",
+        "condizioni": ["resistenza_propria >= forza_avversaria * 1.5"],
+        "effetti": "Non subisce danno diretto se la resistenza propria è almeno il 50% maggiore della forza avversaria.",
+        "annullamento": None,
+        "tipo": "difesa"
+    },
+    "protezione": {
+        "id": "protezione",
+        "nome": "Protezione",
+        "descrizione": "Metti le braccia incrociate e piegati per proteggerti dal colpo.",
+        "energia": 4,
+        "cd": 0,
+        "distanza_max": 5,
+        "raggio": "corto",
+        "condizioni": [],
+        "effetti": "Riduce il danno: 25% base, 50% se difesa > attacco avversario, 75% se difesa >= 2× attacco, 100% se difesa >= 3× attacco.",
+        "annullamento": None,
+        "tipo": "difesa"
     }
 }
 
