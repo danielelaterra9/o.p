@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -18,6 +19,11 @@ import random
 import asyncio
 import re
 import copy
+import base64
+from io import BytesIO
+
+# Emergent Integrations per generazione immagini
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 
 def serialize_mongo_doc(doc: Any) -> Any:
@@ -2901,6 +2907,358 @@ async def simulate_damage(data: Dict[str, Any], request: Request):
         "danno_massimo": max_damage,
         "varianza": f"±{variance}"
     }
+
+
+# ============ MOVE IMAGES SYSTEM ============
+# Sistema per generare e gestire immagini delle mosse con AI
+
+# Prompt templates per generazione immagini in stile One Piece
+MOVE_IMAGE_PROMPTS = {
+    # Mosse Base - Attacchi
+    "pugno": "Dynamic anime action scene, muscular warrior throwing a powerful straight punch, fist impact with motion blur and energy waves, dramatic speed lines radiating outward, intense fighting pose, shonen manga style, high contrast lighting, no text, action manga panel composition",
+    
+    "gomitata": "Dynamic anime action scene, fighter delivering a devastating elbow strike, close combat impact moment, sharp angular motion lines, intense martial arts pose, shonen manga style, dramatic shadows, no text, powerful impact effect",
+    
+    "ginocchiata": "Dynamic anime action scene, warrior executing a powerful knee strike, upward thrust motion, impact energy burst, athletic combat pose, shonen manga style, speed lines and motion blur, no text, intense fighting moment",
+    
+    "testata": "Dynamic anime action scene, fierce warrior delivering a brutal headbutt attack, head collision impact with shockwave effect, determined expression, shonen manga style, dramatic close-up, no text, raw power visualization",
+    
+    "calcio": "Dynamic anime action scene, martial artist executing a sweeping high kick, leg extended with motion trail, wide arc attack, athletic fighting stance, shonen manga style, dramatic speed lines, no text, powerful leg technique",
+    
+    # Mosse Base - Difesa
+    "schivata": "Dynamic anime action scene, agile fighter dodging an attack with swift side movement, afterimage effect showing motion path, evasive maneuver, shonen manga style, blur effect indicating speed, no text, graceful evasion",
+    
+    "parata": "Dynamic anime action scene, warrior blocking an incoming attack with crossed arms, defensive stance with impact sparks, shield-like arm position, shonen manga style, force absorption effect, no text, solid defense visualization",
+    
+    "protezione": "Dynamic anime action scene, fighter in protective crouch position, arms crossed over body forming shield, defensive aura surrounding body, bracing for impact, shonen manga style, protective barrier effect, no text, ultimate defense pose",
+    
+    # Mosse Speciali Razza - Uomo Pesce
+    "karate_uomo_pesce": "Dynamic anime action scene, fishman warrior manipulating water currents for attack, water droplets forming into striking force, ocean martial arts technique, shonen manga style, blue water energy effects, no text, aquatic combat power",
+    
+    "morso_squalo": "Dynamic anime action scene, fierce fishman with sharp teeth lunging for a bite attack, predatory shark-like assault, savage water creature technique, shonen manga style, intense predator visualization, no text, feral attack",
+    
+    # Mosse Speciali Razza - Semi-Gigante
+    "pugno_devastante": "Dynamic anime action scene, massive warrior delivering earth-shattering punch, ground cracking from impact force, overwhelming physical power, shonen manga style, seismic impact visualization, no text, titan-like strength",
+    
+    "carica_brutale": "Dynamic anime action scene, giant warrior charging forward like unstoppable force, dust cloud trailing behind, bulldozing attack stance, shonen manga style, momentum and mass visualization, no text, overwhelming charge",
+    
+    "corpo_corazzato": "Dynamic anime action scene, massive fighter with hardened body deflecting attacks, impenetrable defense stance, iron-like skin visualization, shonen manga style, fortress body technique, no text, ultimate physical defense",
+    
+    "impatto_sismico": "Dynamic anime action scene, giant warrior slamming ground creating shockwave, earth-splitting impact, seismic attack spreading outward, shonen manga style, ground destruction visualization, no text, earthquake power",
+    
+    # Mosse Speciali Razza - Gigante
+    "pugno_gigante": "Dynamic anime action scene, enormous giant throwing building-sized punch, massive fist with devastating force, colossal impact incoming, shonen manga style, scale-emphasizing composition, no text, legendary giant power",
+    
+    "calpestamento": "Dynamic anime action scene, giant foot stomping down with crushing force, ground shattering beneath enormous weight, devastating stomp attack, shonen manga style, overwhelming size visualization, no text, crushing technique",
+    
+    # Mosse Speciali Razza - Visone
+    "electro": "Dynamic anime action scene, furry beast warrior channeling lightning through body, electrical discharge attack, sparking fur and crackling energy, shonen manga style, blue-white electricity effects, no text, natural electrical power",
+    
+    "forma_sulong": "Dynamic anime action scene, beast warrior transforming under full moon, white fur growing longer, eyes glowing red, primal power awakening, shonen manga style, moonlight transformation, no text, legendary beast form",
+    
+    # Mosse Speciali Razza - Cyborg
+    "cannone_interno": "Dynamic anime action scene, mechanical warrior firing built-in cannon from arm or chest, explosive projectile launch, cybernetic weapon system, shonen manga style, mechanical firing sequence, no text, technological firepower",
+    
+    "pugno_razzo": "Dynamic anime action scene, cyborg launching detachable rocket fist, mechanical arm flying toward target, jet propulsion trail, shonen manga style, sci-fi combat technology, no text, rocket punch technique",
+    
+    # Mosse Stile - Arti Marziali
+    "combo_marziale": "Dynamic anime action scene, martial artist executing rapid combo of punches and kicks, multiple strike afterimages, flurry of attacks, shonen manga style, speed and precision visualization, no text, devastating combo technique",
+    
+    "calcio_rotante": "Dynamic anime action scene, martial artist performing spinning roundhouse kick, 360 degree rotation with leg extended, circular motion trail, shonen manga style, tornado kick visualization, no text, spinning technique",
+    
+    # Mosse Arma - Spada
+    "fendente_spada": "Dynamic anime action scene, swordsman executing horizontal sword slash, blade cutting through air, sharp clean strike, shonen manga style, sword arc trail effect, no text, precision blade technique",
+    
+    "stoccata_spada": "Dynamic anime action scene, swordsman thrusting sword forward in precise stab, piercing attack with focused point, fencing-like technique, shonen manga style, penetrating strike visualization, no text, precision thrust",
+    
+    "taglio_ascendente": "Dynamic anime action scene, swordsman slashing upward in rising cut, blade ascending with force, lifting strike motion, shonen manga style, upward arc trail, no text, rising blade technique",
+    
+    # Carte Combattimento
+    "carta_attacco_sorpresa": "Dynamic anime action scene, mysterious fighter appearing suddenly from shadows for surprise attack, stealth assault moment, unexpected strike, shonen manga style, ninja-like appearance effect, no text, ambush technique",
+    
+    "carta_guarigione": "Dynamic anime action scene, warrior surrounded by healing green energy, wounds closing with light effect, restorative power flowing, shonen manga style, healing aura visualization, no text, recovery technique",
+    
+    # Default per mosse non specificate
+    "default": "Dynamic anime action scene, powerful warrior in intense combat pose, energy aura surrounding body, fighting spirit visualization, shonen manga style, dramatic lighting and speed lines, no text, battle-ready stance"
+}
+
+
+def get_move_image_prompt(move_id: str, move_name: str = None) -> str:
+    """Get the image generation prompt for a move"""
+    if move_id in MOVE_IMAGE_PROMPTS:
+        return MOVE_IMAGE_PROMPTS[move_id]
+    
+    # Se non c'è un prompt specifico, genera uno generico basato sul nome
+    if move_name:
+        return f"Dynamic anime action scene, warrior executing {move_name} technique, intense combat moment, shonen manga style, dramatic action pose with energy effects, speed lines and impact visualization, no text, powerful martial arts technique"
+    
+    return MOVE_IMAGE_PROMPTS["default"]
+
+
+@api_router.post("/moves/generate-image/{move_id}")
+async def generate_move_image(move_id: str, request: Request):
+    """
+    Generate an AI image for a combat move.
+    The image is generated once and stored in the database for reuse.
+    """
+    await get_current_user(request)
+    
+    # Verifica se l'immagine esiste già
+    existing_image = await db.move_images.find_one({"move_id": move_id})
+    if existing_image:
+        return {
+            "success": True,
+            "message": "Immagine già esistente",
+            "move_id": move_id,
+            "image_url": f"/api/moves/image/{move_id}",
+            "already_exists": True
+        }
+    
+    # Trova la mossa per ottenere il nome
+    move_name = None
+    move_data = None
+    
+    # Cerca in tutte le categorie di mosse
+    if move_id in MOSSE_BASE:
+        move_data = MOSSE_BASE[move_id]
+        move_name = move_data.get("nome")
+    else:
+        for razza, mosse in MOSSE_RAZZA.items():
+            if move_id in mosse:
+                move_data = mosse[move_id]
+                move_name = move_data.get("nome")
+                break
+        
+        if not move_data:
+            for stile, mosse in MOSSE_STILE.items():
+                if move_id in mosse:
+                    move_data = mosse[move_id]
+                    move_name = move_data.get("nome")
+                    break
+        
+        if not move_data:
+            for arma_tipo, mosse in MOSSE_ARMI.items():
+                if move_id in mosse:
+                    move_data = mosse[move_id]
+                    move_name = move_data.get("nome")
+                    break
+        
+        if not move_data and move_id in CARTE_COMBATTIMENTO:
+            move_data = CARTE_COMBATTIMENTO[move_id]
+            move_name = move_data.get("nome")
+    
+    if not move_name:
+        move_name = move_id.replace("_", " ").title()
+    
+    # Genera l'immagine con Gemini
+    try:
+        api_key = os.getenv("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurata")
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"move_image_{move_id}_{uuid.uuid4()}",
+            system_message="You are an expert anime artist specializing in dynamic action scenes."
+        )
+        
+        chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+        
+        prompt = get_move_image_prompt(move_id, move_name)
+        
+        msg = UserMessage(text=prompt)
+        
+        text_response, images = await chat.send_message_multimodal_response(msg)
+        
+        if not images or len(images) == 0:
+            raise HTTPException(status_code=500, detail="Nessuna immagine generata")
+        
+        # Salva l'immagine nel database
+        image_data = images[0]
+        
+        image_doc = {
+            "move_id": move_id,
+            "move_name": move_name,
+            "image_data": image_data["data"],  # Base64
+            "mime_type": image_data.get("mime_type", "image/png"),
+            "prompt_used": prompt,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "ai_response": text_response[:500] if text_response else None
+        }
+        
+        await db.move_images.insert_one(image_doc)
+        
+        return {
+            "success": True,
+            "message": f"Immagine generata per '{move_name}'",
+            "move_id": move_id,
+            "image_url": f"/api/moves/image/{move_id}",
+            "already_exists": False
+        }
+        
+    except Exception as e:
+        logging.error(f"Errore generazione immagine per {move_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore generazione immagine: {str(e)}")
+
+
+@api_router.get("/moves/image/{move_id}")
+async def get_move_image(move_id: str):
+    """
+    Get the image for a combat move.
+    Returns the image as a binary stream.
+    """
+    image_doc = await db.move_images.find_one({"move_id": move_id})
+    
+    if not image_doc:
+        raise HTTPException(status_code=404, detail=f"Immagine per mossa '{move_id}' non trovata. Genera prima con POST /moves/generate-image/{move_id}")
+    
+    # Decodifica base64 e restituisci come immagine
+    image_bytes = base64.b64decode(image_doc["image_data"])
+    mime_type = image_doc.get("mime_type", "image/png")
+    
+    return StreamingResponse(
+        BytesIO(image_bytes),
+        media_type=mime_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000",  # Cache per 1 anno
+            "X-Move-Name": image_doc.get("move_name", move_id)
+        }
+    )
+
+
+@api_router.get("/moves/image/{move_id}/base64")
+async def get_move_image_base64(move_id: str):
+    """
+    Get the image for a combat move as base64 string.
+    Useful for frontend that needs to embed the image directly.
+    """
+    image_doc = await db.move_images.find_one({"move_id": move_id})
+    
+    if not image_doc:
+        raise HTTPException(status_code=404, detail=f"Immagine per mossa '{move_id}' non trovata")
+    
+    return {
+        "move_id": move_id,
+        "move_name": image_doc.get("move_name"),
+        "image_base64": f"data:{image_doc.get('mime_type', 'image/png')};base64,{image_doc['image_data']}",
+        "generated_at": image_doc.get("generated_at")
+    }
+
+
+@api_router.get("/moves/images/status")
+async def get_all_move_images_status(request: Request):
+    """
+    Get status of all move images - which are generated and which are pending.
+    """
+    await get_current_user(request)
+    
+    # Raccogli tutte le mosse
+    all_moves = {}
+    
+    # Mosse base
+    for move_id, move_data in MOSSE_BASE.items():
+        all_moves[move_id] = {"nome": move_data.get("nome"), "tipo": "base", "categoria": "Mosse Base"}
+    
+    # Mosse razza
+    for razza, mosse in MOSSE_RAZZA.items():
+        for move_id, move_data in mosse.items():
+            all_moves[move_id] = {"nome": move_data.get("nome"), "tipo": "razza", "categoria": f"Razza {razza.title()}"}
+    
+    # Mosse stile
+    for stile, mosse in MOSSE_STILE.items():
+        for move_id, move_data in mosse.items():
+            all_moves[move_id] = {"nome": move_data.get("nome"), "tipo": "stile", "categoria": f"Stile {stile.title()}"}
+    
+    # Mosse arma
+    for arma, mosse in MOSSE_ARMI.items():
+        for move_id, move_data in mosse.items():
+            all_moves[move_id] = {"nome": move_data.get("nome"), "tipo": "arma", "categoria": f"Arma {arma.title()}"}
+    
+    # Carte
+    for move_id, move_data in CARTE_COMBATTIMENTO.items():
+        all_moves[move_id] = {"nome": move_data.get("nome"), "tipo": "carta", "categoria": "Carte Combattimento"}
+    
+    # Verifica quali immagini esistono
+    existing_images = await db.move_images.find({}, {"move_id": 1, "generated_at": 1}).to_list(None)
+    existing_map = {img["move_id"]: img.get("generated_at") for img in existing_images}
+    
+    generated = []
+    pending = []
+    
+    for move_id, move_info in all_moves.items():
+        move_status = {
+            "move_id": move_id,
+            **move_info
+        }
+        if move_id in existing_map:
+            move_status["generated_at"] = existing_map[move_id]
+            move_status["image_url"] = f"/api/moves/image/{move_id}"
+            generated.append(move_status)
+        else:
+            pending.append(move_status)
+    
+    return {
+        "total_moves": len(all_moves),
+        "generated_count": len(generated),
+        "pending_count": len(pending),
+        "generated": generated,
+        "pending": pending
+    }
+
+
+@api_router.post("/moves/generate-all-images")
+async def generate_all_move_images(request: Request):
+    """
+    Generate images for all moves that don't have one yet.
+    This is a batch operation - generates one at a time to avoid rate limits.
+    Returns status and starts generation in background.
+    """
+    await get_current_user(request)
+    
+    # Raccogli mosse senza immagine
+    all_move_ids = list(MOSSE_BASE.keys())
+    
+    for razza, mosse in MOSSE_RAZZA.items():
+        all_move_ids.extend(mosse.keys())
+    
+    for stile, mosse in MOSSE_STILE.items():
+        all_move_ids.extend(mosse.keys())
+    
+    for arma, mosse in MOSSE_ARMI.items():
+        all_move_ids.extend(mosse.keys())
+    
+    all_move_ids.extend(CARTE_COMBATTIMENTO.keys())
+    
+    # Trova quelle senza immagine
+    existing = await db.move_images.find({}, {"move_id": 1}).to_list(None)
+    existing_ids = {img["move_id"] for img in existing}
+    
+    pending_ids = [mid for mid in all_move_ids if mid not in existing_ids]
+    
+    return {
+        "message": f"Trovate {len(pending_ids)} mosse senza immagine su {len(all_move_ids)} totali",
+        "pending_moves": pending_ids,
+        "instruction": "Usa POST /api/moves/generate-image/{move_id} per generare ogni immagine singolarmente"
+    }
+
+
+@api_router.delete("/moves/image/{move_id}")
+async def delete_move_image(move_id: str, request: Request):
+    """
+    Delete a move image to allow regeneration.
+    """
+    await get_current_user(request)
+    
+    result = await db.move_images.delete_one({"move_id": move_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"Immagine per mossa '{move_id}' non trovata")
+    
+    return {
+        "success": True,
+        "message": f"Immagine per '{move_id}' eliminata. Puoi rigenerarla con POST /api/moves/generate-image/{move_id}"
+    }
+
 
 # ============ ABILITY POINTS ENDPOINTS ============
 

@@ -4,7 +4,16 @@
  * Esporta tutti i componenti e hooks per le animazioni di combattimento
  */
 
-// Componente principale animazione mossa
+// Componente principale per immagini mosse (AI Generated)
+export { default as MoveImage } from './MoveImageDisplay';
+export { 
+  useMoveImage, 
+  BattleMoveAnimation, 
+  useBattleMoveAnimation,
+  MoveImageGrid 
+} from './MoveImageDisplay';
+
+// Componenti legacy CSS animations (backup)
 export { default as MoveAnimation } from './MoveAnimation';
 export { useMoveAnimation, getMoveAnimationConfig, registerMoveAnimation } from './MoveAnimation';
 
