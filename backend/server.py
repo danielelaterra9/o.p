@@ -479,7 +479,230 @@ def calculate_race_starting_stats(razza: str, mestiere: str = None) -> dict:
     }
 
 
-# Fighting style bonuses
+# === FUNZIONI HELPER PER MODIFICATORI RAZZA ===
+
+def apply_race_damage_modifier(base_damage: int, defender_data: dict, attack_type: str = "normale", attacker_weapon: dict = None) -> tuple:
+    """
+    Applica i modificatori di razza al danno subito.
+    
+    Args:
+        base_damage: Danno base prima dei modificatori
+        defender_data: Dati del difensore (personaggio)
+        attack_type: Tipo di attacco ("normale", "arma", "arma_fuoco", "fuoco", "arma_gigante")
+        attacker_weapon: Dati dell'arma usata dall'attaccante (opzionale)
+    
+    Returns:
+        tuple: (danno_finale, descrizione_modifica)
+    """
+    modificatori = defender_data.get("modificatori_razza", {})
+    razza = defender_data.get("razza", "umano")
+    
+    final_damage = base_damage
+    description = ""
+    
+    # Modificatore danno armi da fuoco normali (Cyborg: 0 danno)
+    if attack_type == "arma_fuoco":
+        multiplier = modificatori.get("danno_armi_fuoco_normali", 1.0)
+        if multiplier == 0:
+            return 0, f"[{razza.upper()}] Immune alle armi da fuoco normali!"
+        final_damage = int(final_damage * multiplier)
+        if multiplier != 1.0:
+            description = f"[{razza.upper()}] Danno armi fuoco: {int(multiplier*100)}%"
+    
+    # Modificatore danno da fuoco (Uomo Pesce: -25%)
+    elif attack_type == "fuoco":
+        multiplier = modificatori.get("danno_fuoco_subito", 1.0)
+        final_damage = int(final_damage * multiplier)
+        if multiplier < 1.0:
+            description = f"[{razza.upper()}] Resistenza al fuoco: -{int((1-multiplier)*100)}%"
+    
+    # Modificatore danno da armi (varie razze)
+    elif attack_type in ["arma", "arma_gigante", "normale"]:
+        # Giganti: verifico se l'arma è gigante o normale
+        if razza == "gigante" and attack_type != "arma_gigante":
+            # Armi non giganti fanno -75% ai giganti
+            multiplier = modificatori.get("danno_armi_subito", 0.25)
+            final_damage = int(final_damage * multiplier)
+            description = f"[GIGANTE] Arma troppo piccola! Danno ridotto del 75%"
+        else:
+            multiplier = modificatori.get("danno_armi_subito", 1.0)
+            if multiplier != 1.0:
+                # Arrotonda per eccesso se > 1 (Visone), per eccesso se < 1 (altri)
+                import math
+                if multiplier > 1.0:
+                    final_damage = math.ceil(final_damage * multiplier)
+                    description = f"[{razza.upper()}] Vulnerabilità armi: +{int((multiplier-1)*100)}%"
+                else:
+                    final_damage = math.ceil(final_damage * multiplier)
+                    description = f"[{razza.upper()}] Resistenza armi: -{int((1-multiplier)*100)}%"
+    
+    return max(0, final_damage), description
+
+
+def apply_water_bonus(character_data: dict, in_water: bool = False) -> dict:
+    """
+    Applica i bonus acqua per Uomini Pesce.
+    
+    Returns:
+        dict con le statistiche modificate temporaneamente
+    """
+    razza = character_data.get("razza", "umano")
+    
+    if razza != "uomo_pesce" or not in_water:
+        return {
+            "velocita": character_data.get("velocita", 1),
+            "agilita": character_data.get("agilita", 1),
+            "spostamento_multiplier": 1,
+            "bonus_attivo": False
+        }
+    
+    # Uomo Pesce in acqua: +200% Velocità e Agilità, spostamenti x2
+    race_data = RACE_STATS.get("uomo_pesce", {})
+    water_mods = race_data.get("modificatori_acqua", {})
+    
+    vel_bonus = water_mods.get("velocita_bonus", 2.0)
+    agi_bonus = water_mods.get("agilita_bonus", 2.0)
+    
+    return {
+        "velocita": int(character_data.get("velocita", 1) * (1 + vel_bonus)),
+        "agilita": int(character_data.get("agilita", 1) * (1 + agi_bonus)),
+        "spostamento_multiplier": water_mods.get("spostamento_multiplier", 2),
+        "bonus_attivo": True,
+        "descrizione": "🌊 BONUS ACQUA: Velocità e Agilità +200%, Spostamenti x2!"
+    }
+
+
+def apply_sulong_transformation(character_data: dict, battle_state: dict) -> dict:
+    """
+    Applica la trasformazione Sulong (Luna Piena) per i Visoni.
+    
+    Returns:
+        dict con le modifiche da applicare
+    """
+    razza = character_data.get("razza", "umano")
+    
+    if razza != "visone":
+        return {"attivo": False}
+    
+    race_data = RACE_STATS.get("visone", {})
+    luna_piena = race_data.get("bonus_speciali", {}).get("luna_piena", {})
+    
+    return {
+        "attivo": True,
+        "durata_turni": luna_piena.get("durata_turni", 5),
+        "danno_bonus": luna_piena.get("danno_bonus", 1.0),  # +100%
+        "abilita_bonus": luna_piena.get("abilita_bonus", 0.5),  # +50%
+        "spostamento_multiplier": luna_piena.get("spostamento_multiplier", 2),
+        "energia_finale_reduction": luna_piena.get("energia_finale_reduction", 0.7),
+        "descrizione": "🌕 FORMA SULONG ATTIVATA! Danno x2, Abilità +50%, Spostamenti x2 per 5 turni!"
+    }
+
+
+def calculate_exp_with_race_modifier(base_exp: int, character_data: dict) -> tuple:
+    """
+    Calcola l'EXP guadagnata applicando il modificatore razza.
+    
+    Returns:
+        tuple: (exp_finale, descrizione)
+    """
+    modificatori = character_data.get("modificatori_razza", {})
+    razza = character_data.get("razza", "umano")
+    multiplier = modificatori.get("exp_multiplier", 1.0)
+    
+    final_exp = int(base_exp * multiplier)
+    
+    if multiplier < 1.0:
+        description = f"[{razza.upper()}] EXP ridotta: {int(multiplier*100)}% ({base_exp} → {final_exp})"
+    elif multiplier > 1.0:
+        description = f"[{razza.upper()}] EXP bonus: {int(multiplier*100)}% ({base_exp} → {final_exp})"
+    else:
+        description = ""
+    
+    return final_exp, description
+
+
+def validate_ability_distribution(character_data: dict, forza_add: int, velocita_add: int, 
+                                   resistenza_add: int, agilita_add: int) -> tuple:
+    """
+    Valida la distribuzione dei punti abilità secondo le regole della razza.
+    Per Giganti: rapporto 5:1 (5 punti in forza/resistenza per 1 in velocità/agilità)
+    Per Semi-Giganti: rapporto 3:1
+    
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    regole = character_data.get("distribuzione_abilita_regole")
+    
+    if not regole:
+        # Nessuna restrizione per questa razza
+        return True, ""
+    
+    rapporto = regole.get("rapporto_vel_agi", 1)
+    abilita_primarie = regole.get("abilita_primarie", [])
+    abilita_secondarie = regole.get("abilita_secondarie", [])
+    
+    # Calcola punti assegnati a primarie e secondarie
+    punti_primarie = 0
+    punti_secondarie = 0
+    
+    if "forza" in abilita_primarie:
+        punti_primarie += forza_add
+    if "resistenza" in abilita_primarie:
+        punti_primarie += resistenza_add
+    if "velocita" in abilita_secondarie:
+        punti_secondarie += velocita_add
+    if "agilita" in abilita_secondarie:
+        punti_secondarie += agilita_add
+    
+    # Tracking dei punti già assegnati in forza/resistenza
+    punti_fr_esistenti = character_data.get("punti_forza_resistenza_assegnati", 0)
+    punti_fr_totali = punti_fr_esistenti + punti_primarie
+    
+    # Calcola quanti punti secondari sono permessi
+    punti_secondari_permessi = punti_fr_totali // rapporto
+    
+    # Conta punti secondari già usati (stima basata sulle abilità attuali vs base)
+    razza = character_data.get("razza", "umano")
+    race_base = RACE_STATS.get(razza, {}).get("abilita_base", {})
+    vel_base = race_base.get("velocita", 1)
+    agi_base = race_base.get("agilita", 1)
+    
+    punti_secondari_usati = (character_data.get("velocita", vel_base) - vel_base) + \
+                           (character_data.get("agilita", agi_base) - agi_base)
+    
+    punti_secondari_totali = punti_secondari_usati + punti_secondarie
+    
+    if punti_secondari_totali > punti_secondari_permessi:
+        razza_nome = RACE_STATS.get(razza, {}).get("name", razza)
+        return False, f"[{razza_nome}] Devi assegnare {rapporto} punti in Forza/Resistenza per ogni punto in Velocità/Agilità. " \
+                     f"Hai {punti_fr_totali} punti F/R, puoi assegnare max {punti_secondari_permessi} punti V/A (hai già {punti_secondari_usati})."
+    
+    return True, ""
+
+
+def get_race_movement_speed(character_data: dict, in_water: bool = False, sulong_active: bool = False) -> int:
+    """
+    Calcola la velocità di spostamento in combattimento basata sulla razza.
+    """
+    modificatori = character_data.get("modificatori_razza", {})
+    razza = character_data.get("razza", "umano")
+    
+    # Base movement
+    base_movement = modificatori.get("spostamento_combattimento", 1)
+    
+    # Giganti hanno spostamento fisso a 4
+    if razza == "gigante":
+        return 4
+    
+    # Bonus acqua per Uomo Pesce
+    if razza == "uomo_pesce" and in_water:
+        base_movement *= 2
+    
+    # Bonus Sulong per Visone
+    if razza == "visone" and sulong_active:
+        base_movement *= 2
+    
+    return base_movement
 FIGHTING_STYLES = {
     "arti_marziali": {
         "name": "Arti Marziali",
@@ -2449,6 +2672,7 @@ def calculate_combat_damage(attacker_level: int, cd: float, base_attack: int = 0
 async def award_exp_and_check_levelup(user_id: str, exp_gained: int, db_instance) -> Dict:
     """
     Assegna EXP e controlla se il personaggio sale di livello.
+    Applica il modificatore razza all'EXP.
     Restituisce info sul level up se avvenuto.
     """
     character = await db_instance.characters.find_one({"user_id": user_id}, {"_id": 0})
@@ -2460,9 +2684,13 @@ async def award_exp_and_check_levelup(user_id: str, exp_gained: int, db_instance
     total_exp = character.get("esperienza_totale", 0)
     exp_for_next = character.get("esperienza_prossimo_livello", calculate_exp_for_next_level(current_level))
     
-    # Applica moltiplicatore EXP
+    # Applica moltiplicatore EXP base
     multiplier = calculate_exp_multiplier(current_level)
     actual_exp_gained = exp_gained * multiplier
+    
+    # === APPLICA MODIFICATORE RAZZA ALL'EXP ===
+    race_exp, race_description = calculate_exp_with_race_modifier(actual_exp_gained, character)
+    actual_exp_gained = race_exp
     
     new_exp = current_exp + actual_exp_gained
     new_total = total_exp + actual_exp_gained
@@ -2499,6 +2727,7 @@ async def award_exp_and_check_levelup(user_id: str, exp_gained: int, db_instance
         "new_level": current_level,
         "exp_gained": actual_exp_gained,
         "exp_multiplier": multiplier,
+        "race_exp_modifier": race_description if race_description else None,
         "current_exp": new_exp,
         "exp_for_next_level": exp_for_next,
         "total_exp": new_total
@@ -3646,6 +3875,8 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
     }
     
     La somma deve essere <= punti_abilita_disponibili
+    Per Giganti: rapporto 5:1 (5 punti F/R per 1 punto V/A)
+    Per Semi-Giganti: rapporto 3:1
     """
     user = await get_current_user(request)
     character = await db.characters.find_one({"user_id": user["user_id"]}, {"_id": 0})
@@ -3675,6 +3906,14 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
             "punti_rimanenti": available_points
         }
     
+    # === VALIDA REGOLE RAZZA (Giganti/Semi-Giganti) ===
+    is_valid, error_msg = validate_ability_distribution(
+        character, forza_add, velocita_add, resistenza_add, agilita_add
+    )
+    
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
     # Apply distribution
     new_forza = character.get("forza", 10) + forza_add
     new_velocita = character.get("velocita", 10) + velocita_add
@@ -3684,6 +3923,10 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
     # Recalculate attack and defense
     new_attacco = new_forza + new_velocita
     new_difesa = new_resistenza + new_agilita
+    
+    # Aggiorna tracking punti forza/resistenza per giganti
+    punti_fr_attuali = character.get("punti_forza_resistenza_assegnati", 0)
+    nuovi_punti_fr = punti_fr_attuali + forza_add + resistenza_add
     
     # Update database
     await db.characters.update_one(
@@ -3695,7 +3938,8 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
                 "resistenza": new_resistenza,
                 "agilita": new_agilita,
                 "attacco": new_attacco,
-                "difesa": new_difesa
+                "difesa": new_difesa,
+                "punti_forza_resistenza_assegnati": nuovi_punti_fr
             },
             "$inc": {
                 "punti_abilita_disponibili": -total_to_spend
@@ -3703,8 +3947,17 @@ async def distribute_ability_points(data: Dict[str, int], request: Request):
         }
     )
     
+    # Messaggio aggiuntivo per razze con restrizioni
+    razza = character.get("razza", "umano")
+    extra_message = ""
+    if razza in ["gigante", "semi_gigante"]:
+        regole = character.get("distribuzione_abilita_regole", {})
+        rapporto = regole.get("rapporto_vel_agi", 1) if regole else 1
+        punti_va_permessi = nuovi_punti_fr // rapporto
+        extra_message = f" [Punti F/R: {nuovi_punti_fr}, max V/A permessi: {punti_va_permessi}]"
+    
     return {
-        "message": f"Distribuiti {total_to_spend} punti abilità!",
+        "message": f"Distribuiti {total_to_spend} punti abilità!{extra_message}",
         "distribuzione": {
             "forza": f"+{forza_add}" if forza_add > 0 else "0",
             "velocita": f"+{velocita_add}" if velocita_add > 0 else "0",
@@ -4027,6 +4280,169 @@ async def get_available_moves(battle_id: str, request: Request):
         "raggi_azione": ATTACK_RANGES
     }
 
+
+@api_router.post("/battle/{battle_id}/activate-sulong")
+async def activate_sulong_transformation(battle_id: str, request: Request):
+    """
+    Attiva la trasformazione Sulong (Luna Piena) per un personaggio Visone.
+    Richiede la carta combattimento 'luna_piena' nell'inventario.
+    
+    Effetti per 5 turni:
+    - Danno totale +100% (raddoppia)
+    - Tutte le abilità +50%
+    - Spostamenti x2
+    - Al termine: energia residua -70%
+    """
+    user = await get_current_user(request)
+    
+    if battle_id not in active_battles:
+        raise HTTPException(status_code=404, detail="Battaglia non trovata")
+    
+    battle = active_battles[battle_id]
+    current_player = "player1" if battle["player1"]["user_id"] == user["user_id"] else "player2"
+    player_data = battle[current_player]
+    
+    # Verifica razza Visone
+    if player_data.get("razza") != "visone":
+        raise HTTPException(status_code=400, detail="Solo i Visoni possono usare la trasformazione Sulong!")
+    
+    # Verifica se già attiva
+    if battle.get(f"{current_player}_sulong_active"):
+        raise HTTPException(status_code=400, detail="Trasformazione Sulong già attiva!")
+    
+    # Verifica carta Luna Piena (opzionale - può essere evento notturno)
+    # Per ora permettiamo l'attivazione sempre, in futuro richiederà la carta
+    
+    # Ottieni configurazione Sulong
+    sulong_config = apply_sulong_transformation(player_data, battle)
+    
+    # Attiva Sulong
+    battle[f"{current_player}_sulong_active"] = True
+    battle[f"{current_player}_sulong_turni_rimanenti"] = sulong_config["durata_turni"]
+    battle[f"{current_player}_sulong_config"] = {
+        "danno_bonus": sulong_config["danno_bonus"],
+        "abilita_bonus": sulong_config["abilita_bonus"],
+        "spostamento_multiplier": sulong_config["spostamento_multiplier"],
+        "energia_finale_reduction": sulong_config["energia_finale_reduction"]
+    }
+    
+    # Applica bonus temporanei alle abilità (+50%)
+    bonus = sulong_config["abilita_bonus"]
+    player_data["forza_sulong"] = int(player_data["forza"] * (1 + bonus))
+    player_data["velocita_sulong"] = int(player_data["velocita"] * (1 + bonus))
+    player_data["resistenza_sulong"] = int(player_data["resistenza"] * (1 + bonus))
+    player_data["agilita_sulong"] = int(player_data["agilita"] * (1 + bonus))
+    
+    narration = f"🌕 {player_data['nome']} guarda la luna piena e si trasforma! FORMA SULONG ATTIVATA! " \
+               f"Per {sulong_config['durata_turni']} turni: Danno x2, Abilità +50%, Spostamenti x2!"
+    
+    battle["log"].append(narration)
+    
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "message": "Trasformazione Sulong attivata!",
+        "turni_rimanenti": sulong_config["durata_turni"],
+        "bonus": {
+            "danno": "+100%",
+            "abilita": "+50%",
+            "spostamento": "x2"
+        },
+        "avviso": "Al termine dei 5 turni, l'energia residua sarà ridotta del 70%!",
+        "narrazione": narration,
+        "battle": battle
+    }
+
+
+@api_router.post("/battle/{battle_id}/toggle-water")
+async def toggle_water_combat(battle_id: str, data: Dict[str, bool], request: Request):
+    """
+    Attiva/disattiva la modalità combattimento in acqua.
+    Gli Uomini Pesce ricevono bonus in acqua.
+    
+    Body: { "in_acqua": true/false }
+    """
+    user = await get_current_user(request)
+    
+    if battle_id not in active_battles:
+        raise HTTPException(status_code=404, detail="Battaglia non trovata")
+    
+    battle = active_battles[battle_id]
+    in_acqua = data.get("in_acqua", False)
+    
+    battle["ambiente_acquatico"] = in_acqua
+    
+    narration_parts = []
+    
+    # Applica/rimuovi bonus acqua per entrambi i giocatori
+    for player_key in ["player1", "player2"]:
+        player_data = battle[player_key]
+        razza = player_data.get("razza", "umano")
+        
+        if razza == "uomo_pesce":
+            water_bonus = apply_water_bonus(player_data, in_acqua)
+            battle[f"{player_key}_water_bonus"] = water_bonus
+            
+            if in_acqua and water_bonus["bonus_attivo"]:
+                narration_parts.append(f"🌊 {player_data['nome']} è nel suo elemento! {water_bonus['descrizione']}")
+            elif not in_acqua:
+                narration_parts.append(f"💧 {player_data['nome']} è fuori dall'acqua.")
+        
+        # Giganti non affondano
+        elif razza == "gigante" and in_acqua:
+            narration_parts.append(f"🏔️ {player_data['nome']} è troppo grande per affondare!")
+    
+    if narration_parts:
+        full_narration = " ".join(narration_parts)
+        battle["log"].append(full_narration)
+    
+    active_battles[battle_id] = battle
+    await db.battles.update_one({"battle_id": battle_id}, {"$set": battle}, upsert=True)
+    
+    return {
+        "success": True,
+        "ambiente_acquatico": in_acqua,
+        "narrazione": " ".join(narration_parts) if narration_parts else None,
+        "battle": battle
+    }
+
+
+@api_router.get("/battle/{battle_id}/race-bonuses")
+async def get_battle_race_bonuses(battle_id: str, request: Request):
+    """
+    Ottieni i bonus razza attivi nella battaglia corrente.
+    """
+    user = await get_current_user(request)
+    
+    if battle_id not in active_battles:
+        raise HTTPException(status_code=404, detail="Battaglia non trovata")
+    
+    battle = active_battles[battle_id]
+    
+    bonuses = {}
+    for player_key in ["player1", "player2"]:
+        player_data = battle[player_key]
+        razza = player_data.get("razza", "umano")
+        race_data = RACE_STATS.get(razza, {})
+        
+        bonuses[player_key] = {
+            "nome": player_data.get("nome"),
+            "razza": razza,
+            "razza_nome": race_data.get("name", razza),
+            "modificatori": player_data.get("modificatori_razza", {}),
+            "sulong_attivo": battle.get(f"{player_key}_sulong_active", False),
+            "sulong_turni_rimanenti": battle.get(f"{player_key}_sulong_turni_rimanenti", 0),
+            "water_bonus": battle.get(f"{player_key}_water_bonus", {}),
+            "ambiente_acquatico": battle.get("ambiente_acquatico", False),
+            "vantaggi_razza": race_data.get("vantaggi", []),
+            "svantaggi_razza": race_data.get("svantaggi", [])
+        }
+    
+    return bonuses
+
+
 @api_router.post("/battle/{battle_id}/attack")
 async def execute_battle_attack(battle_id: str, data: Dict[str, Any], request: Request):
     """
@@ -4250,6 +4666,28 @@ async def execute_battle_reaction(battle_id: str, data: Dict[str, Any], request:
             
             # Spendi energia per contrattacco
             player_data["energia"] = max(0, player_data["energia"] - move_data.get("energia", 5))
+    
+    # === APPLICA MODIFICATORI RAZZA AL DANNO ===
+    if final_damage > 0:
+        # Determina il tipo di attacco dall'attacco pendente
+        attack_type = pending_attack.get("tipo_attacco", "normale")
+        attacker_weapon = pending_attack.get("arma", None)
+        
+        # Applica modificatore razza al danno
+        modified_damage, damage_description = apply_race_damage_modifier(
+            final_damage, 
+            player_data, 
+            attack_type, 
+            attacker_weapon
+        )
+        
+        if damage_description:
+            narration_parts.append(damage_description)
+        
+        if modified_damage != final_damage:
+            narration_parts.append(f"(Danno: {final_damage} → {modified_damage})")
+        
+        final_damage = modified_damage
     
     # Applica danno
     if final_damage > 0:
