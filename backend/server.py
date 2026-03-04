@@ -2912,74 +2912,29 @@ async def simulate_damage(data: Dict[str, Any], request: Request):
 # ============ MOVE IMAGES SYSTEM ============
 # Sistema per generare e gestire immagini delle mosse con AI
 
-# Prompt templates per generazione immagini in stile One Piece
+# Prompt templates per generazione immagini - STILE ORIGINALE
+# Focus su: silhouette, azione pura, impatto, NO personaggi riconoscibili
 MOVE_IMAGE_PROMPTS = {
-    # Mosse Base - Attacchi
-    "pugno": "Dynamic anime action scene, muscular warrior throwing a powerful straight punch, fist impact with motion blur and energy waves, dramatic speed lines radiating outward, intense fighting pose, shonen manga style, high contrast lighting, no text, action manga panel composition",
+    # Mosse Base - Attacchi (focus su silhouette e impatto)
+    "pugno": "Close-up of a clenched fist punching forward with explosive impact, shockwave rings emanating from knuckles, dramatic radial speed lines, dust and debris flying, high contrast black and white manga style, focus only on the fist and impact effect, no face visible, raw power visualization, dynamic action art",
     
-    "gomitata": "Dynamic anime action scene, fighter delivering a devastating elbow strike, close combat impact moment, sharp angular motion lines, intense martial arts pose, shonen manga style, dramatic shadows, no text, powerful impact effect",
+    "gomitata": "Dramatic elbow strike impact moment, arm bent at sharp angle delivering blow, impact starburst effect at contact point, motion blur on the arm, black and white ink style illustration, anatomical focus on elbow and forearm muscles, speed lines converging at impact, no character face, pure combat technique art",
     
-    "ginocchiata": "Dynamic anime action scene, warrior executing a powerful knee strike, upward thrust motion, impact energy burst, athletic combat pose, shonen manga style, speed lines and motion blur, no text, intense fighting moment",
+    "ginocchiata": "Powerful knee thrust upward in combat, leg muscles tensed, impact explosion at knee point, victim silhouette being hit, dramatic low angle view, black and white manga ink style, speed lines showing upward motion, focus on leg anatomy and impact, no faces, raw martial arts power",
     
-    "testata": "Dynamic anime action scene, fierce warrior delivering a brutal headbutt attack, head collision impact with shockwave effect, determined expression, shonen manga style, dramatic close-up, no text, raw power visualization",
+    "testata": "Two heads colliding in brutal headbutt, viewed from side angle, impact shockwave between foreheads, sweat and energy droplets flying, black and white high contrast style, skulls nearly touching with force lines, no identifiable features, pure collision impact art, dramatic close-up",
     
-    "calcio": "Dynamic anime action scene, martial artist executing a sweeping high kick, leg extended with motion trail, wide arc attack, athletic fighting stance, shonen manga style, dramatic speed lines, no text, powerful leg technique",
+    "calcio": "High kick arc sweeping through air, leg fully extended creating motion trail, circular speed lines following kick path, impact target shattering, black and white dynamic illustration, focus on leg silhouette and motion arc, barefoot or simple boot, no character details, pure kicking technique",
     
-    # Mosse Base - Difesa
-    "schivata": "Dynamic anime action scene, agile fighter dodging an attack with swift side movement, afterimage effect showing motion path, evasive maneuver, shonen manga style, blur effect indicating speed, no text, graceful evasion",
+    # Mosse Base - Difesa (focus su postura e energia difensiva)
+    "schivata": "Figure leaning back to dodge attack, multiple afterimage silhouettes showing evasion path, attack passing through empty space, dramatic perspective, black and white style with motion blur, faceless figure in fluid dodge motion, speed emphasized, graceful evasion technique art",
     
-    "parata": "Dynamic anime action scene, warrior blocking an incoming attack with crossed arms, defensive stance with impact sparks, shield-like arm position, shonen manga style, force absorption effect, no text, solid defense visualization",
+    "parata": "Crossed forearms blocking incoming strike, impact sparks flying at block point, defensive X formation with arms, force waves being deflected, black and white manga style, focus on arms and defensive posture, no face visible, solid blocking technique visualization",
     
-    "protezione": "Dynamic anime action scene, fighter in protective crouch position, arms crossed over body forming shield, defensive aura surrounding body, bracing for impact, shonen manga style, protective barrier effect, no text, ultimate defense pose",
-    
-    # Mosse Speciali Razza - Uomo Pesce
-    "karate_uomo_pesce": "Dynamic anime action scene, fishman warrior manipulating water currents for attack, water droplets forming into striking force, ocean martial arts technique, shonen manga style, blue water energy effects, no text, aquatic combat power",
-    
-    "morso_squalo": "Dynamic anime action scene, fierce fishman with sharp teeth lunging for a bite attack, predatory shark-like assault, savage water creature technique, shonen manga style, intense predator visualization, no text, feral attack",
-    
-    # Mosse Speciali Razza - Semi-Gigante
-    "pugno_devastante": "Dynamic anime action scene, massive warrior delivering earth-shattering punch, ground cracking from impact force, overwhelming physical power, shonen manga style, seismic impact visualization, no text, titan-like strength",
-    
-    "carica_brutale": "Dynamic anime action scene, giant warrior charging forward like unstoppable force, dust cloud trailing behind, bulldozing attack stance, shonen manga style, momentum and mass visualization, no text, overwhelming charge",
-    
-    "corpo_corazzato": "Dynamic anime action scene, massive fighter with hardened body deflecting attacks, impenetrable defense stance, iron-like skin visualization, shonen manga style, fortress body technique, no text, ultimate physical defense",
-    
-    "impatto_sismico": "Dynamic anime action scene, giant warrior slamming ground creating shockwave, earth-splitting impact, seismic attack spreading outward, shonen manga style, ground destruction visualization, no text, earthquake power",
-    
-    # Mosse Speciali Razza - Gigante
-    "pugno_gigante": "Dynamic anime action scene, enormous giant throwing building-sized punch, massive fist with devastating force, colossal impact incoming, shonen manga style, scale-emphasizing composition, no text, legendary giant power",
-    
-    "calpestamento": "Dynamic anime action scene, giant foot stomping down with crushing force, ground shattering beneath enormous weight, devastating stomp attack, shonen manga style, overwhelming size visualization, no text, crushing technique",
-    
-    # Mosse Speciali Razza - Visone
-    "electro": "Dynamic anime action scene, furry beast warrior channeling lightning through body, electrical discharge attack, sparking fur and crackling energy, shonen manga style, blue-white electricity effects, no text, natural electrical power",
-    
-    "forma_sulong": "Dynamic anime action scene, beast warrior transforming under full moon, white fur growing longer, eyes glowing red, primal power awakening, shonen manga style, moonlight transformation, no text, legendary beast form",
-    
-    # Mosse Speciali Razza - Cyborg
-    "cannone_interno": "Dynamic anime action scene, mechanical warrior firing built-in cannon from arm or chest, explosive projectile launch, cybernetic weapon system, shonen manga style, mechanical firing sequence, no text, technological firepower",
-    
-    "pugno_razzo": "Dynamic anime action scene, cyborg launching detachable rocket fist, mechanical arm flying toward target, jet propulsion trail, shonen manga style, sci-fi combat technology, no text, rocket punch technique",
-    
-    # Mosse Stile - Arti Marziali
-    "combo_marziale": "Dynamic anime action scene, martial artist executing rapid combo of punches and kicks, multiple strike afterimages, flurry of attacks, shonen manga style, speed and precision visualization, no text, devastating combo technique",
-    
-    "calcio_rotante": "Dynamic anime action scene, martial artist performing spinning roundhouse kick, 360 degree rotation with leg extended, circular motion trail, shonen manga style, tornado kick visualization, no text, spinning technique",
-    
-    # Mosse Arma - Spada
-    "fendente_spada": "Dynamic anime action scene, swordsman executing horizontal sword slash, blade cutting through air, sharp clean strike, shonen manga style, sword arc trail effect, no text, precision blade technique",
-    
-    "stoccata_spada": "Dynamic anime action scene, swordsman thrusting sword forward in precise stab, piercing attack with focused point, fencing-like technique, shonen manga style, penetrating strike visualization, no text, precision thrust",
-    
-    "taglio_ascendente": "Dynamic anime action scene, swordsman slashing upward in rising cut, blade ascending with force, lifting strike motion, shonen manga style, upward arc trail, no text, rising blade technique",
-    
-    # Carte Combattimento
-    "carta_attacco_sorpresa": "Dynamic anime action scene, mysterious fighter appearing suddenly from shadows for surprise attack, stealth assault moment, unexpected strike, shonen manga style, ninja-like appearance effect, no text, ambush technique",
-    
-    "carta_guarigione": "Dynamic anime action scene, warrior surrounded by healing green energy, wounds closing with light effect, restorative power flowing, shonen manga style, healing aura visualization, no text, recovery technique",
+    "protezione": "Figure crouched in full defensive ball position, arms wrapped protectively over head and body, energy shield or aura forming around figure, incoming attacks being deflected, black and white with subtle glow effect, silhouette in ultimate defense pose, no facial features, protective technique art",
     
     # Default per mosse non specificate
-    "default": "Dynamic anime action scene, powerful warrior in intense combat pose, energy aura surrounding body, fighting spirit visualization, shonen manga style, dramatic lighting and speed lines, no text, battle-ready stance"
+    "default": "Dynamic combat action silhouette, figure in powerful fighting stance, energy aura and speed lines surrounding body, dramatic black and white manga ink style, no identifiable character features, pure martial arts spirit visualization, action pose art"
 }
 
 
